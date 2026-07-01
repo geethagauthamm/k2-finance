@@ -5143,6 +5143,11 @@ const DAY_CAT_TAGS={'Shoot Day':'tg','Set Work':'tb','Rehearsal':'tp','Pre Light
 const DAY_CAT_COLORS={'Shoot Day':'var(--go)','Set Work':'var(--bl)','Rehearsal':'var(--pu)','Pre Lighting':'var(--cy)','Post Work':'var(--or)','Recce':'var(--gn)','Off Day':'var(--tx3)'};
 
 function go(p){
+  const role=CURRENT_USER?.role;
+  const allowed=ROLE_ACCESS[role];
+  if(allowed&&!allowed.includes(p)){
+    p=getLandingPage();
+  }
   document.querySelectorAll('.page').forEach(x=>x.classList.remove('active'));
   document.querySelectorAll('.ni').forEach(x=>x.classList.remove('active'));
   document.getElementById('page-'+p)?.classList.add('active');
@@ -13073,6 +13078,16 @@ function applySidebarFilter(){
     }
     hdr.style.display=hasVisible?'':'none';
   });
+  // Also hide the OVERVIEW section label if dashboard is hidden
+  document.querySelectorAll('.ng').forEach(hdr=>{
+    let next=hdr.nextElementSibling;
+    let hasVisible=false;
+    while(next&&!next.classList.contains('ng')){
+      if(next.classList.contains('ni')&&next.style.display!=='none')hasVisible=true;
+      next=next.nextElementSibling;
+    }
+    hdr.style.display=hasVisible?'':'none';
+  });
 }
 function _startApp(){
   hideFileOverlay();
@@ -13102,10 +13117,10 @@ function _startApp(){
         }
       }catch(e){console.error('localStorage load error:',e);}
     }
-    init();applyUserRole();applyStoredTheme();renderPage(getLandingPage());
+    init();applyUserRole();applyStoredTheme();go(getLandingPage());
   }).catch(function(e){
     console.error('startApp error:',e);
-    init();applyUserRole();applyStoredTheme();renderPage(getLandingPage());
+    init();applyUserRole();applyStoredTheme();go(getLandingPage());
   });
 }
 // ── DATA MIGRATION: copy from any k2 localStorage key if current is empty ──
