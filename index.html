@@ -12924,7 +12924,7 @@ function quickRestoreBackup(){
   if(!confirm('Restore backup from '+when+'?\nThis will replace all current data.'))return;
   try{
     DB=JSON.parse(snap);
-    saveDB();init();applyUserRole();applyStoredTheme();renderPage('dash');
+    saveDB();init();applyUserRole();applyStoredTheme();renderPage(getLandingPage());
     toast('✓ Restored from '+when);
   }catch(e){toast('Restore failed: '+e.message,'err');}
 }
@@ -12934,7 +12934,7 @@ function autoSnapshot(){
   localStorage.setItem('k2_last_backup',new Date().toISOString());
   updateBackupLabel();
 }
-function importFromJSONFile(){const inp=document.createElement('input');inp.type='file';inp.accept='.json';inp.onchange=async ev=>{const f=ev.target.files[0];if(!f)return;try{const d=JSON.parse(await f.text());const fd=[...new Set((d.estimates||[]).map(e=>e.date))];const cd=[...new Set((DB.estimates||[]).map(e=>e.date))];const ov=fd.filter(x=>cd.includes(x));let merge=false;if(DB.estimates?.length>0){if(ov.length===0){merge=confirm('Merge?\nFile: '+fd.join(', ')+'\nCurrent: '+cd.join(', '));if(!merge)return;}else{const ok=confirm('OK=Merge  Cancel=Replace\nFile: '+fd.join(', ')+'\nCurrent: '+cd.join(', '));if(ok)merge=true;else if(!confirm('Replace all?'))return;}}const keep={customItems:DB.customItems||[],rateOverrides:DB.rateOverrides||{},csRules:DB.csRules||{},hiddenItems:DB.hiddenItems||[],users:DB.users||[]};if(merge){DB.estimates=[...(DB.estimates||[]).filter(e=>!fd.includes(e.date)),...(d.estimates||[])];DB.dayHeaders={...(DB.dayHeaders||{}),...(d.dayHeaders||{})};DB.vehicles={...(DB.vehicles||{}),...(d.vehicles||{})};DB.inlineActuals={...(DB.inlineActuals||{}),...(d.inlineActuals||{})};DB.actorLog={...(DB.actorLog||{}),...(d.actorLog||{})};DB.hotels=[...(DB.hotels||[]),...(d.hotels||[]).filter(h=>!(DB.hotels||[]).find(x=>x.id===h.id))];DB.flights=[...(DB.flights||[]),...(d.flights||[]).filter(f=>!(DB.flights||[]).find(x=>x.id===f.id))];DB.actuals=[...(DB.actuals||[]),...(d.actuals||[]).filter(a=>!(DB.actuals||[]).find(x=>x.id===a.id))];if(d.paytracker)DB.paytracker={...(DB.paytracker||{}),...d.paytracker};else if(d.payments&&!Array.isArray(d.payments))DB.paytracker={...(DB.paytracker||{}),...d.payments};if(d.salaryEntries)DB.salaryEntries=[...(DB.salaryEntries||[]),...(d.salaryEntries||[]).filter(s=>!(DB.salaryEntries||[]).find(x=>x.id===s.id))];if(d.actorAttendance)DB.actorAttendance={...(DB.actorAttendance||{}),...d.actorAttendance};if(d.actorStaff)DB.actorStaff={...(DB.actorStaff||{}),...d.actorStaff};if(d.artistStaff)DB.artistStaff=[...(DB.artistStaff||[]),...(d.artistStaff||[]).filter(s=>!(DB.artistStaff||[]).find(x=>x.id===s.id))];}else{DB={project:{name:'Kalki 2',company:'Vyjayanthi Movies',director:'Nag Ashwin',producer:'C. Aswani Dutt',lp:'',pc:'',location:'Hyderabad',budget:0,plannedDays:0},schedules:[],vendors:[],customItems:[],rateOverrides:{},hiddenItems:[],csRules:{},specialCSRules:{},estimates:[],actuals:[],payments:[],paytracker:{},pendingQueue:[],actorContracts:[],shootDays:[],dayHeaders:{},inlineActuals:{},actAdhoc:{},vehicles:{},actorLog:{},actorAttendance:{},actorStaff:{},artistStaff:[],hotels:[],flights:[],billStatus:{},salaryEntries:[],users:[],...d,...keep};}saveDB();init();applyUserRole();applyStoredTheme();renderPage('dash');toast('✓ '+(merge?'Merged':'Loaded')+': '+DB.estimates.length+' estimates');}catch(e){toast('Import failed: '+e.message,'err');}};inp.click();}
+function importFromJSONFile(){const inp=document.createElement('input');inp.type='file';inp.accept='.json';inp.onchange=async ev=>{const f=ev.target.files[0];if(!f)return;try{const d=JSON.parse(await f.text());const fd=[...new Set((d.estimates||[]).map(e=>e.date))];const cd=[...new Set((DB.estimates||[]).map(e=>e.date))];const ov=fd.filter(x=>cd.includes(x));let merge=false;if(DB.estimates?.length>0){if(ov.length===0){merge=confirm('Merge?\nFile: '+fd.join(', ')+'\nCurrent: '+cd.join(', '));if(!merge)return;}else{const ok=confirm('OK=Merge  Cancel=Replace\nFile: '+fd.join(', ')+'\nCurrent: '+cd.join(', '));if(ok)merge=true;else if(!confirm('Replace all?'))return;}}const keep={customItems:DB.customItems||[],rateOverrides:DB.rateOverrides||{},csRules:DB.csRules||{},hiddenItems:DB.hiddenItems||[],users:DB.users||[]};if(merge){DB.estimates=[...(DB.estimates||[]).filter(e=>!fd.includes(e.date)),...(d.estimates||[])];DB.dayHeaders={...(DB.dayHeaders||{}),...(d.dayHeaders||{})};DB.vehicles={...(DB.vehicles||{}),...(d.vehicles||{})};DB.inlineActuals={...(DB.inlineActuals||{}),...(d.inlineActuals||{})};DB.actorLog={...(DB.actorLog||{}),...(d.actorLog||{})};DB.hotels=[...(DB.hotels||[]),...(d.hotels||[]).filter(h=>!(DB.hotels||[]).find(x=>x.id===h.id))];DB.flights=[...(DB.flights||[]),...(d.flights||[]).filter(f=>!(DB.flights||[]).find(x=>x.id===f.id))];DB.actuals=[...(DB.actuals||[]),...(d.actuals||[]).filter(a=>!(DB.actuals||[]).find(x=>x.id===a.id))];if(d.paytracker)DB.paytracker={...(DB.paytracker||{}),...d.paytracker};else if(d.payments&&!Array.isArray(d.payments))DB.paytracker={...(DB.paytracker||{}),...d.payments};if(d.salaryEntries)DB.salaryEntries=[...(DB.salaryEntries||[]),...(d.salaryEntries||[]).filter(s=>!(DB.salaryEntries||[]).find(x=>x.id===s.id))];if(d.actorAttendance)DB.actorAttendance={...(DB.actorAttendance||{}),...d.actorAttendance};if(d.actorStaff)DB.actorStaff={...(DB.actorStaff||{}),...d.actorStaff};if(d.artistStaff)DB.artistStaff=[...(DB.artistStaff||[]),...(d.artistStaff||[]).filter(s=>!(DB.artistStaff||[]).find(x=>x.id===s.id))];}else{DB={project:{name:'Kalki 2',company:'Vyjayanthi Movies',director:'Nag Ashwin',producer:'C. Aswani Dutt',lp:'',pc:'',location:'Hyderabad',budget:0,plannedDays:0},schedules:[],vendors:[],customItems:[],rateOverrides:{},hiddenItems:[],csRules:{},specialCSRules:{},estimates:[],actuals:[],payments:[],paytracker:{},pendingQueue:[],actorContracts:[],shootDays:[],dayHeaders:{},inlineActuals:{},actAdhoc:{},vehicles:{},actorLog:{},actorAttendance:{},actorStaff:{},artistStaff:[],hotels:[],flights:[],billStatus:{},salaryEntries:[],users:[],...d,...keep};}saveDB();init();applyUserRole();applyStoredTheme();renderPage(getLandingPage());toast('✓ '+(merge?'Merged':'Loaded')+': '+DB.estimates.length+' estimates');}catch(e){toast('Import failed: '+e.message,'err');}};inp.click();}
 function showFileOverlay(){}function hideFileOverlay(){const ov=document.getElementById('file-overlay');if(ov)ov.style.display='none';}
 function openExistingFile(){importFromJSONFile();}async function saveToFile(){saveDB();}function downloadFallback(){exportData();}
 // toggleTheme defined above
@@ -12953,12 +12953,12 @@ const DEFAULT_USERS=[
 // Pages each role can access — admin gets everything
 const ROLE_ACCESS={
   admin:      null, // null = unrestricted
-  transport:  ['dash','vehicles'],
-  hospitality:['dash','hotels','flights'],
-  cashier:    ['dash','petty'],
-  accounts:   ['dash','payments','bills','sched-summary','vendors'],
-  coordinator:['dash','actuals','daysheet','callsheets','actorlog','dpr'],
-  auditor:    ['dash','estimates','actuals','bills','payments','vendors','sched-summary','summary','dpr','hotels','flights','vehicles','petty','salaries']
+  transport:  ['vehicles'],
+  hospitality:['hotels','flights'],
+  cashier:    ['petty'],
+  accounts:   ['payments','bills','sched-summary','vendors'],
+  coordinator:['actuals','daysheet','callsheets','actorlog','dpr'],
+  auditor:    ['dash','estimates','actuals','bills','payments','vendors','sched-summary','summary','dpr','hotels','flights','vehicles','petty','salaries','actorlog','actor-contracts','notifications']
 };
 
 function getUsers(){
@@ -13030,6 +13030,11 @@ function renderUserMgmt(){
 function saveNewUser(){const id=(document.getElementById('nu-id')?.value||'').trim().toLowerCase().replace(/\s+/g,'');const name=(document.getElementById('nu-name')?.value||'').trim();const pin=(document.getElementById('nu-pin')?.value||'').trim();const role=document.getElementById('nu-role')?.value||'auditor';if(!id||!name||pin.length<4){toast('Required: ID, name, PIN min 4','err');return;}const users=getUsers();if(users.find(u=>u.id===id)){toast('ID exists','err');return;}users.push({id,name,pin,role});DB.users=users;saveDB();renderUserMgmt();['nu-id','nu-name','nu-pin'].forEach(x=>{const el=document.getElementById(x);if(el)el.value=''});toast('User added');}
 function delUser(idx){if(!confirm('Delete?'))return;const users=getUsers();if(users[idx]?.id==='ep'){toast('Cannot delete EP','err');return;}users.splice(idx,1);DB.users=users;saveDB();renderUserMgmt();}
 function editUser(idx){const users=getUsers();const u=users[idx];if(!u)return;const p=prompt('New PIN for '+u.name+':');if(!p||p.trim().length<4){toast('PIN too short','err');return;}u.pin=p.trim();DB.users=users;saveDB();renderUserMgmt();toast('PIN updated');}
+function getLandingPage(){
+  const role=CURRENT_USER?.role;
+  const landing={admin:'dash',transport:'vehicles',hospitality:'hotels',cashier:'pettycash',accounts:'payments',coordinator:'actuals',auditor:'dash'};
+  return landing[role]||'dash';
+}
 function renderPage(p){
   if(window._rpRunning)return;
   window._rpRunning=true;
@@ -13094,10 +13099,10 @@ function _startApp(){
         }
       }catch(e){console.error('localStorage load error:',e);}
     }
-    init();applyUserRole();applyStoredTheme();renderPage('dash');
+    init();applyUserRole();applyStoredTheme();renderPage(getLandingPage());
   }).catch(function(e){
     console.error('startApp error:',e);
-    init();applyUserRole();applyStoredTheme();renderPage('dash');
+    init();applyUserRole();applyStoredTheme();renderPage(getLandingPage());
   });
 }
 // ── DATA MIGRATION: copy from any k2 localStorage key if current is empty ──
