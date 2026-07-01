@@ -12952,13 +12952,13 @@ const DEFAULT_USERS=[
 
 // Pages each role can access — admin gets everything
 const ROLE_ACCESS={
-  admin:      null, // null = unrestricted
+  admin:      null,
   transport:  ['vehicles'],
   hospitality:['hotels','flights'],
-  cashier:    ['petty'],
+  cashier:    ['pettycash','petty'],
   accounts:   ['payments','bills','sched-summary','vendors'],
-  coordinator:['actuals','daysheet','callsheets','actorlog','dpr'],
-  auditor:    ['dash','estimates','actuals','bills','payments','vendors','sched-summary','summary','dpr','hotels','flights','vehicles','petty','salaries','actorlog','actor-contracts','notifications']
+  coordinator:['actuals','daysheet','callsheets','actorlog','dpr','submit-actuals'],
+  auditor:    ['dash','estimates','actuals','bills','payments','vendors','sched-summary','summary','dpr','hotels','flights','vehicles','pettycash','petty','salaries','actorlog','actor-contracts','notifications']
 };
 
 function getUsers(){
@@ -13042,11 +13042,14 @@ function renderPage(p){
     const role=CURRENT_USER?.role;
     const allowed=ROLE_ACCESS[role];
     if(allowed&&!allowed.includes(p)){
-      toast('You don\'t have access to that section','err');
-      _renderPageCore(allowed[1]||'dash');
-      renderUserMgmt();
-      applySidebarFilter();
-      return;
+      const landing=getLandingPage();
+      if(p!==landing){
+        toast('You don\'t have access to that section','err');
+        _renderPageCore(landing);
+        renderUserMgmt();
+        applySidebarFilter();
+        return;
+      }
     }
     _renderPageCore(p);
     renderUserMgmt();
