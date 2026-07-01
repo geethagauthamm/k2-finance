@@ -595,6 +595,39 @@ body.light-mode .act-inline{background:#fff;border:1px solid #6366f1;color:#1118
 .ps-ns{font-family:"JetBrains Mono",monospace;font-size:10px;font-weight:600;white-space:nowrap}
 .ps-foot{font-family:"Instrument Sans",sans-serif;font-size:8px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:var(--tx3)}
 
+/* ── AUDITOR READ-ONLY MODE ── */
+body.auditor-mode .btn.bg:not(#save-btn),
+body.auditor-mode .btn.br,
+body.auditor-mode button[onclick*="add"],
+body.auditor-mode button[onclick*="Add"],
+body.auditor-mode button[onclick*="save"],
+body.auditor-mode button[onclick*="Save"],
+body.auditor-mode button[onclick*="delete"],
+body.auditor-mode button[onclick*="Delete"],
+body.auditor-mode button[onclick*="edit"],
+body.auditor-mode button[onclick*="Edit"],
+body.auditor-mode button[onclick*="submit"],
+body.auditor-mode button[onclick*="pay"],
+body.auditor-mode button[onclick*="Pay"],
+body.auditor-mode button[onclick*="approve"],
+body.auditor-mode button[onclick*="openP1"],
+body.auditor-mode button[onclick*="addRow"],
+body.auditor-mode button[onclick*="addEntry"],
+body.auditor-mode button[onclick*="addActual"],
+body.auditor-mode button[onclick*="addPetty"],
+body.auditor-mode button[onclick*="addVehicle"],
+body.auditor-mode button[onclick*="addHotel"],
+body.auditor-mode button[onclick*="addFlight"],
+body.auditor-mode .no-print.btn,
+body.auditor-mode input[type="number"],
+body.auditor-mode input[type="text"]:not([readonly]),
+body.auditor-mode select,
+body.auditor-mode textarea { 
+  pointer-events:none !important; 
+  opacity:0.4 !important;
+}
+body.auditor-mode #save-btn { display:none !important; }
+
 </style>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script>
@@ -12837,12 +12870,14 @@ function _saveDBNow(){
 
 let _saveDebounceTimer=null;
 function saveDB(){
+  if(CURRENT_USER?.role==='auditor'){return;} // auditor — read only
   _unsaved=true;
   updateSyncStatus('☁ Saving…','var(--bl)');
   if(_saveDebounceTimer)clearTimeout(_saveDebounceTimer);
   _saveDebounceTimer=setTimeout(_saveDBNow,800);
 }
 function saveDBSync(){
+  if(CURRENT_USER?.role==='auditor'){return;}
   if(_saveDebounceTimer){clearTimeout(_saveDebounceTimer);_saveDebounceTimer=null;}
   _saveDBNow();
 }
