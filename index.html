@@ -616,37 +616,37 @@ body.light-mode .act-inline{background:#fff;border:1px solid #6366f1;color:#1118
     <div class="ng">Overview</div>
     <div class="ni active" onclick="go('dash')"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="1" y="1" width="6" height="6" rx="1"/><rect x="9" y="1" width="6" height="6" rx="1"/><rect x="1" y="9" width="6" height="6" rx="1"/><rect x="9" y="9" width="6" height="6" rx="1"/></svg>Dashboard</div>
     <div class="ng">Plan &amp; Rates</div>
-    <div class="ni" onclick="go('estimates')"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 3h10M3 7h7M3 11h5"/><path d="M11 9l2 2 3-3"/></svg>Estimates (Day Plan)</div>
-    <div class="ni" onclick="go('vehicles')"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="1" y="6" width="14" height="6" rx="1"/><circle cx="4" cy="12" r="1.5"/><circle cx="12" cy="12" r="1.5"/><path d="M1 9h14M4 6l2-3h5l2 3"/></svg>Vehicles</div>
-    <div class="ni" onclick="go('hotels')"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="1" y="6" width="14" height="9" rx="1"/><path d="M4 6V4a4 4 0 0 1 8 0v2"/><path d="M6 10h4"/></svg>Hotels</div>
-    <div class="ni" onclick="go('flights')"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 10l2-2 8-2 2-2-1-1-8 2-2-2-1 1 1 3-1 1 1 1 2-1z"/><path d="M6 14h4"/></svg>Flights</div>
+    <div class="ni" data-page="estimates" onclick="go('estimates')"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 3h10M3 7h7M3 11h5"/><path d="M11 9l2 2 3-3"/></svg>Estimates (Day Plan)</div>
+    <div class="ni" data-page="vehicles" onclick="go('vehicles')"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="1" y="6" width="14" height="6" rx="1"/><circle cx="4" cy="12" r="1.5"/><circle cx="12" cy="12" r="1.5"/><path d="M1 9h14M4 6l2-3h5l2 3"/></svg>Vehicles</div>
+    <div class="ni" data-page="hotels" onclick="go('hotels')"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="1" y="6" width="14" height="9" rx="1"/><path d="M4 6V4a4 4 0 0 1 8 0v2"/><path d="M6 10h4"/></svg>Hotels</div>
+    <div class="ni" data-page="flights" onclick="go('flights')"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 10l2-2 8-2 2-2-1-1-8 2-2-2-1 1 1 3-1 1 1 1 2-1z"/><path d="M6 14h4"/></svg>Flights</div>
 
-    <div class="ni" onclick="go('actorlog')"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="5" r="3"/><path d="M2 14c0-3.314 2.686-6 6-6s6 2.686 6 6"/></svg>Actors Day Log</div>
+    <div class="ni" data-page="actorlog" onclick="go('actorlog')"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="5" r="3"/><path d="M2 14c0-3.314 2.686-6 6-6s6 2.686 6 6"/></svg>Actors Day Log</div>
     
-    <div class="ni" onclick="go('actor-contracts')"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="5" r="3"/><path d="M2 14c0-3.314 2.686-6 6-6s6 2.686 6 6"/></svg>Artists &amp; Contracts</div>
-    <div class="ni" onclick="go('ratecard')"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="8" r="6"/><path d="M8 5v1.5M8 9.5V11M6 7h2.5a1 1 0 0 1 0 2H6"/></svg>Rate Card</div>
+    <div class="ni" data-page="actor-contracts" onclick="go('actor-contracts')"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="5" r="3"/><path d="M2 14c0-3.314 2.686-6 6-6s6 2.686 6 6"/></svg>Artists &amp; Contracts</div>
+    <div class="ni" data-page="ratecard" onclick="go('ratecard')"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="8" r="6"/><path d="M8 5v1.5M8 9.5V11M6 7h2.5a1 1 0 0 1 0 2H6"/></svg>Rate Card</div>
     <div class="ng">Daily Entry</div>
-    <div class="ni" onclick="go('actuals')"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="6" cy="5" r="3"/><path d="M1 14c0-2.761 2.239-5 5-5"/><path d="M11 9l2 2 3-3"/></svg>Actuals</div>
-    <div class="ni" onclick="go('daysheet')"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="3" width="12" height="11" rx="1"/><path d="M5 1v4M11 1v4M2 7h12"/></svg>Day Sheet</div>
+    <div class="ni" data-page="actuals" onclick="go('actuals')"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="6" cy="5" r="3"/><path d="M1 14c0-2.761 2.239-5 5-5"/><path d="M11 9l2 2 3-3"/></svg>Actuals</div>
+    <div class="ni" data-page="daysheet" onclick="go('daysheet')"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="3" width="12" height="11" rx="1"/><path d="M5 1v4M11 1v4M2 7h12"/></svg>Day Sheet</div>
     <div class="ng">Payments</div>
-    <div class="ni" onclick="go('pettycash')"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="1" y="4" width="14" height="9" rx="1"/><path d="M4 8h2M4 11h5"/><circle cx="12" cy="9.5" r="1.5"/></svg>Petty Cash</div>
-    <div class="ni" onclick="go('payments')"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="1" y="3" width="14" height="10" rx="1.5"/><path d="M1 7h14"/><path d="M5 11h2M10 11h1"/></svg>Payments</div>
-    <div class="ni" onclick="go('salaries')"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="5" r="3"/><path d="M2 14c0-3.314 2.686-6 6-6s6 2.686 6 6"/><path d="M8 10v4M6 12h4"/></svg>Monthly Salaries</div>
-    <div class="ni" onclick="go('admin-charges')"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="3" width="12" height="10" rx="1"/><path d="M5 7h6M5 10h4"/></svg>Admin & Legal</div>
-    <div class="ni" onclick="go('pending')"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M8 3v5l3 3"/><circle cx="8" cy="8" r="6"/></svg>Pending Queue<span class="nbadge" id="pq-badge" style="display:none">0</span></div>
-    <div class="ni" onclick="go('actors')"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="5" r="3"/><path d="M2 14c0-3.314 2.686-6 6-6s6 2.686 6 6"/></svg>Actor Payments</div>
+    <div class="ni" data-page="petty" onclick="go('pettycash')"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="1" y="4" width="14" height="9" rx="1"/><path d="M4 8h2M4 11h5"/><circle cx="12" cy="9.5" r="1.5"/></svg>Petty Cash</div>
+    <div class="ni" data-page="payments" onclick="go('payments')"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="1" y="3" width="14" height="10" rx="1.5"/><path d="M1 7h14"/><path d="M5 11h2M10 11h1"/></svg>Payments</div>
+    <div class="ni" data-page="salaries" onclick="go('salaries')"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="5" r="3"/><path d="M2 14c0-3.314 2.686-6 6-6s6 2.686 6 6"/><path d="M8 10v4M6 12h4"/></svg>Monthly Salaries</div>
+    <div class="ni" data-page="admin-charges" onclick="go('admin-charges')"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="3" width="12" height="10" rx="1"/><path d="M5 7h6M5 10h4"/></svg>Admin & Legal</div>
+    <div class="ni" data-page="pending" onclick="go('pending')"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M8 3v5l3 3"/><circle cx="8" cy="8" r="6"/></svg>Pending Queue<span class="nbadge" id="pq-badge" style="display:none">0</span></div>
+    <div class="ni" data-page="actors" onclick="go('actors')"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="5" r="3"/><path d="M2 14c0-3.314 2.686-6 6-6s6 2.686 6 6"/></svg>Actor Payments</div>
     <div class="ng">Reports</div>
-    <div class="ni" onclick="go('dpr')"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="1" width="12" height="14" rx="1.5"/><path d="M5 5h6M5 8h6M5 11h4"/></svg>DPR</div>
-    <div class="ni" onclick="go('summary')"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 12h2M6 8h2M10 4h2M4 12v-3M8 8v-3M12 4v-3"/><path d="M1 14h14"/></svg>Summary</div>
+    <div class="ni" data-page="dpr" onclick="go('dpr')"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="1" width="12" height="14" rx="1.5"/><path d="M5 5h6M5 8h6M5 11h4"/></svg>DPR</div>
+    <div class="ni" data-page="summary" onclick="go('summary')"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 12h2M6 8h2M10 4h2M4 12v-3M8 8v-3M12 4v-3"/><path d="M1 14h14"/></svg>Summary</div>
     <div class="ng">Setup</div>
-    <div class="ni" onclick="go('project')"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M8 1l2 5h5l-4 3 1.5 5L8 11l-4.5 3L5 9 1 6h5z"/></svg>Project Setup</div>
-    <div class="ni" onclick="go('vendors')"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="6" cy="5" r="3"/><path d="M1 14c0-2.761 2.239-5 5-5"/><circle cx="12" cy="10" r="3"/></svg>Vendors</div>
-    <div class="ni" onclick="go('schedules')"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="2" width="12" height="12" rx="2"/><path d="M2 6h12"/></svg>Schedules</div>
-    <div class="ni" onclick="go('submit-actuals')"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 10l2-2 8 0"/><path d="M9 5l3 3-3 3"/><rect x="1" y="1" width="14" height="14" rx="2"/></svg>Submit Actuals<span class="nbadge" id="submit-badge" style="display:none">0</span></div>
-    <div class="ni" onclick="go('callsheets')"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="1" width="12" height="14" rx="1.5"/><path d="M5 4h6M5 7h6M5 10h3"/><circle cx="12" cy="11" r="3"/><path d="M11 11h2M12 10v2"/></svg>Call Sheets</div>
-    <div class="ni" onclick="go('sched-summary')"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="1" y="3" width="14" height="11" rx="1.5"/><path d="M1 6h14M5 3V1M11 3V1"/><path d="M4 9h2M7 9h2M10 9h2M4 12h2M7 12h2M10 12h2"/></svg>Schedule Summary</div>
-    <div class="ni" onclick="go('bills')"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="1" width="12" height="14" rx="1.5"/><path d="M5 5h6M5 8h6M5 11h3"/></svg>Bills<span class="nbadge" id="bills-badge" style="display:none">0</span></div>
-    <div class="ni" onclick="go('notifications')"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M8 1a4 4 0 0 0-4 4v3l-1.5 3h11L12 8V5a4 4 0 0 0-4-4z"/><path d="M6.5 14a1.5 1.5 0 0 0 3 0"/></svg>Notifications</div>
+    <div class="ni" data-page="project" onclick="go('project')"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M8 1l2 5h5l-4 3 1.5 5L8 11l-4.5 3L5 9 1 6h5z"/></svg>Project Setup</div>
+    <div class="ni" data-page="vendors" onclick="go('vendors')"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="6" cy="5" r="3"/><path d="M1 14c0-2.761 2.239-5 5-5"/><circle cx="12" cy="10" r="3"/></svg>Vendors</div>
+    <div class="ni" data-page="schedules" onclick="go('schedules')"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="2" width="12" height="12" rx="2"/><path d="M2 6h12"/></svg>Schedules</div>
+    <div class="ni" data-page="submit-actuals" onclick="go('submit-actuals')"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 10l2-2 8 0"/><path d="M9 5l3 3-3 3"/><rect x="1" y="1" width="14" height="14" rx="2"/></svg>Submit Actuals<span class="nbadge" id="submit-badge" style="display:none">0</span></div>
+    <div class="ni" data-page="callsheets" onclick="go('callsheets')"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="1" width="12" height="14" rx="1.5"/><path d="M5 4h6M5 7h6M5 10h3"/><circle cx="12" cy="11" r="3"/><path d="M11 11h2M12 10v2"/></svg>Call Sheets</div>
+    <div class="ni" data-page="sched-summary" onclick="go('sched-summary')"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="1" y="3" width="14" height="11" rx="1.5"/><path d="M1 6h14M5 3V1M11 3V1"/><path d="M4 9h2M7 9h2M10 9h2M4 12h2M7 12h2M10 12h2"/></svg>Schedule Summary</div>
+    <div class="ni" data-page="bills" onclick="go('bills')"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="1" width="12" height="14" rx="1.5"/><path d="M5 5h6M5 8h6M5 11h3"/></svg>Bills<span class="nbadge" id="bills-badge" style="display:none">0</span></div>
+    <div class="ni" data-page="notifications" onclick="go('notifications')"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M8 1a4 4 0 0 0-4 4v3l-1.5 3h11L12 8V5a4 4 0 0 0-4-4z"/><path d="M6.5 14a1.5 1.5 0 0 0 3 0"/></svg>Notifications</div>
   </nav>
   <div class="sbf" id="sbf">Loading...</div>
 </div>
@@ -4056,8 +4056,13 @@ function checkPaymentReminders(){
         </div>
         <div class="fld"><label>Role</label>
           <select id="nu-role">
-            <option value="admin">Admin (full access)</option>
-            <option value="auditor" selected>Auditor (actuals only)</option>
+            <option value="admin">Admin — Full Access</option>
+            <option value="coordinator">Production Coordinator</option>
+            <option value="accounts">Accounts</option>
+            <option value="cashier">Cashier — Petty Cash only</option>
+            <option value="transport">Transport Manager — Vehicles only</option>
+            <option value="hospitality">Hospitality Manager — Hotels & Flights</option>
+            <option value="auditor" selected>Auditor — Read Only</option>
           </select>
         </div>
         <div class="fld" style="padding-top:18px">
@@ -12900,17 +12905,132 @@ function openExistingFile(){importFromJSONFile();}async function saveToFile(){sa
 // toggleTheme defined above
 // applyStoredTheme defined above
 let CURRENT_USER=null;
-const DEFAULT_USERS=[{id:'ep',name:'EP',pin:'9271',role:'admin'},{id:'auditor',name:'Auditor',pin:'3845',role:'auditor'}];
-function getUsers(){if(!DB.users||!DB.users.length)DB.users=JSON.parse(JSON.stringify(DEFAULT_USERS));return DB.users;}
+const DEFAULT_USERS=[
+  {id:'ep',         name:'EP',                   pin:'9271', role:'admin'},
+  {id:'transport',  name:'Transport Manager',     pin:'4521', role:'transport'},
+  {id:'hospitality',name:'Hospitality Manager',   pin:'7834', role:'hospitality'},
+  {id:'cashier',    name:'Cashier',               pin:'2967', role:'cashier'},
+  {id:'accounts',   name:'Accounts',              pin:'5318', role:'accounts'},
+  {id:'coordinator',name:'Production Coordinator',pin:'6042', role:'coordinator'},
+  {id:'auditor',    name:'Auditor',               pin:'3845', role:'auditor'}
+];
+
+// Pages each role can access — admin gets everything
+const ROLE_ACCESS={
+  admin:      null, // null = unrestricted
+  transport:  ['dash','vehicles'],
+  hospitality:['dash','hotels','flights'],
+  cashier:    ['dash','petty'],
+  accounts:   ['dash','payments','bills','sched-summary','vendors'],
+  coordinator:['dash','actuals','daysheet','callsheets','actorlog','dpr'],
+  auditor:    ['dash','estimates','actuals','bills','payments','vendors','sched-summary','summary','dpr','hotels','flights','vehicles','petty','salaries']
+};
+
+function getUsers(){
+  if(!DB.users||!DB.users.length) DB.users=JSON.parse(JSON.stringify(DEFAULT_USERS));
+  // Ensure all default roles exist — add any missing ones
+  DEFAULT_USERS.forEach(def=>{
+    if(!DB.users.find(u=>u.id===def.id)){
+      DB.users.push(JSON.parse(JSON.stringify(def)));
+    }
+  });
+  return DB.users;
+}
+
 function showLoginOverlay(){document.getElementById('login-overlay').style.display='flex';setTimeout(()=>document.getElementById('login-userid')?.focus(),80);}
 function doLogin(){const uid=(document.getElementById('login-userid')?.value||'').trim().toLowerCase();const pin=document.getElementById('login-pin')?.value||'';const errEl=document.getElementById('login-err');const user=getUsers().find(u=>u.id.toLowerCase()===uid&&u.pin===pin);if(!user){if(errEl)errEl.style.display='block';document.getElementById('login-pin').value='';document.getElementById('login-pin').focus();return;}if(errEl)errEl.style.display='none';CURRENT_USER=user;sessionStorage.setItem('k2_current_user',JSON.stringify(user));document.getElementById('login-overlay').style.display='none';applyStoredTheme();_startApp();}
 function doLogout(){if(!confirm('Sign out?'))return;CURRENT_USER=null;sessionStorage.removeItem('k2_current_user');document.getElementById('user-badge').style.display='none';const b=document.getElementById('mode-banner');if(b)b.style.display='none';document.body.classList.remove('auditor-mode','admin-mode');showLoginOverlay();}
-function applyUserRole(){if(!CURRENT_USER)return;const {role,name}=CURRENT_USER;const badge=document.getElementById('user-badge');if(badge)badge.style.display='flex';const bn=document.getElementById('user-badge-name');if(bn)bn.textContent=name;const bi=document.getElementById('user-badge-icon');if(bi)bi.textContent=role==='admin'?'👑':'📋';document.body.classList.toggle('auditor-mode',role==='auditor');document.body.classList.toggle('admin-mode',role==='admin');const banner=document.getElementById('mode-banner');if(role==='admin'){if(banner){banner.style.display='flex';banner.style.background='rgba(46,204,138,.07)';banner.innerHTML='<span style="color:var(--gn);font-weight:700">👑 '+name+' — Admin</span>';}setTimeout(()=>{if(banner)banner.style.display='none';},2500);}else{if(banner){banner.style.display='flex';banner.style.background='rgba(91,138,240,.08)';banner.innerHTML='<span style="color:var(--bl);font-weight:700">📋 '+name+' — Auditor</span><span class="xs2 dim" style="margin-left:8px">Enter actuals · Read-only</span>';}window._estView='actual';}renderUserMgmt();}
-function renderUserMgmt(){const el=document.getElementById('user-mgmt-list');if(!el)return;const users=getUsers();el.innerHTML=users.map((u,i)=>'<div class="flex aic jb" style="padding:8px 0;border-bottom:1px solid var(--bd)"><div><span class="semi">'+u.name+'</span><span class="tag '+(u.role==='admin'?'tg':'tb')+' xs2" style="margin-left:8px">'+u.role+'</span><span class="xs3 dim" style="margin-left:8px">ID: '+u.id+'</span></div><div class="flex gap6"><button class="btn bs xs" onclick="editUser('+i+')">✎ PIN</button>'+(u.id!=='ep'?'<button class="btn br xs" onclick="delUser('+i+')">✕</button>':'')+'</div></div>').join('');}
+function applyUserRole(){
+  if(!CURRENT_USER)return;
+  const {role,name}=CURRENT_USER;
+  const badge=document.getElementById('user-badge');
+  if(badge)badge.style.display='flex';
+  const bn=document.getElementById('user-badge-name');if(bn)bn.textContent=name;
+  const bi=document.getElementById('user-badge-icon');
+  const icons={admin:'👑',transport:'🚗',hospitality:'🏨',cashier:'💵',accounts:'📊',coordinator:'🎬',auditor:'📋'};
+  if(bi)bi.textContent=icons[role]||'👤';
+
+  // Hide sidebar nav items the role can't access
+  const allowed=ROLE_ACCESS[role];
+  if(allowed){
+    document.querySelectorAll('.ni[data-page]').forEach(el=>{
+      const pg=el.getAttribute('data-page');
+      el.style.display=allowed.includes(pg)?'':'none';
+    });
+    // Hide section headers if all items in that section are hidden
+    document.querySelectorAll('.ng').forEach(hdr=>{
+      let next=hdr.nextElementSibling;
+      let hasVisible=false;
+      while(next&&!next.classList.contains('ng')){
+        if(next.style.display!=='none')hasVisible=true;
+        next=next.nextElementSibling;
+      }
+      hdr.style.display=hasVisible?'':'none';
+    });
+  }
+
+  // Role-specific UI tweaks
+  document.body.className=document.body.className.replace(/\b\w+-mode\b/g,'').trim();
+  document.body.classList.add(role+'-mode');
+
+  const banner=document.getElementById('mode-banner');
+  const roleLabels={admin:'Admin — Full Access',transport:'Transport Manager',hospitality:'Hospitality Manager',cashier:'Cashier',accounts:'Accounts',coordinator:'Production Coordinator',auditor:'Auditor — Read Only'};
+  const roleColors={admin:'var(--gn)',transport:'var(--bl)',hospitality:'var(--pu)',cashier:'var(--go)',accounts:'var(--cy)',coordinator:'var(--or)',auditor:'var(--bl)'};
+  if(banner){
+    banner.style.display='flex';
+    banner.style.background='rgba(0,0,0,.04)';
+    banner.innerHTML='<span style="color:'+( roleColors[role]||'var(--tx)')+';font-weight:700">'+icons[role]+' '+name+' — '+(roleLabels[role]||role)+'</span>';
+    setTimeout(()=>{if(banner)banner.style.display='none';},3000);
+  }
+  renderUserMgmt();
+  setTimeout(applySidebarFilter,100);
+}
+function renderUserMgmt(){
+  const el=document.getElementById('user-mgmt-list');if(!el)return;
+  const users=getUsers();
+  const roleLabels={admin:'Admin',transport:'Transport',hospitality:'Hospitality',cashier:'Cashier',accounts:'Accounts',coordinator:'Coordinator',auditor:'Auditor'};
+  const roleColors={admin:'tg',transport:'tb',hospitality:'tp',cashier:'tgn',accounts:'tc',coordinator:'to',auditor:'tb'};
+  el.innerHTML=users.map((u,i)=>'<div class="flex aic jb" style="padding:8px 0;border-bottom:1px solid var(--bd)"><div><span class="semi">'+u.name+'</span><span class="tag '+(roleColors[u.role]||'tb')+' xs2" style="margin-left:8px">'+(roleLabels[u.role]||u.role)+'</span><span class="xs3 dim" style="margin-left:8px">ID: '+u.id+'</span></div><div class="flex gap6"><button class="btn bs xs" onclick="editUser('+i+')">✎ PIN</button>'+(u.id!=='ep'?'<button class="btn br xs" onclick="delUser('+i+')">✕</button>':'')+'</div></div>').join('');
+}
 function saveNewUser(){const id=(document.getElementById('nu-id')?.value||'').trim().toLowerCase().replace(/\s+/g,'');const name=(document.getElementById('nu-name')?.value||'').trim();const pin=(document.getElementById('nu-pin')?.value||'').trim();const role=document.getElementById('nu-role')?.value||'auditor';if(!id||!name||pin.length<4){toast('Required: ID, name, PIN min 4','err');return;}const users=getUsers();if(users.find(u=>u.id===id)){toast('ID exists','err');return;}users.push({id,name,pin,role});DB.users=users;saveDB();renderUserMgmt();['nu-id','nu-name','nu-pin'].forEach(x=>{const el=document.getElementById(x);if(el)el.value=''});toast('User added');}
 function delUser(idx){if(!confirm('Delete?'))return;const users=getUsers();if(users[idx]?.id==='ep'){toast('Cannot delete EP','err');return;}users.splice(idx,1);DB.users=users;saveDB();renderUserMgmt();}
 function editUser(idx){const users=getUsers();const u=users[idx];if(!u)return;const p=prompt('New PIN for '+u.name+':');if(!p||p.trim().length<4){toast('PIN too short','err');return;}u.pin=p.trim();DB.users=users;saveDB();renderUserMgmt();toast('PIN updated');}
-function renderPage(p){if(window._rpRunning)return;window._rpRunning=true;try{if(CURRENT_USER?.role==='auditor'){if(['ratecard','vendors','schedules','actors','pending'].includes(p)){toast('Restricted','err');return;}if(p==='estimates')window._estView='actual';}_renderPageCore(p);renderUserMgmt();}finally{window._rpRunning=false;}}
+function renderPage(p){
+  if(window._rpRunning)return;
+  window._rpRunning=true;
+  try{
+    const role=CURRENT_USER?.role;
+    const allowed=ROLE_ACCESS[role];
+    if(allowed&&!allowed.includes(p)){
+      toast('You don\'t have access to that section','err');
+      _renderPageCore(allowed[1]||'dash');
+      renderUserMgmt();
+      applySidebarFilter();
+      return;
+    }
+    _renderPageCore(p);
+    renderUserMgmt();
+    applySidebarFilter();
+  }finally{window._rpRunning=false;}
+}
+
+function applySidebarFilter(){
+  const role=CURRENT_USER?.role;
+  const allowed=ROLE_ACCESS[role];
+  if(!allowed)return; // admin — show everything
+  document.querySelectorAll('.ni[data-page]').forEach(el=>{
+    el.style.display=allowed.includes(el.getAttribute('data-page'))?'':'none';
+  });
+  document.querySelectorAll('.ng').forEach(hdr=>{
+    let next=hdr.nextElementSibling;
+    let hasVisible=false;
+    while(next&&!next.classList.contains('ng')){
+      if(next.classList.contains('ni')&&next.style.display!=='none')hasVisible=true;
+      next=next.nextElementSibling;
+    }
+    hdr.style.display=hasVisible?'':'none';
+  });
+}
 function _startApp(){
   hideFileOverlay();
   updateSyncStatus('☁ Connecting to cloud…','var(--bl)');
