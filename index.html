@@ -4308,7 +4308,7 @@ function checkPaymentReminders(){
   </div>
 </div>
 
-<div id="login-overlay" style="display:none;position:fixed;inset:0;background:rgba(8,10,18,.97);z-index:9100;align-items:center;justify-content:center"><div style="background:var(--sf);border:1px solid var(--bd);border-radius:var(--r);padding:40px;width:370px;max-width:92vw;text-align:center"><div style="font-family:'Syne',sans-serif;font-size:32px;font-weight:800;color:var(--go);letter-spacing:-1px;margin-bottom:2px">K2</div><div style="font-size:9px;color:var(--tx3);letter-spacing:3px;text-transform:uppercase;margin-bottom:28px">Production Finance · Vyjayanthi Movies</div><div style="display:flex;flex-direction:column;gap:10px;margin-bottom:16px;text-align:left"><div class="fld"><label>User ID</label><input id="login-userid" type="text" autocomplete="off" onkeydown="if(event.key==='Enter')document.getElementById('login-pin').focus()"></div><div class="fld"><label>PIN</label><input id="login-pin" type="password" maxlength="8" style="letter-spacing:6px;font-size:18px" onkeydown="if(event.key==='Enter')doLogin()"></div></div><div id="login-err" style="color:var(--rd);font-size:12px;margin-bottom:10px;display:none;padding:6px;background:rgba(240,80,80,.1);border-radius:4px">Incorrect user ID or PIN</div><button onclick="doLogin()" class="btn bg" style="width:100%;padding:11px;justify-content:center">Sign In</button><div style="margin-top:14px;font-size:10px;color:var(--tx3)">Default: ep / 1234 · auditor / 5678</div></div></div>
+<div id="login-overlay" style="display:none;position:fixed;inset:0;background:rgba(8,10,18,.97);z-index:9100;align-items:center;justify-content:center"><div style="background:var(--sf);border:1px solid var(--bd);border-radius:var(--r);padding:40px;width:370px;max-width:92vw;text-align:center"><div style="font-family:'Syne',sans-serif;font-size:32px;font-weight:800;color:var(--go);letter-spacing:-1px;margin-bottom:2px">K2</div><div style="font-size:9px;color:var(--tx3);letter-spacing:3px;text-transform:uppercase;margin-bottom:28px">Production Finance · Vyjayanthi Movies</div><div style="display:flex;flex-direction:column;gap:10px;margin-bottom:16px;text-align:left"><div class="fld"><label>User ID</label><input id="login-userid" type="text" autocomplete="off" onkeydown="if(event.key==='Enter')document.getElementById('login-pin').focus()"></div><div class="fld"><label>PIN</label><input id="login-pin" type="password" maxlength="8" style="letter-spacing:6px;font-size:18px" onkeydown="if(event.key==='Enter')doLogin()"></div></div><div id="login-err" style="color:var(--rd);font-size:12px;margin-bottom:10px;display:none;padding:6px;background:rgba(240,80,80,.1);border-radius:4px">Incorrect user ID or PIN</div><button onclick="doLogin()" class="btn bg" style="width:100%;padding:11px;justify-content:center">Sign In</button><div style="margin-top:14px;font-size:10px;color:var(--tx3)">Contact your administrator for access</div></div></div>
 <div id="mode-banner" style="display:none;position:fixed;top:48px;left:210px;right:0;z-index:49;padding:5px 20px;align-items:center;gap:8px;font-size:11px;border-bottom:1px solid var(--bd)"></div>
 <div id="toast"></div>
 
@@ -12741,10 +12741,14 @@ async function _saveToSupabase(){
       _unsaved=false;
     } else {
       const err=await res.text();
+      console.error('Supabase save error:',res.status,err);
       if(err.includes('does not exist')||err.includes('42P01')){
         showSbSetupGuide();
       } else {
-        throw new Error(res.status+': '+err.slice(0,100));
+        updateSyncStatus('⚠ Cloud error: '+res.status+' — saved locally','var(--or)');
+        toast('Cloud save failed ('+res.status+'): '+err.slice(0,80),'err');
+        try{localStorage.setItem(STORAGE_KEY,JSON.stringify(DB));}catch(e){}
+        _unsaved=false;
       }
     }
   }catch(e){
@@ -12822,14 +12826,14 @@ async function loadFromSupabase(){
 // ── SAVE FUNCTIONS ────────────────────────────────────────────────
 function _saveDBNow(){
   _unsaved=true;
-  updateSyncStatus('☁ Saving…','var(--go)');
+  updateSyncStatus('☁ Saving…','var(--bl)');
   _saveToSupabase();
 }
 
 let _saveDebounceTimer=null;
 function saveDB(){
   _unsaved=true;
-  updateSyncStatus('● Saving…','var(--go)');
+  updateSyncStatus('☁ Saving…','var(--bl)');
   if(_saveDebounceTimer)clearTimeout(_saveDebounceTimer);
   _saveDebounceTimer=setTimeout(_saveDBNow,800);
 }
@@ -12896,7 +12900,7 @@ function openExistingFile(){importFromJSONFile();}async function saveToFile(){sa
 // toggleTheme defined above
 // applyStoredTheme defined above
 let CURRENT_USER=null;
-const DEFAULT_USERS=[{id:'ep',name:'EP',pin:'1234',role:'admin'},{id:'auditor',name:'Auditor',pin:'5678',role:'auditor'}];
+const DEFAULT_USERS=[{id:'ep',name:'EP',pin:'9271',role:'admin'},{id:'auditor',name:'Auditor',pin:'3845',role:'auditor'}];
 function getUsers(){if(!DB.users||!DB.users.length)DB.users=JSON.parse(JSON.stringify(DEFAULT_USERS));return DB.users;}
 function showLoginOverlay(){document.getElementById('login-overlay').style.display='flex';setTimeout(()=>document.getElementById('login-userid')?.focus(),80);}
 function doLogin(){const uid=(document.getElementById('login-userid')?.value||'').trim().toLowerCase();const pin=document.getElementById('login-pin')?.value||'';const errEl=document.getElementById('login-err');const user=getUsers().find(u=>u.id.toLowerCase()===uid&&u.pin===pin);if(!user){if(errEl)errEl.style.display='block';document.getElementById('login-pin').value='';document.getElementById('login-pin').focus();return;}if(errEl)errEl.style.display='none';CURRENT_USER=user;sessionStorage.setItem('k2_current_user',JSON.stringify(user));document.getElementById('login-overlay').style.display='none';applyStoredTheme();_startApp();}
