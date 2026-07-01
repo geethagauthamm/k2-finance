@@ -2671,7 +2671,8 @@ function renderEntries(){
       if(PHASE===1){
         var prodCell='<td class="np"><span class="sp '+pClass(e.producerStatus)+'" onclick="openP1Modal(\''+e.id+'\')">'+pLabel(e.producerStatus)+'</span>'+
           (e.producerStatus==='partial'&&e.producerApprovedAmt?'<div style="font-size:10px;color:#93c5fd;margin-top:1px">₹'+fm(e.producerApprovedAmt)+'</div>':'')+
-          (e.producerComment?'<div style="font-size:10px;color:#64748b;margin-top:1px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:78px" title="'+e.producerComment+'">'+e.producerComment+'</div>':'')+'</td>';
+          (e.producerComment?'<div style="font-size:10px;color:#64748b;margin-top:1px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:78px" title="'+e.producerComment+'">'+e.producerComment+'</div>':'')+
+          (e.producerStamp?'<div style="font-size:9px;color:#22c55e;margin-top:2px;cursor:pointer" onclick="showApprovalStamp(\''+e.id+'\')" title="View approval stamp">🔏 '+e.producerStamp.dateStr+'</div>':'')+'</td>';
         tr.innerHTML='<td><strong>'+e.vendor+'</strong>'+(e.carriedFrom?'<span class="cf-p">CF</span>':'')+(e._dupeMergedCount?'<span class="cf-p" style="background:#f59e0b" title="Merged from '+e._dupeMergedCount+' duplicate presentations, first seen '+fmtD(e._dupeFirstSeen)+'">x'+e._dupeMergedCount+'</span>':'')+entryBillBadge(e)+phaseHtml+'</td>'+
           '<td style="color:#94a3b8">'+e.inv+'</td>'+
           '<td><span class="cp">'+e.cat+'</span></td>'+
@@ -3059,6 +3060,36 @@ function saveProducerStatus(){
   e.producerComment=document.getElementById('m1-comment').value.trim();
   e.producerApprovedAmt=e.producerStatus==='partial'?parseFloat(document.getElementById('m1-approved-amt').value)||null:null;
   if(e.producerStatus==='pending'){e.accStatus='acc-pending';e.accComment='';e.accApprovedAmt=null;e.payStatus='pay-awaiting';e.payUTR='';e.payDate='';e.payAmt=null;}
+  // Store digital approval stamp
+  const approvedStatuses=['approved','partial'];
+  if(approvedStatuses.includes(e.producerStatus)&&!approvedStatuses.includes(prevStatus)){
+    const approver=CURRENT_USER?.name||'Producer';
+    const now=new Date();
+    const stamp={
+      by:approver,
+      role:'Producer',
+      ts:now.toISOString(),
+      dateStr:now.toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'}),
+      timeStr:now.toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit',hour12:true}),
+      status:e.producerStatus,
+      comment:e.producerComment,
+      approvedAmt:e.producerApprovedAmt
+    };
+    e.producerStamp=stamp;
+  } else if(e.producerStatus==='rejected'||e.producerStatus==='hold'){
+    // record rejection stamp too
+    const approver=CURRENT_USER?.name||'Producer';
+    const now=new Date();
+    e.producerStamp={
+      by:approver,role:'Producer',
+      ts:now.toISOString(),
+      dateStr:now.toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'}),
+      timeStr:now.toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit',hour12:true}),
+      status:e.producerStatus,comment:e.producerComment,approvedAmt:null
+    };
+  } else if(e.producerStatus==='pending'){
+    e.producerStamp=null; // clear stamp if reset to pending
+  }
   // auto-add comment on status change
   if(prevStatus!==e.producerStatus){
     if(!e.comments)e.comments=[];
@@ -3068,6 +3099,68 @@ function saveProducerStatus(){
   }
   sv();closeModal('modal-p1');renderEntries();renderTabs();toast('Producer decision saved');
 }
+function showApprovalStamp(id){
+  const e=findEntry(id);
+  if(!e||!e.producerStamp)return;
+  const s=e.producerStamp;
+  const proj=DB.project?.name||'K2';
+  const company=DB.project?.company||'Vyjayanthi Movies';
+  const statusLabel={approved:'APPROVED',partial:'PARTIALLY APPROVED',rejected:'REJECTED',hold:'ON HOLD'}[s.status]||s.status.toUpperCase();
+  const statusColor={approved:'#16a34a',partial:'#d97706',rejected:'#dc2626',hold:'#9333ea'}[s.status]||'#334155';
+  const amt=s.approvedAmt?'<div style="margin-top:8px;font-size:13px;color:#334155"><strong>Approved Amount:</strong> ₹'+s.approvedAmt.toLocaleString('en-IN')+'</div>':'';
+  const comment=s.comment?'<div style="margin-top:8px;font-size:13px;color:#334155"><strong>Notes:</strong> '+s.comment+'</div>':'';
+  const html=`<!DOCTYPE html><html><head><meta charset="utf-8"><title>Approval Stamp — ${proj}</title>
+  <style>
+    body{font-family:"Helvetica Neue",Arial,sans-serif;background:#f1f5f9;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0;padding:24px;box-sizing:border-box}
+    .card{background:#fff;border-radius:12px;box-shadow:0 4px 24px rgba(0,0,0,0.12);max-width:520px;width:100%;padding:32px}
+    .header{display:flex;align-items:center;justify-content:space-between;border-bottom:2px solid #e2e8f0;padding-bottom:16px;margin-bottom:20px}
+    .logo{font-size:22px;font-weight:900;color:#c2410c;letter-spacing:-0.5px}
+    .sub{font-size:11px;color:#94a3b8;font-weight:600;text-transform:uppercase;letter-spacing:1px}
+    .stamp-box{border:2px dashed ${statusColor};border-radius:10px;padding:20px;text-align:center;margin:20px 0;background:${statusColor}11}
+    .stamp-status{font-size:22px;font-weight:900;color:${statusColor};letter-spacing:2px;text-transform:uppercase}
+    .stamp-name{font-size:18px;font-weight:700;color:#1e293b;margin-top:12px}
+    .stamp-role{font-size:12px;color:#64748b;margin-top:2px;text-transform:uppercase;letter-spacing:1px}
+    .stamp-dt{font-size:13px;color:#475569;margin-top:10px;font-weight:500}
+    .divider{border:none;border-top:1px solid #e2e8f0;margin:16px 0}
+    .row{display:flex;justify-content:space-between;font-size:12px;color:#64748b;margin-bottom:6px}
+    .row strong{color:#1e293b;font-size:13px}
+    .footer{margin-top:20px;font-size:10px;color:#94a3b8;text-align:center}
+    @media print{body{background:#fff}.card{box-shadow:none}button{display:none!important}}
+  </style></head><body>
+  <div class="card">
+    <div class="header">
+      <div><div class="logo">${proj}</div><div class="sub">${company}</div></div>
+      <div style="text-align:right"><div class="sub">Payment Authorisation</div></div>
+    </div>
+    <div style="margin-bottom:16px">
+      <div class="row"><span>Vendor</span><strong>${e.vendor||'—'}</strong></div>
+      <div class="row"><span>Description</span><strong style="max-width:280px;text-align:right">${(e.desc||'—').substring(0,80)}</strong></div>
+      <div class="row"><span>Amount</span><strong>₹${(e.amt||0).toLocaleString('en-IN')}</strong></div>
+      <div class="row"><span>Category</span><strong>${e.cat||'—'}</strong></div>
+      <div class="row"><span>Invoice Date</span><strong>${e.invDate||'—'}</strong></div>
+    </div>
+    <div class="stamp-box">
+      <div class="stamp-status">${statusLabel}</div>
+      ${amt}
+      ${comment}
+      <hr class="divider">
+      <div class="stamp-name">Swapna Dutt Chalasani</div>
+      <div class="stamp-role">Producer · Vyjayanthi Movies</div>
+      <div class="stamp-dt">🗓 ${s.dateStr} &nbsp;⏱ ${s.timeStr}</div>
+    </div>
+    <div class="footer">
+      This is a digitally generated approval record from the K2 Production Finance system.<br>
+      Generated on ${new Date().toLocaleString('en-IN')} · Ref: ${id}
+    </div>
+    <div style="margin-top:20px;text-align:center">
+      <button onclick="window.print()" style="background:#c2410c;color:#fff;border:none;border-radius:8px;padding:10px 28px;font-size:14px;font-weight:700;cursor:pointer">🖨 Print / Save PDF</button>
+    </div>
+  </div></body></html>`;
+  const w=window.open('','_blank','width=600,height=700');
+  w.document.write(html);
+  w.document.close();
+}
+
 function saveAccountsStatus(){
   var e=findEntry(EID);if(!e)return;
   var ps=document.getElementById('m2-pay-status').value;
@@ -12947,6 +13040,7 @@ function openExistingFile(){importFromJSONFile();}async function saveToFile(){sa
 let CURRENT_USER=null;
 const DEFAULT_USERS=[
   {id:'ep',         name:'EP',                   pin:'9271', role:'admin'},
+  {id:'producer',   name:'Swapna Dutt Chalasani', pin:'1836', role:'producer'},
   {id:'transport',  name:'Transport Manager',     pin:'4521', role:'transport'},
   {id:'hospitality',name:'Hospitality Manager',   pin:'7834', role:'hospitality'},
   {id:'cashier',    name:'Cashier',               pin:'2967', role:'cashier'},
@@ -12958,6 +13052,7 @@ const DEFAULT_USERS=[
 // Pages each role can access — admin gets everything
 const ROLE_ACCESS={
   admin:      null,
+  producer:   ['dash','estimates','actuals','payments','bills','sched-summary','summary','hotels','flights','vehicles','notifications'],
   transport:  ['vehicles'],
   hospitality:['hotels','flights'],
   cashier:    ['pettycash','petty'],
@@ -13037,7 +13132,7 @@ function delUser(idx){if(!confirm('Delete?'))return;const users=getUsers();if(us
 function editUser(idx){const users=getUsers();const u=users[idx];if(!u)return;const p=prompt('New PIN for '+u.name+':');if(!p||p.trim().length<4){toast('PIN too short','err');return;}u.pin=p.trim();DB.users=users;saveDB();renderUserMgmt();toast('PIN updated');}
 function getLandingPage(){
   const role=CURRENT_USER?.role;
-  const landing={admin:'dash',transport:'vehicles',hospitality:'hotels',cashier:'pettycash',accounts:'payments',coordinator:'actuals',auditor:'dash'};
+  const landing={admin:'dash',producer:'dash',transport:'vehicles',hospitality:'hotels',cashier:'pettycash',accounts:'payments',coordinator:'actuals',auditor:'dash'};
   return landing[role]||'dash';
 }
 function renderPage(p){
