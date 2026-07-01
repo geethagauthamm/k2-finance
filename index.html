@@ -13064,16 +13064,32 @@ const ROLE_ACCESS={
 function getUsers(){
   if(!DB.users||!DB.users.length) DB.users=JSON.parse(JSON.stringify(DEFAULT_USERS));
   // Ensure all default roles exist — add any missing ones
+  let changed=false;
   DEFAULT_USERS.forEach(def=>{
     if(!DB.users.find(u=>u.id===def.id)){
       DB.users.push(JSON.parse(JSON.stringify(def)));
+      changed=true;
     }
   });
+  if(changed) saveDB(); // push merged users to Supabase
   return DB.users;
 }
 
 function showLoginOverlay(){document.getElementById('login-overlay').style.display='flex';setTimeout(()=>document.getElementById('login-userid')?.focus(),80);}
-function doLogin(){const uid=(document.getElementById('login-userid')?.value||'').trim().toLowerCase();const pin=document.getElementById('login-pin')?.value||'';const errEl=document.getElementById('login-err');const user=getUsers().find(u=>u.id.toLowerCase()===uid&&u.pin===pin);if(!user){if(errEl)errEl.style.display='block';document.getElementById('login-pin').value='';document.getElementById('login-pin').focus();return;}if(errEl)errEl.style.display='none';CURRENT_USER=user;sessionStorage.setItem('k2_current_user',JSON.stringify(user));document.getElementById('login-overlay').style.display='none';applyStoredTheme();_startApp();}
+function doLogin(){
+  const uid=(document.getElementById('login-userid')?.value||'').trim().toLowerCase();
+  const pin=document.getElementById('login-pin')?.value||'';
+  const errEl=document.getElementById('login-err');
+  // Check DB users AND DEFAULT_USERS (in case Supabase hasn't loaded yet)
+  const allUsers=[...(DB.users||[]),...DEFAULT_USERS.filter(d=>!(DB.users||[]).find(u=>u.id===d.id))];
+  const user=allUsers.find(u=>u.id.toLowerCase()===uid&&u.pin===pin);
+  if(!user){if(errEl)errEl.style.display='block';document.getElementById('login-pin').value='';document.getElementById('login-pin').focus();return;}
+  if(errEl)errEl.style.display='none';
+  CURRENT_USER=user;
+  sessionStorage.setItem('k2_current_user',JSON.stringify(user));
+  document.getElementById('login-overlay').style.display='none';
+  applyStoredTheme();_startApp();
+}
 function doLogout(){if(!confirm('Sign out?'))return;CURRENT_USER=null;sessionStorage.removeItem('k2_current_user');document.getElementById('user-badge').style.display='none';const b=document.getElementById('mode-banner');if(b)b.style.display='none';document.body.classList.remove('auditor-mode','admin-mode');showLoginOverlay();}
 function applyUserRole(){
   if(!CURRENT_USER)return;
