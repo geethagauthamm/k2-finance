@@ -5471,6 +5471,35 @@ function toast(msg,type='ok'){
   setTimeout(()=>el.remove(),3200);
 }
 
+// Custom confirm dialog — replaces native confirm()/window.confirm for flows that may
+// fire several prompts in a row (e.g. Import). Chrome auto-suppresses native confirm()
+// after a page has triggered a few of them, silently returning false with NO visible
+// popup and no error — this caused Import to appear to "do nothing". A plain DOM modal
+// isn't subject to that browser-level blocking.
+// Usage: const choice = await k2Confirm('message', [{label:'Cancel',value:'cancel'},{label:'OK',value:'ok',primary:true}]);
+function k2Confirm(message,choices){
+  return new Promise(resolve=>{
+    const bg=document.createElement('div');
+    bg.className='modal-bg open';
+    bg.style.zIndex='9500';
+    const box=document.createElement('div');
+    box.className='modal';
+    box.style.maxWidth='480px';
+    const msgHtml=esc(message).replace(/\n/g,'<br>');
+    box.innerHTML='<div style="font-size:14px;line-height:1.6;margin-bottom:18px;color:var(--tx)">'+msgHtml+'</div><div class="flex gap8" style="justify-content:flex-end;flex-wrap:wrap" id="k2c-btns"></div>';
+    bg.appendChild(box);
+    document.body.appendChild(bg);
+    const btnWrap=box.querySelector('#k2c-btns');
+    choices.forEach(c=>{
+      const b=document.createElement('button');
+      b.className='btn '+(c.primary?'bg':'bs')+' sm';
+      b.textContent=c.label;
+      b.onclick=()=>{document.body.removeChild(bg);resolve(c.value);};
+      btnWrap.appendChild(b);
+    });
+  });
+}
+
 // ══════════════════════════════════
 // NAVIGATION
 // ══════════════════════════════════
@@ -13295,7 +13324,11 @@ function saveDBSync(){
 
 function manualSave(){saveDBSync();toast('Saved ✓');}
 window.addEventListener('beforeunload',function(e){
-  if(_saveDebounceTimer){clearTimeout(_saveDebounceTimer);_saveDebounceTimer=null;_saveDBNow();}
+  // NOTE: we intentionally do NOT force-push a pending save here anymore.
+  // A stale/forgotten tab (old data still in memory) being closed used to silently
+  // overwrite Supabase with that stale copy, clobbering newer data saved elsewhere.
+  // Real edits already trigger their own debounced save within ~800ms during normal
+  // use, so there's no need to force one on unload — only the safety warning remains.
   if(window._unsavedChanges){
     e.preventDefault();
     e.returnValue='You have unsaved changes. Export a backup before leaving?';
@@ -13355,7 +13388,7 @@ function autoSnapshot(){
     console.warn('autoSnapshot: localStorage full, skipping local cache');
   }
 }
-function importFromJSONFile(){const inp=document.createElement('input');inp.type='file';inp.accept='.json';inp.onchange=async ev=>{const f=ev.target.files[0];if(!f)return;try{const d=JSON.parse(await f.text());const fd=[...new Set((d.estimates||[]).map(e=>e.date))];const cd=[...new Set((DB.estimates||[]).map(e=>e.date))];const ov=fd.filter(x=>cd.includes(x));let merge=false;if(DB.estimates?.length>0){if(ov.length===0){merge=confirm('Merge?\nFile: '+fd.join(', ')+'\nCurrent: '+cd.join(', '));if(!merge)return;}else{const ok=confirm('OK=Merge  Cancel=Replace\nFile: '+fd.join(', ')+'\nCurrent: '+cd.join(', '));if(ok)merge=true;else if(!confirm('Replace all?'))return;}}const keep={customItems:DB.customItems||[],rateOverrides:DB.rateOverrides||{},csRules:DB.csRules||{},hiddenItems:DB.hiddenItems||[],users:DB.users||[]};if(merge){DB.estimates=[...(DB.estimates||[]).filter(e=>!fd.includes(e.date)),...(d.estimates||[])];DB.dayHeaders={...(DB.dayHeaders||{}),...(d.dayHeaders||{})};DB.vehicles={...(DB.vehicles||{}),...(d.vehicles||{})};DB.inlineActuals={...(DB.inlineActuals||{}),...(d.inlineActuals||{})};DB.actorLog={...(DB.actorLog||{}),...(d.actorLog||{})};DB.hotels=[...(DB.hotels||[]),...(d.hotels||[]).filter(h=>!(DB.hotels||[]).find(x=>x.id===h.id))];DB.flights=[...(DB.flights||[]),...(d.flights||[]).filter(f=>!(DB.flights||[]).find(x=>x.id===f.id))];DB.actuals=[...(DB.actuals||[]),...(d.actuals||[]).filter(a=>!(DB.actuals||[]).find(x=>x.id===a.id))];if(d.paytracker)DB.paytracker={...(DB.paytracker||{}),...d.paytracker};else if(d.payments&&!Array.isArray(d.payments))DB.paytracker={...(DB.paytracker||{}),...d.payments};if(d.salaryEntries)DB.salaryEntries=[...(DB.salaryEntries||[]),...(d.salaryEntries||[]).filter(s=>!(DB.salaryEntries||[]).find(x=>x.id===s.id))];if(d.actorAttendance)DB.actorAttendance={...(DB.actorAttendance||{}),...d.actorAttendance};if(d.actorStaff)DB.actorStaff={...(DB.actorStaff||{}),...d.actorStaff};if(d.artistStaff)DB.artistStaff=[...(DB.artistStaff||[]),...(d.artistStaff||[]).filter(s=>!(DB.artistStaff||[]).find(x=>x.id===s.id))];if(d.bills)DB.bills=[...(DB.bills||[]),...(d.bills||[]).filter(b=>!(DB.bills||[]).find(x=>x.id===b.id))];if(d.schedules)DB.schedules=[...(DB.schedules||[]),...(d.schedules||[]).filter(s=>!(DB.schedules||[]).find(x=>x.id===s.id))];if(d.vendors)DB.vendors=[...(DB.vendors||[]),...(d.vendors||[]).filter(v=>!(DB.vendors||[]).find(x=>x.id===v.id))];if(d.salaries)DB.salaries=[...(DB.salaries||[]),...(d.salaries||[]).filter(s=>!(DB.salaries||[]).find(x=>x.id===s.id))];if(d._arArtists)DB._arArtists=[...(DB._arArtists||[]),...(d._arArtists||[]).filter(a=>!(DB._arArtists||[]).find(x=>x.id===a.id))];if(d.callSheets)DB.callSheets=[...(DB.callSheets||[]),...(d.callSheets||[]).filter(c=>!(DB.callSheets||[]).find(x=>x.id===c.id))];if(d.pettyCash)DB.pettyCash=[...(DB.pettyCash||[]),...(d.pettyCash||[]).filter(p=>!(DB.pettyCash||[]).find(x=>x.id===p.id))];if(d.actAdhoc)DB.actAdhoc={...(DB.actAdhoc||{}),...d.actAdhoc};if(d._arAdv)DB._arAdv={...(DB._arAdv||{}),...d._arAdv};if(d.pendingQueue)DB.pendingQueue=[...(DB.pendingQueue||[]),...(d.pendingQueue||[]).filter(p=>!(DB.pendingQueue||[]).find(x=>x.id===p.id))];}else{DB={project:{name:'Kalki 2',company:'Vyjayanthi Movies',director:'Nag Ashwin',producer:'C. Aswani Dutt',lp:'',pc:'',location:'Hyderabad',budget:0,plannedDays:0},schedules:[],vendors:[],customItems:[],rateOverrides:{},hiddenItems:[],csRules:{},specialCSRules:{},estimates:[],actuals:[],payments:[],paytracker:{},pendingQueue:[],actorContracts:[],shootDays:[],dayHeaders:{},inlineActuals:{},actAdhoc:{},vehicles:{},actorLog:{},actorAttendance:{},actorStaff:{},artistStaff:[],hotels:[],flights:[],billStatus:{},salaryEntries:[],users:[],...d,...keep};}saveDB();init();applyUserRole();applyStoredTheme();renderPage(getLandingPage());toast('✓ '+(merge?'Merged':'Loaded')+': '+DB.estimates.length+' estimates');}catch(e){toast('Import failed: '+e.message,'err');}};inp.click();}
+function importFromJSONFile(){const inp=document.createElement('input');inp.type='file';inp.accept='.json';inp.onchange=async ev=>{const f=ev.target.files[0];if(!f)return;try{const d=JSON.parse(await f.text());const fd=[...new Set((d.estimates||[]).map(e=>e.date))];const cd=[...new Set((DB.estimates||[]).map(e=>e.date))];const ov=fd.filter(x=>cd.includes(x));let merge=false;if(DB.estimates?.length>0){if(ov.length===0){const choice=await k2Confirm('Merge this file into your current data?\n\nFile dates: '+fd.join(', ')+'\nCurrent dates: '+cd.join(', '),[{label:'Cancel',value:'cancel'},{label:'Merge',value:'merge',primary:true}]);if(choice!=='merge')return;merge=true;}else{const choice=await k2Confirm('This file has dates that overlap your current data.\n\nFile dates: '+fd.join(', ')+'\nCurrent dates: '+cd.join(', ')+'\n\nMerge = combine both, keeping the newest version of overlapping dates.\nReplace All = discard current data and use only this file.',[{label:'Cancel',value:'cancel'},{label:'Replace All',value:'replace'},{label:'Merge',value:'merge',primary:true}]);if(choice==='cancel')return;merge=(choice==='merge');}}const keep={customItems:DB.customItems||[],rateOverrides:DB.rateOverrides||{},csRules:DB.csRules||{},hiddenItems:DB.hiddenItems||[],users:DB.users||[]};if(merge){DB.estimates=[...(DB.estimates||[]).filter(e=>!fd.includes(e.date)),...(d.estimates||[])];DB.dayHeaders={...(DB.dayHeaders||{}),...(d.dayHeaders||{})};DB.vehicles={...(DB.vehicles||{}),...(d.vehicles||{})};DB.inlineActuals={...(DB.inlineActuals||{}),...(d.inlineActuals||{})};DB.actorLog={...(DB.actorLog||{}),...(d.actorLog||{})};DB.hotels=[...(DB.hotels||[]),...(d.hotels||[]).filter(h=>!(DB.hotels||[]).find(x=>x.id===h.id))];DB.flights=[...(DB.flights||[]),...(d.flights||[]).filter(f=>!(DB.flights||[]).find(x=>x.id===f.id))];DB.actuals=[...(DB.actuals||[]),...(d.actuals||[]).filter(a=>!(DB.actuals||[]).find(x=>x.id===a.id))];if(d.paytracker)DB.paytracker={...(DB.paytracker||{}),...d.paytracker};else if(d.payments&&!Array.isArray(d.payments))DB.paytracker={...(DB.paytracker||{}),...d.payments};if(d.salaryEntries)DB.salaryEntries=[...(DB.salaryEntries||[]),...(d.salaryEntries||[]).filter(s=>!(DB.salaryEntries||[]).find(x=>x.id===s.id))];if(d.actorAttendance)DB.actorAttendance={...(DB.actorAttendance||{}),...d.actorAttendance};if(d.actorStaff)DB.actorStaff={...(DB.actorStaff||{}),...d.actorStaff};if(d.artistStaff)DB.artistStaff=[...(DB.artistStaff||[]),...(d.artistStaff||[]).filter(s=>!(DB.artistStaff||[]).find(x=>x.id===s.id))];if(d.bills)DB.bills=[...(DB.bills||[]),...(d.bills||[]).filter(b=>!(DB.bills||[]).find(x=>x.id===b.id))];if(d.schedules)DB.schedules=[...(DB.schedules||[]),...(d.schedules||[]).filter(s=>!(DB.schedules||[]).find(x=>x.id===s.id))];if(d.vendors)DB.vendors=[...(DB.vendors||[]),...(d.vendors||[]).filter(v=>!(DB.vendors||[]).find(x=>x.id===v.id))];if(d.salaries)DB.salaries=[...(DB.salaries||[]),...(d.salaries||[]).filter(s=>!(DB.salaries||[]).find(x=>x.id===s.id))];if(d._arArtists)DB._arArtists=[...(DB._arArtists||[]),...(d._arArtists||[]).filter(a=>!(DB._arArtists||[]).find(x=>x.id===a.id))];if(d.callSheets)DB.callSheets=[...(DB.callSheets||[]),...(d.callSheets||[]).filter(c=>!(DB.callSheets||[]).find(x=>x.id===c.id))];if(d.pettyCash)DB.pettyCash=[...(DB.pettyCash||[]),...(d.pettyCash||[]).filter(p=>!(DB.pettyCash||[]).find(x=>x.id===p.id))];if(d.actAdhoc)DB.actAdhoc={...(DB.actAdhoc||{}),...d.actAdhoc};if(d._arAdv)DB._arAdv={...(DB._arAdv||{}),...d._arAdv};if(d.pendingQueue)DB.pendingQueue=[...(DB.pendingQueue||[]),...(d.pendingQueue||[]).filter(p=>!(DB.pendingQueue||[]).find(x=>x.id===p.id))];}else{DB={project:{name:'Kalki 2',company:'Vyjayanthi Movies',director:'Nag Ashwin',producer:'C. Aswani Dutt',lp:'',pc:'',location:'Hyderabad',budget:0,plannedDays:0},schedules:[],vendors:[],customItems:[],rateOverrides:{},hiddenItems:[],csRules:{},specialCSRules:{},estimates:[],actuals:[],payments:[],paytracker:{},pendingQueue:[],actorContracts:[],shootDays:[],dayHeaders:{},inlineActuals:{},actAdhoc:{},vehicles:{},actorLog:{},actorAttendance:{},actorStaff:{},artistStaff:[],hotels:[],flights:[],billStatus:{},salaryEntries:[],users:[],...d,...keep};}saveDB();init();applyUserRole();applyStoredTheme();renderPage(getLandingPage());toast('✓ '+(merge?'Merged':'Loaded')+': '+DB.estimates.length+' estimates');}catch(e){toast('Import failed: '+e.message,'err');}};inp.click();}
 function showFileOverlay(){}function hideFileOverlay(){const ov=document.getElementById('file-overlay');if(ov)ov.style.display='none';}
 function openExistingFile(){importFromJSONFile();}async function saveToFile(){saveDB();}function downloadFallback(){exportData();}
 // toggleTheme defined above
