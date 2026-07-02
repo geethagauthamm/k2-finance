@@ -1167,18 +1167,15 @@ body.auditor-mode #save-btn { display:none !important; }
       <button class="btn bg sm" onclick="syncFlightsToEstimates()">📤 Submit to Estimates</button>
     </div>
     <div class="card">
-      <div class="flex aic jb mb10">
+      <div class="flex aic jb mb10 wrap gap8">
         <div class="ct" style="margin:0">Flight Bookings</div>
-        <span id="flt-summary" class="xs2 dim"></span>
+        <div class="flex aic gap8">
+          <span id="flt-summary" class="xs2 dim"></span>
+          <button class="btn bs xs no-print" onclick="expandAllFltMonths()">Expand All</button>
+          <button class="btn bs xs no-print" onclick="collapseAllFltMonths()">Collapse All</button>
+        </div>
       </div>
-      <div class="tw"><table><thead><tr>
-        <th>Book Date</th><th>Travel Date</th><th>Passenger</th><th>Dept</th>
-        <th>Route</th><th>Airline</th><th>Class</th>
-        <th class="tr">MMT Fare</th><th class="tr">Ticket Fare</th><th class="tr">Actual</th><th class="tr">Luggage</th>
-        <th>Meals</th><th>Seat</th><th>Reason</th><th>Approved</th><th>Comments</th>
-        <th class="no-print"></th>
-      </tr></thead><tbody id="flt-body"></tbody>
-      <tfoot id="flt-foot"></tfoot></table></div>
+      <div id="flt-months"></div>
     </div>
   </div>
 
@@ -13823,57 +13820,102 @@ function setFlightField(id,field,val){
 }
 
 function renderFlights(){
-  const body=document.getElementById('flt-body');
-  const foot=document.getElementById('flt-foot');
+  const container=document.getElementById('flt-months');
+  if(!container)return;
   const flights=(DB.flights||[]).sort((a,b)=>(a.date||'').localeCompare(b.date||''));
-  if(!body)return;
   if(!flights.length){
-    body.innerHTML='<tr><td colspan="17" class="te">No flight bookings yet</td></tr>';
-    if(foot)foot.innerHTML='';
+    container.innerHTML='<div class="te" style="padding:16px">No flight bookings yet</div>';
     const s=document.getElementById('flt-summary');if(s)s.textContent='';
     return;
   }
+  // Group by travel month (YYYY-MM), most recent month first
+  const byMonth={};
+  flights.forEach(f=>{
+    const mk=(f.date||'').slice(0,7)||'—';
+    if(!byMonth[mk])byMonth[mk]=[];
+    byMonth[mk].push(f);
+  });
+  const months=Object.keys(byMonth).sort().reverse();
   let grandMmt=0,grandTicket=0,grandAct=0,grandLuggage=0;
-  body.innerHTML=flights.map(f=>{
-    grandMmt+=f.mmt||f.estCost||0;
-    grandTicket+=f.ticket||0;
-    grandAct+=f.actCost||0;
-    grandLuggage+=f.luggage||0;
-    const route=(f.from&&f.to)?f.from+' → '+f.to:(f.from||f.to||'—');
-    return`<tr>
-      <td style="color:var(--tx3);font-size:11px">${f.bookdate?fmtD(f.bookdate):'—'}</td>
-      <td style="font-weight:600;color:var(--tx)">${fmtD(f.date)}</td>
-      <td style="font-weight:700;color:var(--tx)">${esc(f.pax)}</td>
-      <td style="color:var(--tx2);font-size:11px">${esc(f.dept||'—')}</td>
-      <td style="font-weight:600;color:var(--tx2)">${esc(route)}</td>
-      <td style="color:var(--tx2)">${esc(f.airline||'—')}</td>
-      <td style="color:var(--tx3);font-size:11px">${esc(f.travelClass||'—')}</td>
-      <td style="text-align:right;font-weight:700;color:var(--bl);font-family:'JetBrains Mono',monospace">${f.mmt||f.estCost?'₹'+fm(f.mmt||f.estCost||0):'—'}</td>
-      <td style="text-align:right;font-family:'JetBrains Mono',monospace;color:var(--tx2)">${f.ticket?'₹'+fm(f.ticket):'—'}</td>
-      <td style="text-align:right"><input class="act-inline" type="number" value="${f.actCost||''}" placeholder="—" style="width:88px;font-family:'JetBrains Mono',monospace" data-fid="${f.id}" onchange="setFlightField(this.dataset.fid,'actCost',this.value)"></td>
-      <td style="text-align:right;font-family:'JetBrains Mono',monospace;color:var(--tx3);font-size:11px">${f.luggage?'₹'+fm(f.luggage):'—'}</td>
-      <td style="color:var(--tx3);font-size:11px">${esc(f.meals||'—')}</td>
-      <td style="color:var(--tx3);font-size:11px">${esc(f.seat||'—')}</td>
-      <td style="color:var(--tx2);font-size:11px">${esc(f.reason||'—')}</td>
-      <td style="color:var(--go);font-size:11px;font-weight:600">${esc(f.approved||'—')}</td>
-      <td style="color:var(--tx3);font-size:11px;max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(f.notes||'')}">${esc(f.notes||'—')}</td>
-      <td class="no-print" style="white-space:nowrap">
-        <button class="btn bs xs" data-fid="${f.id}" onclick="editFlight(this.dataset.fid)" style="margin-right:4px">✎ Edit</button>
-        <button class="btn br xs" data-fid="${f.id}" onclick="delFlight(this.dataset.fid)">✕</button>
-      </td>
-    </tr>`;
+  container.innerHTML=months.map((mk,mi)=>{
+    const rows=byMonth[mk];
+    let mMmt=0,mTicket=0,mAct=0,mLuggage=0;
+    const rowsHtml=rows.map(f=>{
+      mMmt+=f.mmt||f.estCost||0;grandMmt+=f.mmt||f.estCost||0;
+      mTicket+=f.ticket||0;grandTicket+=f.ticket||0;
+      mAct+=f.actCost||0;grandAct+=f.actCost||0;
+      mLuggage+=f.luggage||0;grandLuggage+=f.luggage||0;
+      const route=(f.from&&f.to)?f.from+' → '+f.to:(f.from||f.to||'—');
+      return`<tr>
+        <td style="color:var(--tx3);font-size:11px">${f.bookdate?fmtD(f.bookdate):'—'}</td>
+        <td style="font-weight:600;color:var(--tx)">${fmtD(f.date)}</td>
+        <td style="font-weight:700;color:var(--tx)">${esc(f.pax)}</td>
+        <td style="color:var(--tx2);font-size:11px">${esc(f.dept||'—')}</td>
+        <td style="font-weight:600;color:var(--tx2)">${esc(route)}</td>
+        <td style="color:var(--tx2)">${esc(f.airline||'—')}</td>
+        <td style="color:var(--tx3);font-size:11px">${esc(f.travelClass||'—')}</td>
+        <td style="text-align:right;font-weight:700;color:var(--bl);font-family:'JetBrains Mono',monospace">${f.mmt||f.estCost?'₹'+fm(f.mmt||f.estCost||0):'—'}</td>
+        <td style="text-align:right;font-family:'JetBrains Mono',monospace;color:var(--tx2)">${f.ticket?'₹'+fm(f.ticket):'—'}</td>
+        <td style="text-align:right"><input class="act-inline" type="number" value="${f.actCost||''}" placeholder="—" style="width:88px;font-family:'JetBrains Mono',monospace" data-fid="${f.id}" onchange="setFlightField(this.dataset.fid,'actCost',this.value)"></td>
+        <td style="text-align:right;font-family:'JetBrains Mono',monospace;color:var(--tx3);font-size:11px">${f.luggage?'₹'+fm(f.luggage):'—'}</td>
+        <td style="color:var(--tx3);font-size:11px">${esc(f.meals||'—')}</td>
+        <td style="color:var(--tx3);font-size:11px">${esc(f.seat||'—')}</td>
+        <td style="color:var(--tx2);font-size:11px">${esc(f.reason||'—')}</td>
+        <td style="color:var(--go);font-size:11px;font-weight:600">${esc(f.approved||'—')}</td>
+        <td style="color:var(--tx3);font-size:11px;max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(f.notes||'')}">${esc(f.notes||'—')}</td>
+        <td class="no-print" style="white-space:nowrap">
+          <button class="btn bs xs" data-fid="${f.id}" onclick="editFlight(this.dataset.fid)" style="margin-right:4px">✎ Edit</button>
+          <button class="btn br xs" data-fid="${f.id}" onclick="delFlight(this.dataset.fid)">✕</button>
+        </td>
+      </tr>`;
+    }).join('');
+    const mLabel=mk==='—'?'No date':new Date(mk+'-01').toLocaleDateString('en-IN',{month:'long',year:'numeric'});
+    const mId='fltm_'+mk.replace(/-/g,'');
+    const isOpen=mi===0; // most recent month expanded by default, older months collapsed
+    return`<div class="dw-day" id="${mId}">
+      <div class="dw-hdr" onclick="toggleFltMonth('${mId}')">
+        <div class="flex aic gap8">
+          <span class="dw-arrow" id="arr_${mId}">${isOpen?'▼':'▶'}</span>
+          <span class="semi" style="font-size:13px;color:var(--go)">${mLabel}</span>
+          <span class="xs3 dim">${rows.length} booking${rows.length>1?'s':''}</span>
+        </div>
+        <div class="flex aic gap12">
+          <span class="xs3 dim">MMT</span><span class="tn semi blue" style="font-size:12px">₹${fm(mMmt)}</span>
+          ${mAct?`<span class="xs3 dim" style="margin-left:6px">Actual</span><span class="tn semi orange" style="font-size:12px">₹${fm(mAct)}</span>`:''}
+        </div>
+      </div>
+      <div class="dw-body" id="body_${mId}" style="display:${isOpen?'block':'none'}">
+        <div class="tw"><table style="font-size:11px"><thead><tr>
+          <th>Book Date</th><th>Travel Date</th><th>Passenger</th><th>Dept</th>
+          <th>Route</th><th>Airline</th><th>Class</th>
+          <th class="tr">MMT Fare</th><th class="tr">Ticket Fare</th><th class="tr">Actual</th><th class="tr">Luggage</th>
+          <th>Meals</th><th>Seat</th><th>Reason</th><th>Approved</th><th>Comments</th>
+          <th class="no-print"></th>
+        </tr></thead><tbody>${rowsHtml}</tbody>
+        <tfoot><tr class="est-section-total">
+          <td colspan="7" style="text-align:right;font-weight:700;color:var(--tx3);font-size:11px;letter-spacing:.5px">MONTH TOTAL</td>
+          <td style="text-align:right;font-weight:800;color:var(--bl);font-family:'JetBrains Mono',monospace">₹${fm(mMmt)}</td>
+          <td style="text-align:right;font-weight:700;font-family:'JetBrains Mono',monospace;color:var(--tx2)">${mTicket?'₹'+fm(mTicket):'—'}</td>
+          <td style="text-align:right;font-weight:700;font-family:'JetBrains Mono',monospace;color:var(--tx2)">${mAct?'₹'+fm(mAct):'—'}</td>
+          <td style="text-align:right;font-family:'JetBrains Mono',monospace;color:var(--tx3)">${mLuggage?'₹'+fm(mLuggage):'—'}</td>
+          <td colspan="6"></td>
+        </tr></tfoot></table></div>
+      </div>
+    </div>`;
   }).join('');
-  if(foot)foot.innerHTML=`<tr class="est-section-total">
-    <td colspan="7" style="text-align:right;font-weight:700;color:var(--tx3);font-size:11px;letter-spacing:.5px">TOTAL</td>
-    <td style="text-align:right;font-weight:800;color:var(--bl);font-family:'JetBrains Mono',monospace">₹${fm(grandMmt)}</td>
-    <td style="text-align:right;font-weight:700;font-family:'JetBrains Mono',monospace;color:var(--tx2)">${grandTicket?'₹'+fm(grandTicket):'—'}</td>
-    <td style="text-align:right;font-weight:700;font-family:'JetBrains Mono',monospace;color:var(--tx2)">${grandAct?'₹'+fm(grandAct):'—'}</td>
-    <td style="text-align:right;font-family:'JetBrains Mono',monospace;color:var(--tx3)">${grandLuggage?'₹'+fm(grandLuggage):'—'}</td>
-    <td colspan="6"></td>
-  </tr>`;
   const s=document.getElementById('flt-summary');
   if(s)s.textContent=flights.length+' booking'+(flights.length>1?'s':'')+' · MMT: ₹'+fm(grandMmt)+(grandAct?' · Actual: ₹'+fm(grandAct):'');
 }
+function toggleFltMonth(id){
+  const body=document.getElementById('body_'+id);
+  const arr=document.getElementById('arr_'+id);
+  if(!body)return;
+  const open=body.style.display==='none';
+  body.style.display=open?'block':'none';
+  if(arr)arr.textContent=open?'▼':'▶';
+}
+function expandAllFltMonths(){document.querySelectorAll('[id^="body_fltm_"]').forEach(el=>{el.style.display='block';const arr=document.getElementById('arr_'+el.id.replace('body_',''));if(arr)arr.textContent='▼';});}
+function collapseAllFltMonths(){document.querySelectorAll('[id^="body_fltm_"]').forEach(el=>{el.style.display='none';const arr=document.getElementById('arr_'+el.id.replace('body_',''));if(arr)arr.textContent='▶';});}
 
 // Flight rollup for estimates table — estimate = MMT Fare per travel date
 function getFlightRollup(date){
