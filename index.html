@@ -1581,9 +1581,11 @@ body.auditor-mode #save-btn { display:none !important; }
           <input type="date" id="act-f-date" onchange="renderActualsLog()" class="btn bs sm">
           <select class="btn bs sm" id="act-f-sch" onchange="renderActualsLog()"><option value="">All Schedules</option></select>
           <select class="btn bs sm" id="act-f-cat" onchange="renderActualsLog()"><option value="">All Categories</option></select>
+          <button class="btn bs sm" id="act-f-unmatched-btn" onclick="toggleActUnmatchedFilter()" style="color:var(--rd);border-color:var(--rd)">⚠ Show Unmatched Only</button>
           <button class="btn bs sm" onclick="printPage()">&#9113; Print</button>
         </div>
       </div>
+      <div id="act-unmatched-summary" class="xs2 mb10" style="font-weight:600"></div>
       <div class="tw"><table><thead><tr>
         <th>Date</th><th>Schedule</th><th>Line Item</th><th>Category</th><th>Vendor</th>
         <th class="tr">Call Sheet</th><th class="tr">Count</th><th class="tr">Rate</th><th class="tr">Rate Status</th>
@@ -10641,6 +10643,14 @@ function saveActEntry(){
   if(document.getElementById('page-estimates')?.style.display!=='none') renderEstTable();
 }
 
+let _actShowUnmatchedOnly=false;
+function toggleActUnmatchedFilter(){
+  _actShowUnmatchedOnly=!_actShowUnmatchedOnly;
+  const btn=document.getElementById('act-f-unmatched-btn');
+  if(btn)btn.className=_actShowUnmatchedOnly?'btn bg sm':'btn bs sm';
+  if(btn)btn.style.cssText=_actShowUnmatchedOnly?'':'color:var(--rd);border-color:var(--rd)';
+  renderActualsLog();
+}
 function renderActualsLog(){
   const df=document.getElementById('act-f-date')?.value;
   const cf=document.getElementById('act-f-cat')?.value;
@@ -10649,8 +10659,16 @@ function renderActualsLog(){
   if(df)rows=rows.filter(r=>r.date===df);
   if(sf)rows=rows.filter(r=>r.schedId===sf);
   if(cf)rows=rows.filter(r=>allItems().find(x=>liKey(x)===r.liKey)?.cat===cf);
+  if(_actShowUnmatchedOnly)rows=rows.filter(r=>!allItems().find(x=>liKey(x)===r.liKey));
   const tb=document.getElementById('act-log');if(!tb)return;
-  if(!rows.length){tb.innerHTML='<tr><td colspan="12" class="te">No actuals logged yet</td></tr>';return;}
+  const summaryEl=document.getElementById('act-unmatched-summary');
+  if(summaryEl){
+    const totalUnmatched=DB.actuals.filter(r=>!allItems().find(x=>liKey(x)===r.liKey));
+    const sumAmt=totalUnmatched.reduce((s,r)=>s+(r.amount||0),0);
+    summaryEl.textContent=totalUnmatched.length?`⚠ ${totalUnmatched.length} unmatched entr${totalUnmatched.length>1?'ies':'y'} across the whole log, totaling ₹${fmt(sumAmt)}`:'✓ No unmatched entries';
+    summaryEl.style.color=totalUnmatched.length?'var(--rd)':'var(--gn)';
+  }
+  if(!rows.length){tb.innerHTML=`<tr><td colspan="12" class="te">${_actShowUnmatchedOnly?'No unmatched entries — clean!':'No actuals logged yet'}</td></tr>`;return;}
   let lastDate='';
   tb.innerHTML=rows.map(r=>{
     const e=allItems().find(x=>liKey(x)===r.liKey);
