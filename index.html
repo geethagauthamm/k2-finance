@@ -2342,6 +2342,54 @@ body.auditor-mode #save-btn { display:none !important; }
 
 <!-- ═══════════ MODALS ═══════════ -->
 <!-- PRODUCER MODAL -->
+<div class="modal-bg" id="modal-flight-edit">
+  <div class="modal" style="max-width:640px;width:95%">
+    <h3>Edit Flight Booking</h3>
+    <input type="hidden" id="flt-edit-id">
+    <div class="fg mb8" style="grid-template-columns:1fr 1fr">
+      <div class="field"><label>Booking Date</label><input type="date" id="flt-edit-bookdate"></div>
+      <div class="field"><label>Travel Date *</label><input type="date" id="flt-edit-date"></div>
+    </div>
+    <div class="fg mb8" style="grid-template-columns:1fr 1fr">
+      <div class="field"><label>Passenger / Group *</label><input type="text" id="flt-edit-pax"></div>
+      <div class="field"><label>Dept / Designation</label><input type="text" id="flt-edit-dept"></div>
+    </div>
+    <div class="fg mb8" style="grid-template-columns:1fr 1fr 1fr">
+      <div class="field"><label>Airline</label><input type="text" id="flt-edit-airline"></div>
+      <div class="field"><label>From</label><input type="text" id="flt-edit-from"></div>
+      <div class="field"><label>To</label><input type="text" id="flt-edit-to"></div>
+    </div>
+    <div class="fg mb8" style="grid-template-columns:1fr 1fr">
+      <div class="field"><label>Travel Class</label>
+        <select id="flt-edit-class">
+          <option value="">— Select —</option>
+          <option>Economy</option><option>Premium Economy</option><option>Business</option><option>First Class</option>
+        </select>
+      </div>
+      <div class="field"><label>Count (Pax)</label><input type="number" id="flt-edit-count" min="1"></div>
+    </div>
+    <div class="fg mb8" style="grid-template-columns:1fr 1fr 1fr 1fr">
+      <div class="field"><label>MMT Fare (₹)</label><input type="number" id="flt-edit-mmt"></div>
+      <div class="field"><label>Ticket Fare (₹)</label><input type="number" id="flt-edit-ticket"></div>
+      <div class="field"><label>Actual (₹)</label><input type="number" id="flt-edit-actual"></div>
+      <div class="field"><label>Excess Luggage (₹)</label><input type="number" id="flt-edit-luggage"></div>
+    </div>
+    <div class="fg mb8" style="grid-template-columns:1fr 1fr">
+      <div class="field"><label>Seat / Meals</label><input type="text" id="flt-edit-meals"></div>
+      <div class="field"><label>Seat Preference</label><input type="text" id="flt-edit-seat"></div>
+    </div>
+    <div class="fg mb8" style="grid-template-columns:1fr 1fr">
+      <div class="field"><label>Reason for Travel</label><input type="text" id="flt-edit-reason"></div>
+      <div class="field"><label>Approved By</label><input type="text" id="flt-edit-approved"></div>
+    </div>
+    <div class="field mb8"><label>Comments</label><input type="text" id="flt-edit-notes"></div>
+    <div class="flex gap8 jb" style="margin-top:14px">
+      <button class="btn br" onclick="closeModal('modal-flight-edit')">Cancel</button>
+      <button class="btn bg" onclick="saveFlightEdit()">Save Changes</button>
+    </div>
+  </div>
+</div>
+
 <div class="modal-bg" id="modal-p1">
   <div class="modal">
     <h3 id="m1-title">Producer decision</h3><div class="modal-sub" id="m1-sub"></div>
@@ -13096,6 +13144,11 @@ async function loadFromSupabase(){
     }catch(e){}
     try{localStorage.removeItem('k2_backup_snapshot');localStorage.setItem(STORAGE_KEY,JSON.stringify(DB));}catch(e){}
     updateSyncStatus('☁ Loaded · '+new Date().toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit'}),'var(--gn)');
+    // Re-render current page now that data is loaded
+    try{
+      const cp=sessionStorage.getItem('k2_last_page')||'';
+      if(cp&&document.getElementById('page-'+cp)){_renderPageCore(cp);}
+    }catch(e){}
     return true;
   }catch(e){
     console.error('loadFromSupabase:',e);
@@ -13622,6 +13675,59 @@ function addFlight(){
   toast('✓ Flight added for '+fmtD(date));
 }
 
+function editFlight(id){
+  const f=(DB.flights||[]).find(x=>x.id===id);
+  if(!f)return;
+  document.getElementById('flt-edit-id').value=id;
+  document.getElementById('flt-edit-bookdate').value=f.bookdate||'';
+  document.getElementById('flt-edit-date').value=f.date||'';
+  document.getElementById('flt-edit-pax').value=f.pax||'';
+  document.getElementById('flt-edit-dept').value=f.dept||'';
+  document.getElementById('flt-edit-airline').value=f.airline||'';
+  document.getElementById('flt-edit-from').value=f.from||'';
+  document.getElementById('flt-edit-to').value=f.to||'';
+  document.getElementById('flt-edit-class').value=f.travelClass||'';
+  document.getElementById('flt-edit-count').value=f.count||1;
+  document.getElementById('flt-edit-mmt').value=f.mmt||f.estCost||'';
+  document.getElementById('flt-edit-ticket').value=f.ticket||'';
+  document.getElementById('flt-edit-actual').value=f.actCost||'';
+  document.getElementById('flt-edit-luggage').value=f.luggage||'';
+  document.getElementById('flt-edit-meals').value=f.meals||'';
+  document.getElementById('flt-edit-seat').value=f.seat||'';
+  document.getElementById('flt-edit-reason').value=f.reason||'';
+  document.getElementById('flt-edit-approved').value=f.approved||'';
+  document.getElementById('flt-edit-notes').value=f.notes||'';
+  document.getElementById('modal-flight-edit').classList.add('open');
+}
+
+function saveFlightEdit(){
+  const id=document.getElementById('flt-edit-id').value;
+  const f=(DB.flights||[]).find(x=>x.id===id);
+  if(!f){toast('Flight not found','err');return;}
+  const date=document.getElementById('flt-edit-date').value;
+  const pax=document.getElementById('flt-edit-pax').value.trim();
+  if(!date||!pax){toast('Passenger and travel date required','err');return;}
+  f.bookdate=document.getElementById('flt-edit-bookdate').value;
+  f.date=date;f.pax=pax;
+  f.dept=document.getElementById('flt-edit-dept').value.trim();
+  f.airline=document.getElementById('flt-edit-airline').value.trim();
+  f.from=document.getElementById('flt-edit-from').value.trim();
+  f.to=document.getElementById('flt-edit-to').value.trim();
+  f.travelClass=document.getElementById('flt-edit-class').value;
+  f.count=parseFloat(document.getElementById('flt-edit-count').value)||1;
+  f.mmt=parseFloat(document.getElementById('flt-edit-mmt').value)||0;
+  f.estCost=f.mmt;
+  f.ticket=parseFloat(document.getElementById('flt-edit-ticket').value)||0;
+  f.actCost=parseFloat(document.getElementById('flt-edit-actual').value)||0;
+  f.luggage=parseFloat(document.getElementById('flt-edit-luggage').value)||0;
+  f.meals=document.getElementById('flt-edit-meals').value.trim();
+  f.seat=document.getElementById('flt-edit-seat').value.trim();
+  f.reason=document.getElementById('flt-edit-reason').value.trim();
+  f.approved=document.getElementById('flt-edit-approved').value.trim();
+  f.notes=document.getElementById('flt-edit-notes').value.trim();
+  saveDB();closeModal('modal-flight-edit');renderFlights();toast('✓ Flight updated');
+}
+
 function delFlight(id){
   if(!confirm('Delete flight booking?'))return;
   DB.flights=(DB.flights||[]).filter(f=>f.id!==id);
@@ -13673,7 +13779,10 @@ function renderFlights(){
       <td style="color:var(--tx2);font-size:11px">${esc(f.reason||'—')}</td>
       <td style="color:var(--go);font-size:11px;font-weight:600">${esc(f.approved||'—')}</td>
       <td style="color:var(--tx3);font-size:11px;max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(f.notes||'')}">${esc(f.notes||'—')}</td>
-      <td class="no-print"><button class="btn br xs" data-fid="${f.id}" onclick="delFlight(this.dataset.fid)">✕</button></td>
+      <td class="no-print" style="white-space:nowrap">
+        <button class="btn bs xs" data-fid="${f.id}" onclick="editFlight(this.dataset.fid)" style="margin-right:4px">✎ Edit</button>
+        <button class="btn br xs" data-fid="${f.id}" onclick="delFlight(this.dataset.fid)">✕</button>
+      </td>
     </tr>`;
   }).join('');
   if(foot)foot.innerHTML=`<tr class="est-section-total">
