@@ -10666,8 +10666,8 @@ function renderActualsLog(){
     return datePrefix+`<tr${e?'':' style="background:rgba(239,68,68,.04)"'}>
       <td>${fmtD(r.date)}</td>
       <td class="dim xs2">${s?.name||'—'}</td>
-      <td class="semi">${e?.item||(r.liKey?`<span style="color:var(--rd)" title="No matching Rate Card item for key: ${esc(r.liKey)}">⚠ Unmatched item</span>`:'—')}</td>
-      <td><span class="tag tb xs2">${e?.cat||'—'}</span></td>
+      <td class="semi">${e?.item||(r.notes?`<span title="No matching Rate Card item for key: ${esc(r.liKey||'')} — showing notes as name">⚠ ${esc(r.notes)}</span>`:(r.liKey?`<span style="color:var(--rd)" title="No matching Rate Card item for key: ${esc(r.liKey)}">⚠ Unmatched item</span>`:'—'))}</td>
+      <td><span class="tag tb xs2">${e?.cat||(r.liKey?r.liKey.split('|')[0]:'')||'—'}</span></td>
       <td class="dim xs2">${v?.name||'—'}</td>
       <td class="tn tr gold semi">${hire?'—':(r.cs??'—')}</td>
       <td class="tn tr">${r.count??'—'}</td>
