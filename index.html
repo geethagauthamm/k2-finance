@@ -595,7 +595,9 @@ body.light-mode .act-inline{background:#fff;border:1px solid #6366f1;color:#1118
 .ps-ns{font-family:"JetBrains Mono",monospace;font-size:10px;font-weight:600;white-space:nowrap}
 .ps-foot{font-family:"Instrument Sans",sans-serif;font-size:8px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:var(--tx3)}
 
-/* ── AUDITOR READ-ONLY MODE ── */
+/* ── EP-ONLY CONTROLS ── */
+body:not(.admin-mode) .ep-only { display:none !important; }
+
 body.auditor-mode .btn.bg:not(#save-btn),
 body.auditor-mode .btn.br,
 body.auditor-mode button[onclick*="add"],
@@ -692,9 +694,9 @@ body.auditor-mode #save-btn { display:none !important; }
       <div id="user-badge" style="display:none;align-items:center;gap:6px;background:rgba(255,255,255,.06);border:1px solid var(--bd);border-radius:20px;padding:3px 10px;cursor:pointer" onclick="doLogout()"><span id="user-badge-icon" style="font-size:11px"></span><span id="user-badge-name" style="font-size:11px;font-weight:600"></span><span class="xs3 dim" style="margin-left:2px">· sign out</span></div>
       <button class="btn bg sm no-print" onclick="manualSave()">💾 Save</button>
       <button class="btn bs sm no-print" onclick="exportData()" id="export-btn" style="font-size:10px;position:relative" title="Export backup JSON">⬇ Backup <span id="last-backup-label" style="font-size:9px;opacity:.6"></span></button>
-      <button class="btn bs sm no-print" onclick="quickRestoreBackup()" style="font-size:10px;opacity:.8" title="Restore last auto-snapshot">↩ Restore</button>
+      <button class="btn bs sm no-print ep-only" onclick="quickRestoreBackup()" style="font-size:10px;opacity:.8" title="Restore last auto-snapshot">↩ Restore</button>
       <button class="btn bs sm no-print" onclick="exportMasterExcel()" style="font-size:10px">📊 Excel</button>
-      <button class="btn bs sm no-print" onclick="importFromJSONFile()" style="font-size:10px;opacity:.8">📂 Import</button>
+      <button class="btn bs sm no-print ep-only" onclick="importFromJSONFile()" style="font-size:10px;opacity:.8">📂 Import</button>
       <button class="btn bs sm no-print" onclick="showDBDiag()" title="Check what data is loaded" style="font-size:10px;opacity:.6">&#9432;</button>
       <button class="btn bs sm no-print" onclick="toggleTheme()" id="theme-btn" title="Toggle light/dark">🌙</button>
       <button class="btn bs sm no-print" onclick="printPage()">&#9113; Print</button>
@@ -12429,9 +12431,12 @@ function renderDash(){
 
   const cats=[...new Set(allItems().map(e=>e.cat))].slice(0,8);
   const catBarsEl=document.getElementById('d-cat-bars');
+  const adhocRowsAll=Object.values(DB.actAdhoc||{}).flat();
   if(catBarsEl)catBarsEl.innerHTML=cats.map(c=>{
     const plan=DB.estimates.filter(e=>allItems().find(x=>liKey(x)===e.liKey)?.cat===c).reduce((s,e)=>s+(e.amount||0),0);
-    const act=DB.actuals.filter(a=>allItems().find(x=>liKey(x)===a.liKey)?.cat===c).reduce((s,a)=>s+(a.amount||0),0);
+    const actFromEstimates=DB.actuals.filter(a=>allItems().find(x=>liKey(x)===a.liKey)?.cat===c).reduce((s,a)=>s+(a.amount||0),0);
+    const actFromAdhoc=adhocRowsAll.filter(r=>r.cat===c).reduce((s,r)=>s+(r.actAmt||0),0);
+    const act=actFromEstimates+actFromAdhoc;
     if(plan===0&&act===0)return'';
     const pct=plan>0?Math.min(130,Math.round(act/plan*100)):0;
     return`<div class="mb8">
@@ -12440,15 +12445,41 @@ function renderDash(){
       <div class="flex aic jb" style="margin-top:2px"><span class="xs3 dim">Plan: ${fmt(plan)}</span><span class="xs3 ${act>0?'orange':'dim'}">Act: ${act>0?fmt(act):'—'}</span></div>
     </div>`;
   }).join('');
-  const by={};DB.payments.forEach(p=>{by[p.status]=(by[p.status]||0)+(p.amount||0);});
+  // Flatten paytracker (the live vendor-payment workflow) across all days once, reused below
+  const ptEntriesAll=[];
+  Object.entries(DB.paytracker||{}).forEach(([dayKey,day])=>{
+    (day.entries||[]).forEach(e=>{ if(e&&e.id) ptEntriesAll.push(Object.assign({},e,{_dayKey:dayKey})); });
+  });
+  const payStatusLabel={'pay-paid':'<span class="tag tgn">Paid</span>','pay-partial':'<span class="tag tg">Partial</span>','pay-hold':'<span class="tag to">Hold</span>','pay-awaiting':'<span class="tag tb">Awaiting</span>','pay-unpaid':'<span class="tag tr2">Unpaid</span>'};
+  const by={};
+  DB.payments.forEach(p=>{by[p.status]=(by[p.status]||0)+(p.amount||0);}); // legacy — kept for any old data
+  ptEntriesAll.forEach(e=>{
+    const st=e.payStatus||'pay-awaiting';
+    const amt=st==='pay-paid'?(e.payAmt||e.amt||0):(e.amt||0);
+    by[st]=(by[st]||0)+amt;
+  });
   const breakdownEl=document.getElementById('d-breakdown');
-  if(breakdownEl)breakdownEl.innerHTML=Object.entries(by).map(([s,a])=>`<div class="flex aic jb" style="padding:6px 0;border-bottom:1px solid var(--bd)">${STAG3[s]||s}<span class="tn sm2 semi">${fmt(a)}</span></div>`).join('')||'<div class="dim sm2" style="padding:10px 0">No payments yet</div>';
-  const top=[...DB.pendingQueue].filter(p=>p.status==='open').sort((a,b)=>b.amount-a.amount).slice(0,5);
+  if(breakdownEl)breakdownEl.innerHTML=Object.entries(by).filter(([s,a])=>a>0).map(([s,a])=>`<div class="flex aic jb" style="padding:6px 0;border-bottom:1px solid var(--bd)">${STAG3[s]||payStatusLabel[s]||s}<span class="tn sm2 semi">${fmt(a)}</span></div>`).join('')||'<div class="dim sm2" style="padding:10px 0">No payments yet</div>';
+  // Top Pending — real open items: not yet paid out, and not rejected
+  const openPtEntries=ptEntriesAll.filter(e=>e.payStatus!=='pay-paid'&&e.producerStatus!=='rejected');
+  const top=[...openPtEntries].sort((a,b)=>(b.amt||0)-(a.amt||0)).slice(0,5);
   const topEl=document.getElementById('d-pending-top');
-  if(topEl)topEl.innerHTML=top.map(p=>{const v=DB.vendors.find(x=>x.id===p.vendorId);return`<div class="flex aic jb" style="padding:6px 0;border-bottom:1px solid var(--bd)"><div><div class="sm2 semi">${v?.name||'—'}</div><div class="xs2 dim">${ageDays(p.createdAt)}d · ${p.type}</div></div><span class="tn sm2 red semi">${fmt(p.amount)}</span></div>`;}).join('')||'<div class="dim sm2" style="padding:10px 0">No pending items ✓</div>';
-  const recent=[...DB.payments].sort((a,b)=>new Date(b.date)-new Date(a.date)).slice(0,8);
+  if(topEl)topEl.innerHTML=top.map(p=>{
+    const stage=PENDING_PROD.includes(p.producerStatus)?'Producer: '+p.producerStatus:(p.producerStatus==='pending'?'Awaiting producer':PENDING_ACC.includes(p.accStatus)?'Accounts: '+String(p.accStatus||'').replace('acc-',''):'Awaiting payment');
+    return`<div class="flex aic jb" style="padding:6px 0;border-bottom:1px solid var(--bd)"><div><div class="sm2 semi">${p.vendor||'—'}</div><div class="xs2 dim">${p._dayKey?fmtD(p._dayKey):''} · ${stage}</div></div><span class="tn sm2 red semi">${fmt(p.amt||0)}</span></div>`;
+  }).join('')||'<div class="dim sm2" style="padding:10px 0">No pending items ✓</div>';
+  // Recent Payments — legacy DB.payments (if any) plus real paid-out paytracker entries
+  const legacyRecent=DB.payments.map(p=>{
+    const v=DB.vendors.find(x=>x.id===p.vendorId);const e=p.liKey?allItems().find(x=>liKey(x)===p.liKey):null;
+    return{date:p.date,vendor:v?.name||'—',item:e?.item||'—',cat:e?.cat||v?.category||'—',amount:p.amount||0,statusHtml:STAG3[p.status]||p.status,mode:p.mode||'—'};
+  });
+  const ptRecent=ptEntriesAll.filter(e=>e.payStatus==='pay-paid'&&e.payDate).map(e=>({
+    date:e.payDate,vendor:e.vendor||'—',item:(e.desc||'').slice(0,60)||'—',cat:e.cat||'—',
+    amount:e.payAmt||e.amt||0,statusHtml:payStatusLabel['pay-paid'],mode:e.payUTR||'—'
+  }));
+  const recent=[...legacyRecent,...ptRecent].sort((a,b)=>new Date(b.date)-new Date(a.date)).slice(0,8);
   const recentEl=document.getElementById('d-recent');
-  if(recentEl)recentEl.innerHTML=recent.map(p=>{const v=DB.vendors.find(x=>x.id===p.vendorId);const e=p.liKey?allItems().find(x=>liKey(x)===p.liKey):null;return`<tr><td>${fmtD(p.date)}</td><td class="semi">${v?.name||'—'}</td><td class="dim xs2">${e?.item||'—'}</td><td><span class="tag tb xs2">${e?.cat||v?.category||'—'}</span></td><td class="tn tr green">${fmt(p.amount)}</td><td>${STAG3[p.status]||p.status}</td><td class="dim xs2">${p.mode||'—'}</td></tr>`;}).join('')||'<tr><td colspan="7" class="te">No payments yet</td></tr>';
+  if(recentEl)recentEl.innerHTML=recent.map(p=>`<tr><td>${fmtD(p.date)}</td><td class="semi">${p.vendor}</td><td class="dim xs2">${p.item}</td><td><span class="tag tb xs2">${p.cat}</span></td><td class="tn tr green">${fmt(p.amount)}</td><td>${p.statusHtml}</td><td class="dim xs2">${p.mode}</td></tr>`).join('')||'<tr><td colspan="7" class="te">No payments yet</td></tr>';
   renderDayWise();
 }
 
