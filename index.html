@@ -1116,32 +1116,59 @@ body.auditor-mode #save-btn { display:none !important; }
     <div class="print-header"><h1>Flight Bookings</h1></div>
     <div class="card no-print">
       <div class="ct">Add Flight Booking</div>
-      <div class="fg mb8" style="grid-template-columns:1fr 1.5fr 0.6fr 0.8fr 0.8fr 0.8fr 0.8fr auto">
-        <div class="fld"><label>Airline</label><input type="text" id="flt-airline" placeholder="IndiGo / Air India..."></div>
+      <div class="fg mb8" style="grid-template-columns:1fr 1fr 1fr 1fr">
+        <div class="fld"><label>Booking Date *</label><input type="date" id="flt-bookdate"></div>
+        <div class="fld"><label>Travel Date *</label><input type="date" id="flt-date"></div>
         <div class="fld"><label>Passenger / Group *</label><input type="text" id="flt-pax" placeholder="Name or group"></div>
-        <div class="fld"><label>Count</label><input type="number" id="flt-count" value="1" min="1"></div>
+        <div class="fld"><label>Dept / Designation</label><input type="text" id="flt-dept" placeholder="Camera / Director..."></div>
+      </div>
+      <div class="fg mb8" style="grid-template-columns:1fr 1fr 1fr 1fr">
+        <div class="fld"><label>Airline</label><input type="text" id="flt-airline" placeholder="IndiGo / Air India..."></div>
         <div class="fld"><label>From</label><input type="text" id="flt-from" placeholder="HYD"></div>
         <div class="fld"><label>To</label><input type="text" id="flt-to" placeholder="BOM"></div>
-        <div class="fld"><label>Travel Date *</label><input type="date" id="flt-date"></div>
-        <div class="fld"><label>Est. Cost (₹)</label><input type="number" id="flt-estcost" placeholder="0"></div>
+        <div class="fld"><label>Travel Class</label>
+          <select id="flt-class">
+            <option value="">— Select —</option>
+            <option>Economy</option>
+            <option>Premium Economy</option>
+            <option>Business</option>
+            <option>First Class</option>
+          </select>
+        </div>
+      </div>
+      <div class="fg mb8" style="grid-template-columns:1fr 1fr 1fr 1fr">
+        <div class="fld"><label>MMT Fare (₹)</label><input type="number" id="flt-mmt" placeholder="0"></div>
+        <div class="fld"><label>Ticket Fare (₹)</label><input type="number" id="flt-ticket" placeholder="0"></div>
+        <div class="fld"><label>Actual (₹)</label><input type="number" id="flt-actual" placeholder="0"></div>
+        <div class="fld"><label>Excess Luggage (₹)</label><input type="number" id="flt-luggage" placeholder="0"></div>
+      </div>
+      <div class="fg mb8" style="grid-template-columns:1fr 1fr 1fr 1fr">
+        <div class="fld"><label>Seat / Meals</label><input type="text" id="flt-meals" placeholder="Window + Veg meal..."></div>
+        <div class="fld"><label>Seat Preference</label><input type="text" id="flt-seat" placeholder="12A / Aisle..."></div>
+        <div class="fld"><label>Reason for Travel</label><input type="text" id="flt-reason" placeholder="Schedule / Recce..."></div>
+        <div class="fld"><label>Approved By</label><input type="text" id="flt-approved" placeholder="EP / Producer..."></div>
+      </div>
+      <div class="fg mb8" style="grid-template-columns:2fr 1fr auto">
+        <div class="fld"><label>Comments</label><input type="text" id="flt-notes" placeholder="PNR, remarks, special instructions..."></div>
+        <div class="fld"><label>Count (Pax)</label><input type="number" id="flt-count" value="1" min="1"></div>
         <div class="fld" style="padding-top:18px"><button class="btn bg" onclick="addFlight()">+ Add</button></div>
       </div>
-      <div class="flex aic gap12">
-        <div class="fld" style="flex:1"><label>Notes</label><input type="text" id="flt-notes" placeholder="PNR, remarks..."></div>
-      </div>
     </div>
-    <div class="flex gap8 mb8 no-print"><button class="btn bs sm no-print" onclick="exportFlightsExcel()">⬇ Excel</button>
-      <button class="btn bg sm" onclick="syncFlightsToEstimates()">📤 Submit to Estimates</button></div>
+    <div class="flex gap8 mb8 no-print">
+      <button class="btn bs sm no-print" onclick="exportFlightsExcel()">⬇ Excel</button>
+      <button class="btn bg sm" onclick="syncFlightsToEstimates()">📤 Submit to Estimates</button>
+    </div>
     <div class="card">
       <div class="flex aic jb mb10">
         <div class="ct" style="margin:0">Flight Bookings</div>
         <span id="flt-summary" class="xs2 dim"></span>
       </div>
       <div class="tw"><table><thead><tr>
-        <th>Airline</th><th>Passenger / Group</th><th class="tr">Pax</th>
-        <th>From</th><th>To</th><th>Date</th>
-        <th class="tr">Est. Cost</th><th class="tr">Act. Cost</th>
-        <th>Notes</th><th class="no-print"></th>
+        <th>Book Date</th><th>Travel Date</th><th>Passenger</th><th>Dept</th>
+        <th>Route</th><th>Airline</th><th>Class</th>
+        <th class="tr">MMT Fare</th><th class="tr">Ticket Fare</th><th class="tr">Actual</th><th class="tr">Luggage</th>
+        <th>Meals</th><th>Seat</th><th>Reason</th><th>Approved</th><th>Comments</th>
+        <th class="no-print"></th>
       </tr></thead><tbody id="flt-body"></tbody>
       <tfoot id="flt-foot"></tfoot></table></div>
     </div>
@@ -13195,13 +13222,13 @@ const DEFAULT_USERS=[
 // Pages each role can access — admin gets everything
 const ROLE_ACCESS={
   admin:      null,
-  producer:   ['dash','estimates','actuals','payments','bills','sched-summary','summary','hotels','flights','vehicles','notifications','inbox'],
+  producer:   ['inbox','estimates','actuals','payments','bills','sched-summary','summary','hotels','flights','vehicles','notifications'],
   transport:  ['vehicles'],
   hospitality:['hotels','flights'],
   cashier:    ['pettycash','petty'],
   accounts:   ['payments','bills','sched-summary','vendors','inbox'],
   coordinator:['actuals','daysheet','callsheets','actorlog','dpr','submit-actuals'],
-  auditor:    ['dash','estimates','actuals','bills','payments','vendors','sched-summary','summary','dpr','hotels','flights','vehicles','pettycash','petty','salaries','actorlog','actor-contracts','notifications']
+  auditor:    ['dash','estimates','actuals','bills','payments','vendors','sched-summary','summary','dpr','hotels','flights','vehicles','pettycash','petty','salaries','actorlog','actor-contracts','notifications','inbox']
 };
 
 function getUsers(){
@@ -13371,10 +13398,10 @@ function _startApp(){
         }
       }catch(e){console.error('localStorage load error:',e);}
     }
-    init();applyUserRole();applyStoredTheme();go(getLandingPage());
+    init();applyUserRole();applyStoredTheme();go(getLandingPage());setTimeout(applySidebarFilter,600);
   }).catch(function(e){
     console.error('startApp error:',e);
-    init();applyUserRole();applyStoredTheme();go(getLandingPage());
+    init();applyUserRole();applyStoredTheme();go(getLandingPage());setTimeout(applySidebarFilter,600);
   });
 }
 // ── DATA MIGRATION: copy from any k2 localStorage key if current is empty ──
@@ -13574,19 +13601,32 @@ function renderHotels(){
 function addFlight(){
   const pax=(document.getElementById('flt-pax')?.value||'').trim();
   const date=document.getElementById('flt-date')?.value;
-  if(!pax||!date){toast('Passenger and date required','err');return;}
+  if(!pax||!date){toast('Passenger and travel date required','err');return;}
+  const bookdate=document.getElementById('flt-bookdate')?.value||'';
   const airline=(document.getElementById('flt-airline')?.value||'').trim();
-  const count=parseFloat(document.getElementById('flt-count')?.value)||1;
+  const dept=(document.getElementById('flt-dept')?.value||'').trim();
   const from=(document.getElementById('flt-from')?.value||'').trim();
   const to=(document.getElementById('flt-to')?.value||'').trim();
-  const estCost=parseFloat(document.getElementById('flt-estcost')?.value)||0;
+  const travelClass=document.getElementById('flt-class')?.value||'';
+  const mmt=parseFloat(document.getElementById('flt-mmt')?.value)||0;
+  const ticket=parseFloat(document.getElementById('flt-ticket')?.value)||0;
+  const actual=parseFloat(document.getElementById('flt-actual')?.value)||0;
+  const luggage=parseFloat(document.getElementById('flt-luggage')?.value)||0;
+  const meals=(document.getElementById('flt-meals')?.value||'').trim();
+  const seat=(document.getElementById('flt-seat')?.value||'').trim();
+  const reason=(document.getElementById('flt-reason')?.value||'').trim();
+  const approved=(document.getElementById('flt-approved')?.value||'').trim();
   const notes=(document.getElementById('flt-notes')?.value||'').trim();
-  const entry={id:uid(),airline,pax,count,from,to,date,estCost,actCost:null,notes};
+  const count=parseFloat(document.getElementById('flt-count')?.value)||1;
+  const entry={id:uid(),bookdate,date,pax,dept,airline,from,to,travelClass,mmt,ticket,actCost:actual,luggage,meals,seat,reason,approved,notes,count,
+    // legacy compat
+    estCost:mmt};
   if(!DB.flights)DB.flights=[];
   DB.flights.push(entry);
   saveDB();renderFlights();
-  ['flt-airline','flt-pax','flt-from','flt-to','flt-notes','flt-estcost'].forEach(x=>{const el=document.getElementById(x);if(el)el.value='';});
+  ['flt-airline','flt-pax','flt-from','flt-to','flt-notes','flt-mmt','flt-ticket','flt-actual','flt-luggage','flt-meals','flt-seat','flt-reason','flt-approved','flt-dept','flt-bookdate'].forEach(x=>{const el=document.getElementById(x);if(el)el.value='';});
   document.getElementById('flt-count').value='1';
+  document.getElementById('flt-class').value='';
   toast('✓ Flight added for '+fmtD(date));
 }
 
@@ -13601,43 +13641,65 @@ function setFlightActCost(id,val){
   if(f){f.actCost=val===''?null:parseFloat(val);saveDB();}
 }
 
+function setFlightField(id,field,val){
+  const f=(DB.flights||[]).find(x=>x.id===id);
+  if(f){f[field]=val===''?null:(parseFloat(val)||val);saveDB();}
+}
+
 function renderFlights(){
   const body=document.getElementById('flt-body');
   const foot=document.getElementById('flt-foot');
-  const flights=(DB.flights||[]).sort((a,b)=>a.date.localeCompare(b.date));
+  const flights=(DB.flights||[]).sort((a,b)=>(a.date||'').localeCompare(b.date||''));
   if(!body)return;
   if(!flights.length){
-    body.innerHTML='<tr><td colspan="10" class="te">No flight bookings yet</td></tr>';
+    body.innerHTML='<tr><td colspan="17" class="te">No flight bookings yet</td></tr>';
     if(foot)foot.innerHTML='';
     const s=document.getElementById('flt-summary');if(s)s.textContent='';
     return;
   }
-  let grandEst=0,grandAct=0;
+  let grandMmt=0,grandTicket=0,grandAct=0,grandLuggage=0;
   body.innerHTML=flights.map(f=>{
-    grandEst+=f.estCost||0;
+    grandMmt+=f.mmt||f.estCost||0;
+    grandTicket+=f.ticket||0;
     grandAct+=f.actCost||0;
+    grandLuggage+=f.luggage||0;
+    const route=(f.from&&f.to)?f.from+' → '+f.to:(f.from||f.to||'—');
     return`<tr>
-      <td class="semi">${f.airline||'—'}</td>
-      <td>${f.pax}</td>
-      <td class="tr">${f.count}</td>
-      <td class="xs2">${f.from||'—'}</td>
-      <td class="xs2">${f.to||'—'}</td>
-      <td>${fmtD(f.date)}</td>
-      <td class="tr mono blue semi">${fmt(f.estCost||0)}</td>
-      <td class="tr"><input class="act-inline" type="number" value="${f.actCost||''}" placeholder="Actual" style="width:80px" data-fid="${f.id}" onchange="setFlightActCost(this.dataset.fid,this.value)"></td>
-      <td class="xs2 dim">${f.notes||'—'}</td>
+      <td class="xs2">${f.bookdate?fmtD(f.bookdate):'—'}</td>
+      <td class="semi">${fmtD(f.date)}</td>
+      <td>${esc(f.pax)}</td>
+      <td class="xs2 dim">${esc(f.dept||'—')}</td>
+      <td class="xs2">${esc(route)}</td>
+      <td class="xs2">${esc(f.airline||'—')}</td>
+      <td class="xs2">${esc(f.travelClass||'—')}</td>
+      <td class="tr mono blue semi">${f.mmt||f.estCost?fmt(f.mmt||f.estCost||0):'—'}</td>
+      <td class="tr mono">${f.ticket?fmt(f.ticket):'—'}</td>
+      <td class="tr"><input class="act-inline" type="number" value="${f.actCost||''}" placeholder="Actual" style="width:80px" data-fid="${f.id}" onchange="setFlightField(this.dataset.fid,'actCost',this.value)"></td>
+      <td class="tr mono xs2">${f.luggage?fmt(f.luggage):'—'}</td>
+      <td class="xs2 dim">${esc(f.meals||'—')}</td>
+      <td class="xs2 dim">${esc(f.seat||'—')}</td>
+      <td class="xs2 dim">${esc(f.reason||'—')}</td>
+      <td class="xs2 dim">${esc(f.approved||'—')}</td>
+      <td class="xs2 dim">${esc(f.notes||'—')}</td>
       <td class="no-print"><button class="btn br xs" data-fid="${f.id}" onclick="delFlight(this.dataset.fid)">✕</button></td>
     </tr>`;
   }).join('');
-  if(foot)foot.innerHTML=`<tr class="est-section-total"><td colspan="6" class="tr semi">Total</td><td class="tr mono semi">${fmt(grandEst)}</td><td class="tr mono">${grandAct?'₹'+fmt(grandAct):'—'}</td><td colspan="2"></td></tr>`;
+  if(foot)foot.innerHTML=`<tr class="est-section-total">
+    <td colspan="7" class="tr semi">Total</td>
+    <td class="tr mono semi blue">${fmt(grandMmt)}</td>
+    <td class="tr mono semi">${grandTicket?fmt(grandTicket):'—'}</td>
+    <td class="tr mono semi">${grandAct?fmt(grandAct):'—'}</td>
+    <td class="tr mono semi">${grandLuggage?fmt(grandLuggage):'—'}</td>
+    <td colspan="6"></td>
+  </tr>`;
   const s=document.getElementById('flt-summary');
-  if(s)s.textContent=flights.length+' booking'+(flights.length>1?'s':'')+' · ₹'+fmt(grandEst)+' est';
+  if(s)s.textContent=flights.length+' booking'+(flights.length>1?'s':'')+' · MMT: ₹'+fmt(grandMmt)+' · Actual: ₹'+fmt(grandAct);
 }
 
-// Flight rollup for estimates table
+// Flight rollup for estimates table — estimate = MMT Fare per travel date
 function getFlightRollup(date){
   const flights=(DB.flights||[]).filter(f=>f.date===date);
-  const total=flights.reduce((s,f)=>s+(f.estCost||0),0);
+  const total=flights.reduce((s,f)=>s+(f.mmt||f.estCost||0),0); // MMT fare is the estimate
   const actTotal=flights.reduce((s,f)=>s+(f.actCost||0),0);
   return{flights,total,actTotal,count:flights.length};
 }
