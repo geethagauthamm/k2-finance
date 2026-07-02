@@ -13018,9 +13018,9 @@ async function _saveToSupabase(){
   if(_sbSaving)return;
   _sbSaving=true;
   try{
-    // Strip large scan images from cloud save — store separately
     const dbClean=JSON.parse(JSON.stringify(DB));
-    // Save scans to separate rows to avoid 1MB row limit
+
+    // Strip scan images — save separately
     const scans={};
     (dbClean.bills||[]).forEach(b=>{
       if(b.images?.length||b.imageData){
@@ -13029,60 +13029,67 @@ async function _saveToSupabase(){
       }
     });
 
-    // Check payload size — Supabase has a ~1MB row limit
-    const payload=JSON.stringify({project:SB_PROJECT,data:dbClean,updated_at:new Date().toISOString()});
-    const sizeKB=Math.round(payload.length/1024);
-    if(sizeKB>900){
-      console.warn('Payload size: '+sizeKB+'KB — approaching Supabase limit');
-      updateSyncStatus('⚠ Data size: '+sizeKB+'KB (limit 1MB)','var(--or)');
-    }
+    // Split large data into chunks to avoid Supabase 1MB row limit
+    // Chunk 1: core (estimates, actuals, project, users, settings)
+    // Chunk 2: paytracker (payments — can be large)
+    // Chunk 3: bills, vehicles, flights, hotels, etc.
+    const chunk1={
+      project:dbClean.project,users:dbClean.users,estimates:dbClean.estimates,
+      inlineActuals:dbClean.inlineActuals,actAdhoc:dbClean.actAdhoc,
+      dayHeaders:dbClean.dayHeaders,schedules:dbClean.schedules,
+      rateCard:dbClean.rateCard,vendors:dbClean.vendors,
+      notifConfig:dbClean.notifConfig,salaryEntries:dbClean.salaryEntries,
+      actorLog:dbClean.actorLog,actorContracts:dbClean.actorContracts,
+      callSheets:dbClean.callSheets,adminCharges:dbClean.adminCharges,
+      snapshots:dbClean.snapshots,vehicles:dbClean.vehicles,
+      hotels:dbClean.hotels,flights:dbClean.flights,
+    };
+    const chunk2={paytracker:dbClean.paytracker};
+    const chunk3={bills:dbClean.bills};
 
-    // Upsert main data
-    const res=await sbFetch('/rest/v1/k2_data',{
-      method:'POST',
-      headers:{'Prefer':'resolution=merge-duplicates,return=minimal'},
-      body:payload
-    });
+    const saves=[
+      sbFetch('/rest/v1/k2_data',{method:'POST',headers:{'Prefer':'resolution=merge-duplicates,return=minimal'},
+        body:JSON.stringify({project:SB_PROJECT,data:chunk1,updated_at:new Date().toISOString()})}),
+      sbFetch('/rest/v1/k2_data',{method:'POST',headers:{'Prefer':'resolution=merge-duplicates,return=minimal'},
+        body:JSON.stringify({project:SB_PROJECT+'_pay',data:chunk2,updated_at:new Date().toISOString()})}),
+      sbFetch('/rest/v1/k2_data',{method:'POST',headers:{'Prefer':'resolution=merge-duplicates,return=minimal'},
+        body:JSON.stringify({project:SB_PROJECT+'_bills',data:chunk3,updated_at:new Date().toISOString()})})
+    ];
 
-    if(res.ok||res.status===201||res.status===204){
-      // Also save scans if any
+    const [res1,res2,res3]=await Promise.all(saves);
+    const allOk=[res1,res2,res3].every(r=>r.ok||r.status===201||r.status===204);
+
+    if(allOk){
       if(Object.keys(scans).length){
-        await sbFetch('/rest/v1/k2_scans',{
-          method:'POST',
+        await sbFetch('/rest/v1/k2_scans',{method:'POST',
           headers:{'Prefer':'resolution=merge-duplicates,return=minimal'},
-          body:JSON.stringify({project:SB_PROJECT,scans:scans,updated_at:new Date().toISOString()})
-        });
+          body:JSON.stringify({project:SB_PROJECT,scans:scans,updated_at:new Date().toISOString()})});
       }
-      // Also write to localStorage as cache (best effort)
       try{localStorage.setItem(STORAGE_KEY,JSON.stringify(DB));}catch(e){}
       updateSyncStatus('☁ Saved · '+new Date().toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit'}),'var(--gn)');
       _unsaved=false;
     } else {
-      const err=await res.text();
-      console.error('Supabase save error:',res.status,err);
-      if(err.includes('does not exist')||err.includes('42P01')){
+      const errors=await Promise.all([res1,res2,res3].filter(r=>!r.ok&&r.status!==201&&r.status!==204).map(r=>r.text()));
+      const errText=errors.join(' | ').slice(0,120);
+      console.error('Supabase save error:',errText);
+      if(errText.includes('does not exist')||errText.includes('42P01')){
         showSbSetupGuide();
-      } else if(res.status===413||err.includes('too large')||err.includes('payload')){
-        updateSyncStatus('⚠ Data too large for cloud — saved locally','var(--or)');
-        toast('Cloud save failed: data size too large. Please contact support.','err');
-        try{localStorage.setItem(STORAGE_KEY,JSON.stringify(DB));}catch(e){}
-        _unsaved=false;
       } else {
-        updateSyncStatus('⚠ Cloud error: '+res.status+' — saved locally','var(--or)');
-        toast('Cloud save failed ('+res.status+'): '+err.slice(0,80),'err');
+        updateSyncStatus('⚠ Cloud save failed — saved locally','var(--or)');
+        toast('Cloud save failed: '+errText,'err');
         try{localStorage.setItem(STORAGE_KEY,JSON.stringify(DB));}catch(e){}
         _unsaved=false;
       }
     }
   }catch(e){
-    // Fall back to localStorage
+    console.error('_saveToSupabase exception:',e);
     try{
       localStorage.setItem(STORAGE_KEY,JSON.stringify(DB));
       updateSyncStatus('✓ Saved locally (cloud offline)','var(--go)');
       _unsaved=false;
     }catch(le){
       updateSyncStatus('⚠ Save failed','var(--rd)');
-      toast('Save failed — storage full. Please Backup your data now.','err');
+      toast('Save failed — please Backup your data now!','err');
     }
   }finally{
     _sbSaving=false;
@@ -13093,30 +13100,32 @@ async function _saveToSupabase(){
 async function loadFromSupabase(){
   updateSyncStatus('☁ Loading from cloud…','var(--bl)');
   try{
-    const res=await sbFetch('/rest/v1/k2_data?project=eq.'+SB_PROJECT+'&limit=1',{
-      headers:{'Prefer':'return=representation'}
-    });
-    if(!res.ok){
-      if(res.status===404||res.status===400){showSbSetupGuide();return false;}
-      throw new Error('HTTP '+res.status);
+    // Load all 3 chunks in parallel
+    const [res1,res2,res3]=await Promise.all([
+      sbFetch('/rest/v1/k2_data?project=eq.'+SB_PROJECT+'&limit=1',{headers:{'Prefer':'return=representation'}}),
+      sbFetch('/rest/v1/k2_data?project=eq.'+SB_PROJECT+'_pay&limit=1',{headers:{'Prefer':'return=representation'}}),
+      sbFetch('/rest/v1/k2_data?project=eq.'+SB_PROJECT+'_bills&limit=1',{headers:{'Prefer':'return=representation'}})
+    ]);
+
+    if(!res1.ok){
+      if(res1.status===404||res1.status===400){showSbSetupGuide();return false;}
+      throw new Error('HTTP '+res1.status);
     }
-    const rows=await res.json();
-    if(!rows||!rows.length||!rows[0].data){
+
+    const [rows1,rows2,rows3]=await Promise.all([res1.json(),res2.json().catch(()=>[]),res3.json().catch(()=>[])]);
+
+    if(!rows1||!rows1.length||!rows1[0].data){
       updateSyncStatus('☁ No cloud data yet','var(--tx3)');
       return false;
     }
-    const d=rows[0].data;
-    const _bakedPaytracker=JSON.parse(JSON.stringify(DB.paytracker||{}));
-    DB={...DB,...d};
-    // Merge paytracker
-    const _localEntries=Object.values(DB.paytracker||{}).reduce(function(s,v){return s+(v&&!Array.isArray(v)?(v.entries||[]).length:0);},0);
-    const _bakedEntries=Object.values(_bakedPaytracker).reduce(function(s,v){return s+(v&&!Array.isArray(v)?(v.entries||[]).length:0);},0);
-    if(_bakedEntries>_localEntries){
-      DB.paytracker=JSON.parse(JSON.stringify(_bakedPaytracker));
-      Object.keys(d.paytracker||{}).forEach(function(k){
-        if(d.paytracker[k]&&!Array.isArray(d.paytracker[k])&&(d.paytracker[k].entries||[]).length>0)DB.paytracker[k]=d.paytracker[k];
-      });
-    }
+
+    // Merge all chunks into DB
+    const d1=rows1[0].data||{};
+    const d2=(rows2&&rows2.length&&rows2[0].data)||{};
+    const d3=(rows3&&rows3.length&&rows3[0].data)||{};
+    const merged={...d1,...d2,...d3};
+
+    DB={...DB,...merged};
 
     // Try loading scans separately
     try{
@@ -13141,6 +13150,7 @@ async function loadFromSupabase(){
     updateSyncStatus('☁ Loaded from cloud · '+new Date().toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit'}),'var(--gn)');
     return true;
   }catch(e){
+    console.error('loadFromSupabase error:',e);
     updateSyncStatus('⚠ Cloud unavailable — using local cache','var(--go)');
     return false;
   }
