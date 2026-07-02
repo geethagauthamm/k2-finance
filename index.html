@@ -2016,26 +2016,11 @@ body.auditor-mode #save-btn { display:none !important; }
           <select id="pc-f-cat" class="btn bs sm" onchange="renderPettyCash()"><option value="">All Categories</option></select>
           <button class="btn bs sm" onclick="exportPettyCashExcel()">📊 Excel</button>
           <button class="btn bs sm" onclick="printPage()">🖨 Print</button>
+          <button class="btn bs sm no-print" onclick="expandAllPCMonths()">Expand All</button>
+          <button class="btn bs sm no-print" onclick="collapseAllPCMonths()">Collapse All</button>
         </div>
       </div>
-      <div class="tw">
-        <table style="border-collapse:collapse;width:100%">
-          <thead><tr>
-            <th style="padding:6px 10px;background:var(--sf3);border:1px solid var(--bd);font-size:9px;color:var(--tx3);text-transform:uppercase;letter-spacing:1px">Date</th>
-            <th style="padding:6px 10px;background:var(--sf3);border:1px solid var(--bd);font-size:9px;color:var(--tx3);text-transform:uppercase;letter-spacing:1px">Name</th>
-            <th style="padding:6px 10px;background:var(--sf3);border:1px solid var(--bd);font-size:9px;color:var(--tx3);text-transform:uppercase;letter-spacing:1px">Category</th>
-            <th style="padding:6px 10px;background:var(--sf3);border:1px solid var(--bd);font-size:9px;color:var(--tx3);text-transform:uppercase;letter-spacing:1px">Details</th>
-            <th style="padding:6px 10px;background:var(--sf3);border:1px solid var(--bd);font-size:9px;color:var(--tx3);text-transform:uppercase;letter-spacing:1px">Status</th>
-            <th style="padding:6px 10px;background:var(--sf3);border:1px solid var(--bd);font-size:9px;color:var(--tx3);text-transform:uppercase;letter-spacing:1px">Receipt #</th>
-            <th style="padding:6px 10px;background:var(--sf3);border:1px solid var(--bd);font-size:9px;color:var(--tx3);text-transform:uppercase;letter-spacing:1px">Approved By</th>
-            <th style="padding:6px 10px;background:var(--sf3);border:1px solid var(--bd);font-size:9px;color:var(--tx3);text-transform:uppercase;letter-spacing:1px;text-align:right">Amount</th>
-            <th style="padding:6px 10px;background:var(--sf3);border:1px solid var(--bd);font-size:9px;color:var(--tx3);text-transform:uppercase;letter-spacing:1px">Notes</th>
-            <th class="no-print" style="padding:6px 10px;background:var(--sf3);border:1px solid var(--bd)"></th>
-          </tr></thead>
-          <tbody id="pc-table-body"></tbody>
-          <tfoot id="pc-table-foot"></tfoot>
-        </table>
-      </div>
+      <div id="pc-months"></div>
     </div>
 
     <!-- Rollup into actuals by date -->
@@ -9462,44 +9447,102 @@ function renderPettyCash(){
     if(statusF&&(r.status||'paid')!==statusF)return false;
     return true;
   }).sort((a,b)=>a.date.localeCompare(b.date)||a.createdAt?.localeCompare(b.createdAt));
-  const tb=document.getElementById('pc-table-body');
-  const tf=document.getElementById('pc-table-foot');
-  if(!tb)return;
+  const container=document.getElementById('pc-months');
+  if(!container)return;
   const td=(txt,right,style)=>`<td style="padding:6px 10px;border:1px solid var(--bd);font-size:12px;${right?'text-align:right':''}${style?';'+style:''}">${txt}</td>`;
-  let totalPaid=0,totalPayable=0;
-  tb.innerHTML=filtered.map(r=>{
-    const isPaid=(r.status||'paid')==='paid';
-    if(isPaid)totalPaid+=r.amount||0; else totalPayable+=r.amount||0;
-    const statusBadge=isPaid
-      ?'<span style="color:var(--gn);font-size:11px;font-weight:600">Paid</span>'
-      :'<span style="color:#f97316;font-size:11px;font-weight:600">Payable</span>';
-    const rowBg=_pcEditId===r.id?'background:rgba(96,165,250,.07);':'';
-    return `<tr style="${rowBg}">
-      ${td(fmtD(r.date))}
-      ${td(r.name)}
-      ${td('<span class="tag ts xs3">'+r.cat+'</span>')}
-      ${td(r.details)}
-      ${td(statusBadge)}
-      ${td(r.receipt||'—')}
-      ${td(r.approved||'—')}
-      ${td('₹'+fmt(r.amount),true,'color:'+(isPaid?'var(--go)':'#f97316')+';font-weight:700;font-family:monospace')}
-      ${td(r.notes||'')}
-      <td class="no-print" style="padding:4px 8px;border:1px solid var(--bd);white-space:nowrap">
-        <button onclick="editPettyCash('${r.id}')" style="color:var(--bl);border:none;background:none;cursor:pointer;font-size:12px;margin-right:4px">Edit</button>
-        <button onclick="deletePettyCash('${r.id}')" style="color:var(--rd);border:none;background:none;cursor:pointer;font-size:12px">✕</button>
-      </td>
-    </tr>`;
-  }).join('')||'<tr><td colspan="10" style="padding:20px;text-align:center;opacity:.4">No petty cash entries yet</td></tr>';
-  tf.innerHTML=`<tr style="font-weight:700;background:var(--bg2)">
-    <td colspan="7" style="padding:6px 10px;border:1px solid var(--bd);font-size:11px">TOTAL (${filtered.length} entries)</td>
-    <td style="padding:6px 10px;border:1px solid var(--bd);text-align:right;font-family:monospace;font-size:12px">
-      <div style="color:var(--go)">Paid: ${fmt(totalPaid)}</div>
-      <div style="color:#f97316">Payable: ${fmt(totalPayable)}</div>
-    </td>
-    <td colspan="2" style="border:1px solid var(--bd)"></td>
-  </tr>`;
+  if(!filtered.length){
+    container.innerHTML='<div style="padding:20px;text-align:center;opacity:.4">No petty cash entries yet</div>';
+    renderPCDailyRollup();
+    return;
+  }
+  // Group by month (YYYY-MM), most recent month first
+  const byMonth={};
+  filtered.forEach(r=>{
+    const mk=(r.date||'').slice(0,7)||'—';
+    if(!byMonth[mk])byMonth[mk]=[];
+    byMonth[mk].push(r);
+  });
+  const months=Object.keys(byMonth).sort().reverse();
+  container.innerHTML=months.map((mk,mi)=>{
+    const mRows=byMonth[mk];
+    let mPaid=0,mPayable=0;
+    const rowsHtml=mRows.map(r=>{
+      const isPaid=(r.status||'paid')==='paid';
+      if(isPaid)mPaid+=r.amount||0; else mPayable+=r.amount||0;
+      const statusBadge=isPaid
+        ?'<span style="color:var(--gn);font-size:11px;font-weight:600">Paid</span>'
+        :'<span style="color:#f97316;font-size:11px;font-weight:600">Payable</span>';
+      const rowBg=_pcEditId===r.id?'background:rgba(96,165,250,.07);':'';
+      return `<tr style="${rowBg}">
+        ${td(fmtD(r.date))}
+        ${td(r.name)}
+        ${td('<span class="tag ts xs3">'+r.cat+'</span>')}
+        ${td(r.details)}
+        ${td(statusBadge)}
+        ${td(r.receipt||'—')}
+        ${td(r.approved||'—')}
+        ${td('₹'+fmt(r.amount),true,'color:'+(isPaid?'var(--go)':'#f97316')+';font-weight:700;font-family:monospace')}
+        ${td(r.notes||'')}
+        <td class="no-print" style="padding:4px 8px;border:1px solid var(--bd);white-space:nowrap">
+          <button onclick="editPettyCash('${r.id}')" style="color:var(--bl);border:none;background:none;cursor:pointer;font-size:12px;margin-right:4px">Edit</button>
+          <button onclick="deletePettyCash('${r.id}')" style="color:var(--rd);border:none;background:none;cursor:pointer;font-size:12px">✕</button>
+        </td>
+      </tr>`;
+    }).join('');
+    const mLabel=mk==='—'?'No date':new Date(mk+'-01').toLocaleDateString('en-IN',{month:'long',year:'numeric'});
+    const mId='pcm_'+mk.replace(/-/g,'');
+    const isOpen=mi===0; // most recent month expanded by default, older months collapsed
+    return`<div class="dw-day" id="${mId}">
+      <div class="dw-hdr" onclick="togglePCMonth('${mId}')">
+        <div class="flex aic gap8">
+          <span class="dw-arrow" id="arr_${mId}">${isOpen?'▼':'▶'}</span>
+          <span class="semi" style="font-size:13px;color:var(--go)">${mLabel}</span>
+          <span class="xs3 dim">${mRows.length} entr${mRows.length>1?'ies':'y'}</span>
+        </div>
+        <div class="flex aic gap12">
+          <span class="xs3 dim">Paid</span><span class="tn semi" style="font-size:12px;color:var(--go)">₹${fmt(mPaid)}</span>
+          ${mPayable?`<span class="xs3 dim" style="margin-left:6px">Payable</span><span class="tn semi" style="font-size:12px;color:#f97316">₹${fmt(mPayable)}</span>`:''}
+        </div>
+      </div>
+      <div class="dw-body" id="body_${mId}" style="display:${isOpen?'block':'none'}">
+        <div class="tw"><table style="border-collapse:collapse;width:100%;font-size:11px">
+          <thead><tr>
+            <th style="padding:6px 10px;background:var(--sf3);border:1px solid var(--bd);font-size:9px;color:var(--tx3);text-transform:uppercase;letter-spacing:1px">Date</th>
+            <th style="padding:6px 10px;background:var(--sf3);border:1px solid var(--bd);font-size:9px;color:var(--tx3);text-transform:uppercase;letter-spacing:1px">Name</th>
+            <th style="padding:6px 10px;background:var(--sf3);border:1px solid var(--bd);font-size:9px;color:var(--tx3);text-transform:uppercase;letter-spacing:1px">Category</th>
+            <th style="padding:6px 10px;background:var(--sf3);border:1px solid var(--bd);font-size:9px;color:var(--tx3);text-transform:uppercase;letter-spacing:1px">Details</th>
+            <th style="padding:6px 10px;background:var(--sf3);border:1px solid var(--bd);font-size:9px;color:var(--tx3);text-transform:uppercase;letter-spacing:1px">Status</th>
+            <th style="padding:6px 10px;background:var(--sf3);border:1px solid var(--bd);font-size:9px;color:var(--tx3);text-transform:uppercase;letter-spacing:1px">Receipt #</th>
+            <th style="padding:6px 10px;background:var(--sf3);border:1px solid var(--bd);font-size:9px;color:var(--tx3);text-transform:uppercase;letter-spacing:1px">Approved By</th>
+            <th style="padding:6px 10px;background:var(--sf3);border:1px solid var(--bd);font-size:9px;color:var(--tx3);text-transform:uppercase;letter-spacing:1px;text-align:right">Amount</th>
+            <th style="padding:6px 10px;background:var(--sf3);border:1px solid var(--bd);font-size:9px;color:var(--tx3);text-transform:uppercase;letter-spacing:1px">Notes</th>
+            <th class="no-print" style="padding:6px 10px;background:var(--sf3);border:1px solid var(--bd)"></th>
+          </tr></thead>
+          <tbody>${rowsHtml}</tbody>
+          <tfoot><tr style="font-weight:700;background:var(--bg2)">
+            <td colspan="7" style="padding:6px 10px;border:1px solid var(--bd);font-size:11px">MONTH TOTAL (${mRows.length} entries)</td>
+            <td style="padding:6px 10px;border:1px solid var(--bd);text-align:right;font-family:monospace;font-size:12px">
+              <div style="color:var(--go)">Paid: ${fmt(mPaid)}</div>
+              <div style="color:#f97316">Payable: ${fmt(mPayable)}</div>
+            </td>
+            <td colspan="2" style="border:1px solid var(--bd)"></td>
+          </tr></tfoot>
+        </table></div>
+      </div>
+    </div>`;
+  }).join('');
   renderPCDailyRollup();
 }
+function togglePCMonth(id){
+  const body=document.getElementById('body_'+id);
+  const arr=document.getElementById('arr_'+id);
+  if(!body)return;
+  const open=body.style.display==='none';
+  body.style.display=open?'block':'none';
+  if(arr)arr.textContent=open?'▼':'▶';
+}
+function expandAllPCMonths(){document.querySelectorAll('[id^="body_pcm_"]').forEach(el=>{el.style.display='block';const arr=document.getElementById('arr_'+el.id.replace('body_',''));if(arr)arr.textContent='▼';});}
+function collapseAllPCMonths(){document.querySelectorAll('[id^="body_pcm_"]').forEach(el=>{el.style.display='none';const arr=document.getElementById('arr_'+el.id.replace('body_',''));if(arr)arr.textContent='▶';});}
 
 function renderPCDailyRollup(){
   const el=document.getElementById('pc-daily-rollup');if(!el)return;
