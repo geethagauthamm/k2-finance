@@ -13019,7 +13019,8 @@ async function _saveToSupabase(){
   _sbSaving=true;
   try{
     const dbClean=JSON.parse(JSON.stringify(DB));
-
+    // Strip snapshots — they're huge and local-only
+    dbClean.snapshots=[];
     // Strip scan images — save separately
     const scans={};
     (dbClean.bills||[]).forEach(b=>{
@@ -13029,37 +13030,13 @@ async function _saveToSupabase(){
       }
     });
 
-    // Split large data into chunks to avoid Supabase 1MB row limit
-    // Chunk 1: core (estimates, actuals, project, users, settings)
-    // Chunk 2: paytracker (payments — can be large)
-    // Chunk 3: bills, vehicles, flights, hotels, etc.
-    const chunk1={
-      project:dbClean.project,users:dbClean.users,estimates:dbClean.estimates,
-      inlineActuals:dbClean.inlineActuals,actAdhoc:dbClean.actAdhoc,
-      dayHeaders:dbClean.dayHeaders,schedules:dbClean.schedules,
-      rateCard:dbClean.rateCard,vendors:dbClean.vendors,
-      notifConfig:dbClean.notifConfig,salaryEntries:dbClean.salaryEntries,
-      actorLog:dbClean.actorLog,actorContracts:dbClean.actorContracts,
-      callSheets:dbClean.callSheets,adminCharges:dbClean.adminCharges,
-      snapshots:dbClean.snapshots,vehicles:dbClean.vehicles,
-      hotels:dbClean.hotels,flights:dbClean.flights,
-    };
-    const chunk2={paytracker:dbClean.paytracker};
-    const chunk3={bills:dbClean.bills};
+    const res=await sbFetch('/rest/v1/k2_data',{
+      method:'POST',
+      headers:{'Prefer':'resolution=merge-duplicates,return=minimal'},
+      body:JSON.stringify({project:SB_PROJECT,data:dbClean,updated_at:new Date().toISOString()})
+    });
 
-    const saves=[
-      sbFetch('/rest/v1/k2_data',{method:'POST',headers:{'Prefer':'resolution=merge-duplicates,return=minimal'},
-        body:JSON.stringify({project:SB_PROJECT,data:chunk1,updated_at:new Date().toISOString()})}),
-      sbFetch('/rest/v1/k2_data',{method:'POST',headers:{'Prefer':'resolution=merge-duplicates,return=minimal'},
-        body:JSON.stringify({project:SB_PROJECT+'_pay',data:chunk2,updated_at:new Date().toISOString()})}),
-      sbFetch('/rest/v1/k2_data',{method:'POST',headers:{'Prefer':'resolution=merge-duplicates,return=minimal'},
-        body:JSON.stringify({project:SB_PROJECT+'_bills',data:chunk3,updated_at:new Date().toISOString()})})
-    ];
-
-    const [res1,res2,res3]=await Promise.all(saves);
-    const allOk=[res1,res2,res3].every(r=>r.ok||r.status===201||r.status===204);
-
-    if(allOk){
+    if(res.ok||res.status===201||res.status===204){
       if(Object.keys(scans).length){
         await sbFetch('/rest/v1/k2_scans',{method:'POST',
           headers:{'Prefer':'resolution=merge-duplicates,return=minimal'},
@@ -13069,28 +13046,21 @@ async function _saveToSupabase(){
       updateSyncStatus('☁ Saved · '+new Date().toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit'}),'var(--gn)');
       _unsaved=false;
     } else {
-      const errors=await Promise.all([res1,res2,res3].filter(r=>!r.ok&&r.status!==201&&r.status!==204).map(r=>r.text()));
-      const errText=errors.join(' | ').slice(0,120);
-      console.error('Supabase save error:',errText);
-      if(errText.includes('does not exist')||errText.includes('42P01')){
-        showSbSetupGuide();
-      } else {
-        updateSyncStatus('⚠ Cloud save failed — saved locally','var(--or)');
-        toast('Cloud save failed: '+errText,'err');
+      const err=await res.text();
+      console.error('Supabase save error:',res.status,err);
+      if(err.includes('does not exist')||err.includes('42P01')){showSbSetupGuide();}
+      else{
+        updateSyncStatus('⚠ Cloud save failed ('+res.status+')','var(--rd)');
+        toast('Cloud save failed: '+err.slice(0,80),'err');
         try{localStorage.removeItem('k2_backup_snapshot');localStorage.setItem(STORAGE_KEY,JSON.stringify(DB));}catch(e){}
         _unsaved=false;
       }
     }
   }catch(e){
-    console.error('_saveToSupabase exception:',e);
-    try{
-      localStorage.setItem(STORAGE_KEY,JSON.stringify(DB));
-      updateSyncStatus('✓ Saved locally (cloud offline)','var(--go)');
-      _unsaved=false;
-    }catch(le){
-      updateSyncStatus('⚠ Save failed','var(--rd)');
-      toast('Save failed — please Backup your data now!','err');
-    }
+    console.error('_saveToSupabase:',e);
+    try{localStorage.removeItem('k2_backup_snapshot');localStorage.setItem(STORAGE_KEY,JSON.stringify(DB));}catch(e){}
+    updateSyncStatus('✓ Saved locally','var(--go)');
+    _unsaved=false;
   }finally{
     _sbSaving=false;
   }
@@ -13100,57 +13070,33 @@ async function _saveToSupabase(){
 async function loadFromSupabase(){
   updateSyncStatus('☁ Loading from cloud…','var(--bl)');
   try{
-    // Load all 3 chunks in parallel
-    const [res1,res2,res3]=await Promise.all([
-      sbFetch('/rest/v1/k2_data?project=eq.'+SB_PROJECT+'&limit=1',{headers:{'Prefer':'return=representation'}}),
-      sbFetch('/rest/v1/k2_data?project=eq.'+SB_PROJECT+'_pay&limit=1',{headers:{'Prefer':'return=representation'}}),
-      sbFetch('/rest/v1/k2_data?project=eq.'+SB_PROJECT+'_bills&limit=1',{headers:{'Prefer':'return=representation'}})
-    ]);
-
-    if(!res1.ok){
-      if(res1.status===404||res1.status===400){showSbSetupGuide();return false;}
-      throw new Error('HTTP '+res1.status);
+    const res=await sbFetch('/rest/v1/k2_data?project=eq.'+SB_PROJECT+'&limit=1',{headers:{'Prefer':'return=representation'}});
+    if(!res.ok){
+      if(res.status===404||res.status===400){showSbSetupGuide();return false;}
+      throw new Error('HTTP '+res.status);
     }
-
-    const [rows1,rows2,rows3]=await Promise.all([res1.json(),res2.json().catch(()=>[]),res3.json().catch(()=>[])]);
-
-    if(!rows1||!rows1.length||!rows1[0].data){
+    const rows=await res.json();
+    if(!rows||!rows.length||!rows[0].data){
       updateSyncStatus('☁ No cloud data yet','var(--tx3)');
       return false;
     }
-
-    // Merge all chunks into DB
-    const d1=rows1[0].data||{};
-    const d2=(rows2&&rows2.length&&rows2[0].data)||{};
-    const d3=(rows3&&rows3.length&&rows3[0].data)||{};
-    const merged={...d1,...d2,...d3};
-
-    DB={...DB,...merged};
-
-    // Try loading scans separately
+    DB={...DB,...rows[0].data};
+    // Load scans
     try{
       const sr=await sbFetch('/rest/v1/k2_scans?project=eq.'+SB_PROJECT+'&limit=1',{headers:{'Prefer':'return=representation'}});
       if(sr.ok){
         const srows=await sr.json();
         if(srows&&srows.length&&srows[0].scans){
           const scans=srows[0].scans;
-          (DB.bills||[]).forEach(b=>{
-            if(scans[b.id]){
-              b.images=scans[b.id].images||[];
-              b.imageData=scans[b.id].imageData||null;
-              b.imageType=scans[b.id].imageType||null;
-            }
-          });
+          (DB.bills||[]).forEach(b=>{if(scans[b.id]){b.images=scans[b.id].images||[];b.imageData=scans[b.id].imageData||null;b.imageType=scans[b.id].imageType||null;}});
         }
       }
     }catch(e){}
-
-    // Cache to localStorage
     try{localStorage.removeItem('k2_backup_snapshot');localStorage.setItem(STORAGE_KEY,JSON.stringify(DB));}catch(e){}
-    updateSyncStatus('☁ Loaded from cloud · '+new Date().toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit'}),'var(--gn)');
+    updateSyncStatus('☁ Loaded · '+new Date().toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit'}),'var(--gn)');
     return true;
   }catch(e){
-    console.error('loadFromSupabase error:',e);
+    console.error('loadFromSupabase:',e);
     updateSyncStatus('⚠ Cloud unavailable — using local cache','var(--go)');
     return false;
   }
