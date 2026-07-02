@@ -5490,9 +5490,14 @@ function k2Confirm(message,choices){
     bg.style.zIndex='9500';
     const box=document.createElement('div');
     box.className='modal';
-    box.style.maxWidth='480px';
+    // Force explicit dark styling here rather than relying on the .modal class or
+    // var(--tx) — this file has two conflicting .modal CSS rules and the one that
+    // wins hardcodes a dark navy background regardless of light/dark theme. Using
+    // var(--tx) for text flips to dark in light mode, going invisible on that
+    // always-dark background. Hardcoding both keeps this dialog readable in any theme.
+    box.style.cssText='max-width:480px;background:#0f172a;border:1px solid #1e293b;border-radius:12px;padding:20px 22px;width:480px;max-width:95vw';
     const msgHtml=esc(message).replace(/\n/g,'<br>');
-    box.innerHTML='<div style="font-size:14px;line-height:1.6;margin-bottom:18px;color:var(--tx)">'+msgHtml+'</div><div class="flex gap8" style="justify-content:flex-end;flex-wrap:wrap" id="k2c-btns"></div>';
+    box.innerHTML='<div style="font-size:14px;line-height:1.6;margin-bottom:18px;color:#e8eaf0">'+msgHtml+'</div><div class="flex gap8" style="justify-content:flex-end;flex-wrap:wrap" id="k2c-btns"></div>';
     bg.appendChild(box);
     document.body.appendChild(bg);
     const btnWrap=box.querySelector('#k2c-btns');
