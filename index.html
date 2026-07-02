@@ -5410,6 +5410,7 @@ function go(p){
   if(allowed&&!allowed.includes(p)){
     p=getLandingPage();
   }
+  sessionStorage.setItem('k2_last_page',p);
   document.querySelectorAll('.page').forEach(x=>x.classList.remove('active'));
   document.querySelectorAll('.ni').forEach(x=>x.classList.remove('active'));
   document.getElementById('page-'+p)?.classList.add('active');
@@ -13356,10 +13357,8 @@ function applySidebarFilter(){
 function _startApp(){
   hideFileOverlay();
   updateSyncStatus('☁ Connecting to cloud…','var(--bl)');
-  // Try Supabase first, fall back to localStorage
   loadFromSupabase().then(function(loaded){
     if(!loaded){
-      // Fall back to localStorage
       try{
         const data=localStorage.getItem(STORAGE_KEY)||sessionStorage.getItem('k2_last_data');
         if(data){
@@ -13381,7 +13380,14 @@ function _startApp(){
         }
       }catch(e){console.error('localStorage load error:',e);}
     }
-    init();applyUserRole();applyStoredTheme();go(getLandingPage());setTimeout(applySidebarFilter,600);
+    init();applyUserRole();applyStoredTheme();
+    // Restore last visited page, or go to landing page
+    const lastPage=sessionStorage.getItem('k2_last_page');
+    const role=CURRENT_USER?.role;
+    const allowed=ROLE_ACCESS[role];
+    const startPage=(lastPage&&(!allowed||allowed.includes(lastPage)))?lastPage:getLandingPage();
+    go(startPage);
+    setTimeout(applySidebarFilter,600);
   }).catch(function(e){
     console.error('startApp error:',e);
     init();applyUserRole();applyStoredTheme();go(getLandingPage());setTimeout(applySidebarFilter,600);
