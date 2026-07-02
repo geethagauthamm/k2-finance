@@ -5505,7 +5505,7 @@ function _renderPageCore(p){
   else if(p==='salaries'){renderSalaryEntries();}
   else if(p==='admin-charges'){renderAdminCharges();}
   else if(p==='hotels'){renderHotelLog();}
-  else if(p==='flights'){renderFlightLog();}
+  else if(p==='flights'){renderFlights();}
   else if(p==='actorlog'){const _d=[...new Set([...Object.keys(DB.actorLog||{}),...Object.keys(DB.dayHeaders||{})])].filter(Boolean).sort();actSetDay(_d.length?_d[_d.length-1]:tod());}
   else if(p==='dpr'){_dprView='edit';_dprTab='header';dprSetDay(dprCurrentDay||tod());document.getElementById('dpr-edit-view').style.display='';document.getElementById('dpr-print-view').style.display='none';dprRenderTab();setTimeout(function(){if(typeof renderDprSubmissionLog==='function')renderDprSubmissionLog();},100);}
   else if(p==='summary')renderSummary();
