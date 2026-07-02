@@ -10681,10 +10681,14 @@ function renderActualsLog(){
     const variance=r.amount-plan;
     let datePrefix='';
     if(r.date!==lastDate){lastDate=r.date;datePrefix=`<tr style="background:rgba(46,204,138,.03)"><td colspan="12" style="padding:5px 8px;font-size:10px;font-weight:700;color:var(--tx2);letter-spacing:1px">${fmtDL(r.date)} ${s?'→ '+s.name:''}</td></tr>`;}
+    // For unmatched entries, use the notes text as a fallback display name, but split
+    // off anything in parentheses — that detail stays visible in the Notes column
+    // already, so showing it twice in Line Item too is just clutter.
+    const notesClean=(r.notes||'').replace(/\s*\([^)]*\)\s*/g,' ').trim();
     return datePrefix+`<tr${e?'':' style="background:rgba(239,68,68,.04)"'}>
       <td>${fmtD(r.date)}</td>
       <td class="dim xs2">${s?.name||'—'}</td>
-      <td class="semi">${e?.item||(r.notes?`<span title="No matching Rate Card item for key: ${esc(r.liKey||'')} — showing notes as name">⚠ ${esc(r.notes)}</span>`:(r.liKey?`<span style="color:var(--rd)" title="No matching Rate Card item for key: ${esc(r.liKey)}">⚠ Unmatched item</span>`:'—'))}</td>
+      <td class="semi">${e?.item||(notesClean?`<span title="No matching Rate Card item for key: ${esc(r.liKey||'')} — showing notes as name">⚠ ${esc(notesClean)}</span>`:(r.liKey?`<span style="color:var(--rd)" title="No matching Rate Card item for key: ${esc(r.liKey)}">⚠ Unmatched item</span>`:'—'))}</td>
       <td><span class="tag tb xs2">${e?.cat||(r.liKey?r.liKey.split('|')[0]:'')||'—'}</span></td>
       <td class="dim xs2">${v?.name||'—'}</td>
       <td class="tn tr gold semi">${hire?'—':(r.cs??'—')}</td>
