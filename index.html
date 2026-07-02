@@ -13065,7 +13065,7 @@ async function _saveToSupabase(){
           headers:{'Prefer':'resolution=merge-duplicates,return=minimal'},
           body:JSON.stringify({project:SB_PROJECT,scans:scans,updated_at:new Date().toISOString()})});
       }
-      try{localStorage.setItem(STORAGE_KEY,JSON.stringify(DB));}catch(e){}
+      try{localStorage.removeItem('k2_backup_snapshot');localStorage.setItem(STORAGE_KEY,JSON.stringify(DB));}catch(e){}
       updateSyncStatus('☁ Saved · '+new Date().toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit'}),'var(--gn)');
       _unsaved=false;
     } else {
@@ -13077,7 +13077,7 @@ async function _saveToSupabase(){
       } else {
         updateSyncStatus('⚠ Cloud save failed — saved locally','var(--or)');
         toast('Cloud save failed: '+errText,'err');
-        try{localStorage.setItem(STORAGE_KEY,JSON.stringify(DB));}catch(e){}
+        try{localStorage.removeItem('k2_backup_snapshot');localStorage.setItem(STORAGE_KEY,JSON.stringify(DB));}catch(e){}
         _unsaved=false;
       }
     }
@@ -13146,7 +13146,7 @@ async function loadFromSupabase(){
     }catch(e){}
 
     // Cache to localStorage
-    try{localStorage.setItem(STORAGE_KEY,JSON.stringify(DB));}catch(e){}
+    try{localStorage.removeItem('k2_backup_snapshot');localStorage.setItem(STORAGE_KEY,JSON.stringify(DB));}catch(e){}
     updateSyncStatus('☁ Loaded from cloud · '+new Date().toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit'}),'var(--gn)');
     return true;
   }catch(e){
@@ -13225,9 +13225,19 @@ function quickRestoreBackup(){
 }
 // Auto-snapshot every 5 minutes silently
 function autoSnapshot(){
-  localStorage.setItem('k2_backup_snapshot',JSON.stringify(DB));
-  localStorage.setItem('k2_last_backup',new Date().toISOString());
-  updateBackupLabel();
+  try{
+    // Clear old large keys first to free space
+    ['k2_backup_snapshot','k2_production_data'].forEach(k=>{
+      try{localStorage.removeItem(k);}catch(e){}
+    });
+    // Now try to save snapshot
+    localStorage.setItem('k2_backup_snapshot',JSON.stringify(DB));
+    localStorage.setItem('k2_last_backup',new Date().toISOString());
+    updateBackupLabel();
+  }catch(e){
+    // localStorage full — skip snapshot silently, Supabase is the source of truth
+    console.warn('autoSnapshot: localStorage full, skipping local cache');
+  }
 }
 function importFromJSONFile(){const inp=document.createElement('input');inp.type='file';inp.accept='.json';inp.onchange=async ev=>{const f=ev.target.files[0];if(!f)return;try{const d=JSON.parse(await f.text());const fd=[...new Set((d.estimates||[]).map(e=>e.date))];const cd=[...new Set((DB.estimates||[]).map(e=>e.date))];const ov=fd.filter(x=>cd.includes(x));let merge=false;if(DB.estimates?.length>0){if(ov.length===0){merge=confirm('Merge?\nFile: '+fd.join(', ')+'\nCurrent: '+cd.join(', '));if(!merge)return;}else{const ok=confirm('OK=Merge  Cancel=Replace\nFile: '+fd.join(', ')+'\nCurrent: '+cd.join(', '));if(ok)merge=true;else if(!confirm('Replace all?'))return;}}const keep={customItems:DB.customItems||[],rateOverrides:DB.rateOverrides||{},csRules:DB.csRules||{},hiddenItems:DB.hiddenItems||[],users:DB.users||[]};if(merge){DB.estimates=[...(DB.estimates||[]).filter(e=>!fd.includes(e.date)),...(d.estimates||[])];DB.dayHeaders={...(DB.dayHeaders||{}),...(d.dayHeaders||{})};DB.vehicles={...(DB.vehicles||{}),...(d.vehicles||{})};DB.inlineActuals={...(DB.inlineActuals||{}),...(d.inlineActuals||{})};DB.actorLog={...(DB.actorLog||{}),...(d.actorLog||{})};DB.hotels=[...(DB.hotels||[]),...(d.hotels||[]).filter(h=>!(DB.hotels||[]).find(x=>x.id===h.id))];DB.flights=[...(DB.flights||[]),...(d.flights||[]).filter(f=>!(DB.flights||[]).find(x=>x.id===f.id))];DB.actuals=[...(DB.actuals||[]),...(d.actuals||[]).filter(a=>!(DB.actuals||[]).find(x=>x.id===a.id))];if(d.paytracker)DB.paytracker={...(DB.paytracker||{}),...d.paytracker};else if(d.payments&&!Array.isArray(d.payments))DB.paytracker={...(DB.paytracker||{}),...d.payments};if(d.salaryEntries)DB.salaryEntries=[...(DB.salaryEntries||[]),...(d.salaryEntries||[]).filter(s=>!(DB.salaryEntries||[]).find(x=>x.id===s.id))];if(d.actorAttendance)DB.actorAttendance={...(DB.actorAttendance||{}),...d.actorAttendance};if(d.actorStaff)DB.actorStaff={...(DB.actorStaff||{}),...d.actorStaff};if(d.artistStaff)DB.artistStaff=[...(DB.artistStaff||[]),...(d.artistStaff||[]).filter(s=>!(DB.artistStaff||[]).find(x=>x.id===s.id))];}else{DB={project:{name:'Kalki 2',company:'Vyjayanthi Movies',director:'Nag Ashwin',producer:'C. Aswani Dutt',lp:'',pc:'',location:'Hyderabad',budget:0,plannedDays:0},schedules:[],vendors:[],customItems:[],rateOverrides:{},hiddenItems:[],csRules:{},specialCSRules:{},estimates:[],actuals:[],payments:[],paytracker:{},pendingQueue:[],actorContracts:[],shootDays:[],dayHeaders:{},inlineActuals:{},actAdhoc:{},vehicles:{},actorLog:{},actorAttendance:{},actorStaff:{},artistStaff:[],hotels:[],flights:[],billStatus:{},salaryEntries:[],users:[],...d,...keep};}saveDB();init();applyUserRole();applyStoredTheme();renderPage(getLandingPage());toast('✓ '+(merge?'Merged':'Loaded')+': '+DB.estimates.length+' estimates');}catch(e){toast('Import failed: '+e.message,'err');}};inp.click();}
 function showFileOverlay(){}function hideFileOverlay(){const ov=document.getElementById('file-overlay');if(ov)ov.style.display='none';}
