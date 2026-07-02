@@ -3205,6 +3205,7 @@ function renderInbox(){
   if(!el)return;
   const allEntries=[];
   Object.entries(DB.paytracker||{}).forEach(([dayKey,day])=>{
+    if(!day||typeof day!=='object'||Array.isArray(day))return;
     (day.entries||[]).forEach(e=>{if(e&&e.id)allEntries.push({...e,_dayKey:dayKey,_subNo:day.subNo});});
   });
   const isProducer=role==='producer'||role==='admin';
@@ -11714,6 +11715,7 @@ function renderVendorPayHistory(){
   // Build a map: vendorName → [{...entry, dayKey}]
   const map={};
   Object.entries(DB.paytracker||{}).forEach(([dayKey,day])=>{
+    if(!day||typeof day!=='object'||Array.isArray(day))return;
     (day.entries||[]).forEach(e=>{
       const vn=(e.vendor||'').trim();
       if(!vn)return;
@@ -12473,7 +12475,8 @@ function renderDash(){
   // Flatten paytracker (the live vendor-payment workflow) across all days once, reused below
   const ptEntriesAll=[];
   Object.entries(DB.paytracker||{}).forEach(([dayKey,day])=>{
-    (day.entries||[]).forEach(e=>{ if(e&&e.id) ptEntriesAll.push(Object.assign({},e,{_dayKey:dayKey})); });
+    if(!day||typeof day!=='object'||Array.isArray(day))return; // skip metadata keys like _cats
+    (Array.isArray(day.entries)?day.entries:[]).forEach(e=>{ if(e&&e.id) ptEntriesAll.push(Object.assign({},e,{_dayKey:dayKey})); });
   });
   const payStatusLabel={'pay-paid':'<span class="tag tgn">Paid</span>','pay-partial':'<span class="tag tg">Partial</span>','pay-hold':'<span class="tag to">Hold</span>','pay-awaiting':'<span class="tag tb">Awaiting</span>','pay-unpaid':'<span class="tag tr2">Unpaid</span>'};
   const by={};
@@ -16442,6 +16445,7 @@ function fxLoadPrevPayments(){
   // Collect from paytracker
   let matches=[];
   Object.entries(DB.paytracker||{}).forEach(([dayKey,day])=>{
+    if(!day||typeof day!=='object'||Array.isArray(day))return;
     (day.entries||[]).forEach(e=>{
       if((e.vendor||'').toLowerCase().includes(vendor)||vendor.includes((e.vendor||'').toLowerCase())){
         matches.push({...e,dayKey});
