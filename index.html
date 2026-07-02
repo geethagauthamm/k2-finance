@@ -4402,6 +4402,7 @@ function checkPaymentReminders(){
         <div class="fld"><label>Role</label>
           <select id="nu-role">
             <option value="admin">Admin — Full Access</option>
+            <option value="producer">Producer — Inbox Approvals</option>
             <option value="coordinator">Production Coordinator</option>
             <option value="accounts">Accounts</option>
             <option value="cashier">Cashier — Petty Cash only</option>
@@ -13337,7 +13338,7 @@ function applyUserRole(){
   if(badge)badge.style.display='flex';
   const bn=document.getElementById('user-badge-name');if(bn)bn.textContent=name;
   const bi=document.getElementById('user-badge-icon');
-  const icons={admin:'👑',transport:'🚗',hospitality:'🏨',cashier:'💵',accounts:'📊',coordinator:'🎬',auditor:'📋'};
+  const icons={admin:'👑',producer:'🎥',transport:'🚗',hospitality:'🏨',cashier:'💵',accounts:'📊',coordinator:'🎬',auditor:'📋'};
   if(bi)bi.textContent=icons[role]||'👤';
 
   // Hide sidebar nav items the role can't access
@@ -13364,8 +13365,8 @@ function applyUserRole(){
   document.body.classList.add(role+'-mode');
 
   const banner=document.getElementById('mode-banner');
-  const roleLabels={admin:'Admin — Full Access',transport:'Transport Manager',hospitality:'Hospitality Manager',cashier:'Cashier',accounts:'Accounts',coordinator:'Production Coordinator',auditor:'Auditor — Read Only'};
-  const roleColors={admin:'var(--gn)',transport:'var(--bl)',hospitality:'var(--pu)',cashier:'var(--go)',accounts:'var(--cy)',coordinator:'var(--or)',auditor:'var(--bl)'};
+  const roleLabels={admin:'Admin — Full Access',producer:'Producer',transport:'Transport Manager',hospitality:'Hospitality Manager',cashier:'Cashier',accounts:'Accounts',coordinator:'Production Coordinator',auditor:'Auditor — Read Only'};
+  const roleColors={admin:'var(--gn)',producer:'var(--go)',transport:'var(--bl)',hospitality:'var(--pu)',cashier:'var(--go)',accounts:'var(--cy)',coordinator:'var(--or)',auditor:'var(--bl)'};
   if(banner){
     banner.style.display='flex';
     banner.style.background='rgba(0,0,0,.04)';
@@ -13378,13 +13379,22 @@ function applyUserRole(){
 function renderUserMgmt(){
   const el=document.getElementById('user-mgmt-list');if(!el)return;
   const users=getUsers();
-  const roleLabels={admin:'Admin',transport:'Transport',hospitality:'Hospitality',cashier:'Cashier',accounts:'Accounts',coordinator:'Coordinator',auditor:'Auditor'};
-  const roleColors={admin:'tg',transport:'tb',hospitality:'tp',cashier:'tgn',accounts:'tc',coordinator:'to',auditor:'tb'};
-  el.innerHTML=users.map((u,i)=>'<div class="flex aic jb" style="padding:8px 0;border-bottom:1px solid var(--bd)"><div><span class="semi">'+u.name+'</span><span class="tag '+(roleColors[u.role]||'tb')+' xs2" style="margin-left:8px">'+(roleLabels[u.role]||u.role)+'</span><span class="xs3 dim" style="margin-left:8px">ID: '+u.id+'</span></div><div class="flex gap6"><button class="btn bs xs" onclick="editUser('+i+')">✎ PIN</button>'+(u.id!=='ep'?'<button class="btn br xs" onclick="delUser('+i+')">✕</button>':'')+'</div></div>').join('');
+  const roleLabels={admin:'Admin',producer:'Producer',transport:'Transport',hospitality:'Hospitality',cashier:'Cashier',accounts:'Accounts',coordinator:'Coordinator',auditor:'Auditor'};
+  const roleColors={admin:'tg',producer:'to',transport:'tb',hospitality:'tp',cashier:'tgn',accounts:'tc',coordinator:'to',auditor:'tb'};
+  el.innerHTML=users.map((u,i)=>'<div class="flex aic jb" style="padding:8px 0;border-bottom:1px solid var(--bd)"><div><span class="semi">'+u.name+'</span><span class="tag '+(roleColors[u.role]||'tb')+' xs2" style="margin-left:8px">'+(roleLabels[u.role]||u.role)+'</span><span class="xs3 dim" style="margin-left:8px">ID: '+u.id+'</span></div><div class="flex gap6"><button class="btn bs xs" onclick="editUser('+i+')">✎ PIN</button>'+(u.id!=='ep'?'<button class="btn bs xs" onclick="editUserRole('+i+')">⚙ Role</button>':'')+(u.id!=='ep'?'<button class="btn br xs" onclick="delUser('+i+')">✕</button>':'')+'</div></div>').join('');
 }
 function saveNewUser(){const id=(document.getElementById('nu-id')?.value||'').trim().toLowerCase().replace(/\s+/g,'');const name=(document.getElementById('nu-name')?.value||'').trim();const pin=(document.getElementById('nu-pin')?.value||'').trim();const role=document.getElementById('nu-role')?.value||'auditor';if(!id||!name||pin.length<4){toast('Required: ID, name, PIN min 4','err');return;}const users=getUsers();if(users.find(u=>u.id===id)){toast('ID exists','err');return;}users.push({id,name,pin,role});DB.users=users;saveDB();renderUserMgmt();['nu-id','nu-name','nu-pin'].forEach(x=>{const el=document.getElementById(x);if(el)el.value=''});toast('User added');}
 function delUser(idx){if(!confirm('Delete?'))return;const users=getUsers();if(users[idx]?.id==='ep'){toast('Cannot delete EP','err');return;}users.splice(idx,1);DB.users=users;saveDB();renderUserMgmt();}
 function editUser(idx){const users=getUsers();const u=users[idx];if(!u)return;const p=prompt('New PIN for '+u.name+':');if(!p||p.trim().length<4){toast('PIN too short','err');return;}u.pin=p.trim();DB.users=users;saveDB();renderUserMgmt();toast('PIN updated');}
+function editUserRole(idx){
+  const users=getUsers();const u=users[idx];if(!u)return;
+  if(u.id==='ep'){toast('Cannot change EP role','err');return;}
+  const roleOpts=Object.keys(ROLE_ACCESS); // admin, producer, transport, hospitality, cashier, accounts, coordinator, auditor
+  const r=(prompt('New role for '+u.name+' (currently: '+u.role+')\n\nType one of:\n'+roleOpts.join(', ')+':', u.role)||'').trim().toLowerCase();
+  if(!r)return;
+  if(!roleOpts.includes(r)){toast('Invalid role — must be one of: '+roleOpts.join(', '),'err');return;}
+  u.role=r;DB.users=users;saveDB();renderUserMgmt();toast('Role updated to '+r+' — they must sign out & back in for it to apply');
+}
 function getLandingPage(){
   const role=CURRENT_USER?.role;
   const landing={admin:'dash',producer:'inbox',transport:'vehicles',hospitality:'hotels',cashier:'pettycash',accounts:'inbox',coordinator:'actuals',auditor:'dash'};
