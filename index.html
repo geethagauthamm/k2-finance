@@ -13389,8 +13389,8 @@ function _startApp(){
     const startPage=(lastPage&&(!allowed||allowed.includes(lastPage)))?lastPage:getLandingPage();
     go(startPage);
     setTimeout(applySidebarFilter,600);
-    // Re-render after a short delay to ensure Supabase data is reflected
-    if(loaded) setTimeout(()=>{ try{ go(startPage); }catch(e){} },800);
+    // Re-render after Supabase data is fully loaded
+    if(loaded) setTimeout(()=>{ _renderPageCore(startPage); applySidebarFilter(); },300);
   }).catch(function(e){
     console.error('startApp error:',e);
     init();applyUserRole();applyStoredTheme();go(getLandingPage());setTimeout(applySidebarFilter,600);
