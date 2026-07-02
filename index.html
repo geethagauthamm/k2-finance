@@ -1054,28 +1054,16 @@ body.auditor-mode #save-btn { display:none !important; }
 
     <!-- Hotels Master View -->
     <div class="card" id="htl-master-card">
-      <div class="flex aic jb mb8">
+      <div class="flex aic jb mb8 wrap gap8">
         <div class="ct" style="margin:0">Hotel Bookings <span id="htl-range-lbl" class="xs2 dim"></span></div>
-        <div class="flex gap8">
+        <div class="flex gap8 aic">
           <span id="htl-range-total" class="xs2 dim"></span>
+          <span id="htl-summary" class="xs2 dim"></span>
+          <button class="btn bs xs no-print" onclick="expandAllHtlPhases()">Expand All</button>
+          <button class="btn bs xs no-print" onclick="collapseAllHtlPhases()">Collapse All</button>
         </div>
       </div>
-      <div class="tw"><table style="width:100%"><colgroup>
-        <col style="width:145px"><col style="width:95px"><col style="width:155px">
-        <col style="width:60px"><col style="width:100px">
-        <col style="width:95px"><col style="width:95px"><col style="width:60px">
-        <col style="width:90px"><col style="width:105px">
-        <col style="width:105px"><col style="width:120px">
-        <col style="width:155px"><col style="width:85px">
-      </colgroup><thead><tr>
-        <th>Hotel</th><th>Room Type</th><th>Guest / Group</th>
-        <th class="tr">Rooms</th><th class="tr">Rate/Night</th>
-        <th>Check-In</th><th>Check-Out</th><th class="tr">Nights</th>
-        <th class="tr">In Range</th><th class="tr">Cost in Range</th>
-        <th class="tr">Total Cost</th><th>Notes</th>
-        <th class="tr">Act. Cost → splits daily</th><th class="no-print"></th>
-      </tr></thead><tbody id="htl-body"></tbody>
-      <tfoot id="htl-foot"></tfoot></table></div>
+      <div id="htl-phases"></div>
     </div>
 
     <div class="card no-print">
@@ -1094,27 +1082,8 @@ body.auditor-mode #save-btn { display:none !important; }
         <div class="pvbox" style="min-width:80px"><div class="pvl">Nights</div><div class="pvv" id="htl-nights">—</div></div>
         <div class="pvbox" style="min-width:120px"><div class="pvl">Total Cost</div><div class="pvv" id="htl-total" style="color:var(--gn)">—</div></div>
         <div class="fld" style="flex:1"><label>Notes</label><input type="text" id="htl-notes" placeholder="Remarks..."></div>
+        <div class="fld" style="flex:1"><label>Phase</label><select id="htl-phase"><option value="">— Select Phase —</option></select></div>
       </div>
-    </div>
-    <div class="card">
-      <div class="flex aic jb mb10">
-        <div class="ct" style="margin:0">Hotel Bookings</div>
-        <span id="htl-summary" class="xs2 dim"></span>
-      </div>
-      <div class="tw"><table style="width:100%"><colgroup>
-        <col style="width:160px"><col style="width:110px"><col style="width:170px">
-        <col style="width:65px"><col style="width:110px">
-        <col style="width:105px"><col style="width:105px"><col style="width:70px">
-        <col style="width:120px"><col style="width:160px">
-        <col style="width:115px"><col style="width:40px">
-      </colgroup><thead><tr>
-        <th>Hotel</th><th>Room Type</th><th>Guest / Group</th>
-        <th class="tr">Rooms</th><th class="tr">Rate/Night</th>
-        <th>Check-In</th><th>Check-Out</th><th class="tr">Nights</th>
-        <th class="tr">Total</th><th>Notes</th>
-        <th class="tr">Act Cost</th><th class="no-print"></th>
-      </tr></thead><tbody id="htl-body"></tbody>
-      <tfoot id="htl-foot"></tfoot></table></div>
     </div>
   </div>
 
@@ -1129,6 +1098,7 @@ body.auditor-mode #save-btn { display:none !important; }
         <div class="fld"><label>Travel Date *</label><input type="date" id="flt-date"></div>
         <div class="fld"><label>Passenger / Group *</label><input type="text" id="flt-pax" placeholder="Name or group"></div>
         <div class="fld"><label>Dept / Designation</label><input type="text" id="flt-dept" placeholder="Camera / Director..."></div>
+        <div class="fld"><label>Phase</label><select id="flt-phase"><option value="">— Select Phase —</option></select></div>
       </div>
       <div class="fg mb8" style="grid-template-columns:1fr 1fr 1fr 1fr">
         <div class="fld"><label>Airline</label><input type="text" id="flt-airline" placeholder="IndiGo / Air India..."></div>
@@ -1171,11 +1141,11 @@ body.auditor-mode #save-btn { display:none !important; }
         <div class="ct" style="margin:0">Flight Bookings</div>
         <div class="flex aic gap8">
           <span id="flt-summary" class="xs2 dim"></span>
-          <button class="btn bs xs no-print" onclick="expandAllFltMonths()">Expand All</button>
-          <button class="btn bs xs no-print" onclick="collapseAllFltMonths()">Collapse All</button>
+          <button class="btn bs xs no-print" onclick="expandAllFltPhases()">Expand All</button>
+          <button class="btn bs xs no-print" onclick="collapseAllFltPhases()">Collapse All</button>
         </div>
       </div>
-      <div id="flt-months"></div>
+      <div id="flt-phases"></div>
     </div>
   </div>
 
@@ -1321,7 +1291,20 @@ body.auditor-mode #save-btn { display:none !important; }
         </div>
         <div class="fld" style="padding-top:18px"><button class="btn bg" onclick="addVehicle()">+ Add</button></div>
       </div>
-      <div class="fld" style="max-width:300px"><label>Notes</label><input type="text" id="veh-notes" placeholder="Purpose, route..."></div>
+      <div class="flex aic gap12">
+        <div class="fld" style="max-width:300px;flex:1"><label>Notes</label><input type="text" id="veh-notes" placeholder="Purpose, route..."></div>
+        <div class="fld" style="max-width:220px;flex:1"><label>Phase</label><select id="veh-phase"><option value="">— Select Phase —</option></select></div>
+      </div>
+    </div>
+    <div class="card no-print">
+      <div class="flex aic jb mb10 wrap gap8">
+        <div class="ct" style="margin:0">All Vehicles — By Phase</div>
+        <div class="flex gap8">
+          <button class="btn bs xs no-print" onclick="expandAllVehPhases()">Expand All</button>
+          <button class="btn bs xs no-print" onclick="collapseAllVehPhases()">Collapse All</button>
+        </div>
+      </div>
+      <div id="veh-phases"></div>
     </div>
     <div class="card">
       <div class="flex aic jb mb10">
@@ -1775,22 +1758,12 @@ body.auditor-mode #save-btn { display:none !important; }
             <option value="approved">Approved</option>
             <option value="paid">Paid</option>
           </select>
+          <button class="btn bs sm" onclick="expandAllBillGroups()">Expand All</button>
+          <button class="btn bs sm" onclick="collapseAllBillGroups()">Collapse All</button>
           <button class="btn bs sm" onclick="printPage()">⎙ Print</button>
         </div>
       </div>
-      <div style="overflow-x:auto;overflow-y:auto;max-height:60vh">
-        <table style="width:100%;table-layout:auto">
-          <thead><tr>
-            <th style="white-space:nowrap">Date</th><th>Vendor</th><th>Description</th><th>Department</th>
-            <th class="tr" style="white-space:nowrap">Amount ₹</th><th class="tr" style="white-space:nowrap">GST ₹</th><th class="tr" style="white-space:nowrap;color:var(--gn)">Total ₹</th>
-            <th>Status</th><th style="white-space:nowrap">Shoot Date</th>
-            <th style="white-space:nowrap;width:80px">📎 Scans</th>
-            <th class="no-print" style="white-space:nowrap">Actions</th>
-          </tr></thead>
-          <tbody id="bills-body"><tr><td colspan="11" class="te">No bills uploaded yet</td></tr></tbody>
-          <tfoot id="bills-foot"></tfoot>
-        </table>
-      </div>
+      <div id="bills-groups" style="padding:10px 14px"></div>
     </div>
 
 
@@ -1998,6 +1971,7 @@ body.auditor-mode #save-btn { display:none !important; }
         <div class="fld"><label>Receipt #</label><input type="text" id="pc-receipt" placeholder="Optional"></div>
         <div class="fld"><label>Approved By</label><input type="text" id="pc-approved" placeholder="Optional"></div>
         <div class="fld"><label>Notes</label><input type="text" id="pc-notes" placeholder="Any remarks"></div>
+        <div class="fld"><label>Phase</label><select id="pc-phase"><option value="">— Select Phase —</option></select></div>
       </div>
       <button id="pc-submit-btn" class="btn bg" onclick="addPettyCash()">+ Add Entry</button>
     </div>
@@ -2016,11 +1990,11 @@ body.auditor-mode #save-btn { display:none !important; }
           <select id="pc-f-cat" class="btn bs sm" onchange="renderPettyCash()"><option value="">All Categories</option></select>
           <button class="btn bs sm" onclick="exportPettyCashExcel()">📊 Excel</button>
           <button class="btn bs sm" onclick="printPage()">🖨 Print</button>
-          <button class="btn bs sm no-print" onclick="expandAllPCMonths()">Expand All</button>
-          <button class="btn bs sm no-print" onclick="collapseAllPCMonths()">Collapse All</button>
+          <button class="btn bs sm no-print" onclick="expandAllPCPhases()">Expand All</button>
+          <button class="btn bs sm no-print" onclick="collapseAllPCPhases()">Collapse All</button>
         </div>
       </div>
-      <div id="pc-months"></div>
+      <div id="pc-phases"></div>
     </div>
 
     <!-- Rollup into actuals by date -->
@@ -2342,9 +2316,10 @@ body.auditor-mode #save-btn { display:none !important; }
       <div class="field"><label>Booking Date</label><input type="date" id="flt-edit-bookdate"></div>
       <div class="field"><label>Travel Date *</label><input type="date" id="flt-edit-date"></div>
     </div>
-    <div class="fg mb8" style="grid-template-columns:1fr 1fr">
+    <div class="fg mb8" style="grid-template-columns:1fr 1fr 1fr">
       <div class="field"><label>Passenger / Group *</label><input type="text" id="flt-edit-pax"></div>
       <div class="field"><label>Dept / Designation</label><input type="text" id="flt-edit-dept"></div>
+      <div class="field"><label>Phase</label><select id="flt-edit-phase"><option value="">— Select Phase —</option></select></div>
     </div>
     <div class="fg mb8" style="grid-template-columns:1fr 1fr 1fr">
       <div class="field"><label>Airline</label><input type="text" id="flt-edit-airline"></div>
@@ -4761,6 +4736,7 @@ function checkPaymentReminders(){
       <div class="fld"><label>Check-In *</label><input type="date" id="he-checkin" onchange="heCalc()"></div>
       <div class="fld"><label>Check-Out *</label><input type="date" id="he-checkout" onchange="heCalc()"></div>
     </div>
+    <div class="fld mb10"><label>Phase</label><select id="he-phase"><option value="">— Select Phase —</option></select></div>
     <div class="flex aic gap12 mb10">
       <div class="pvbox"><div class="pvl">Nights</div><div class="pvv" id="he-nights">—</div></div>
       <div class="pvbox"><div class="pvl">Total</div><div class="pvv" id="he-total" style="color:var(--gn)">—</div></div>
@@ -5453,7 +5429,72 @@ function dateToSchedule(date){
 }
 function getDaySchedule(date){return dateToSchedule(date);}
 
-// storage functions defined above
+// ── SHARED PHASE TAXONOMY ──────────────────────────────────────────
+// Same categories as the Dashboard's Production Finance table (ATL/Talent,
+// Pre-Production, one entry per Schedule, Post-Production, Marketing & Release,
+// Admin & Finance) — reused across Flights/Hotels/Vehicles/Petty Cash/Bills so
+// everything groups the same way everywhere in the app.
+function getPhaseOptionsHtml(selected){
+  const scheds=(DB.schedules||[]).slice().sort((a,b)=>(a.startDate||'').localeCompare(b.startDate||''));
+  const opts=[
+    ['','— Select Phase —'],
+    ['ATL','🎭 ATL / Talent'],
+    ['PRE','📋 Pre-Production'],
+    ...scheds.map(s=>['SCHED:'+s.id,'🎬 '+s.name]),
+    ['POST','🎞 Post-Production'],
+    ['MKT','📣 Marketing & Release'],
+    ['ADMIN','🗂 Admin & Finance'],
+  ];
+  return opts.map(([v,l])=>`<option value="${v}"${v===(selected||'')?' selected':''}>${l}</option>`).join('');
+}
+function phaseLabel(phase){
+  if(!phase)return'⚠ Unassigned';
+  if(phase==='ATL')return'🎭 ATL / Talent';
+  if(phase==='PRE')return'📋 Pre-Production';
+  if(phase==='POST')return'🎞 Post-Production';
+  if(phase==='MKT')return'📣 Marketing & Release';
+  if(phase==='ADMIN')return'🗂 Admin & Finance';
+  if(phase.startsWith('SCHED:')){
+    const s=(DB.schedules||[]).find(x=>x.id===phase.slice(6));
+    return'🎬 '+(s?.name||'Unknown Schedule');
+  }
+  return phase;
+}
+// Sort order for grouping: Unassigned first (needs attention), then ATL, Pre-Prod,
+// Schedules by date (most recent first), Post, Marketing, Admin last.
+function phaseSortRank(phase){
+  if(!phase)return -1;
+  if(phase==='ATL')return 0;
+  if(phase==='PRE')return 1;
+  if(phase.startsWith('SCHED:')){
+    const s=(DB.schedules||[]).find(x=>x.id===phase.slice(6));
+    return 2; // schedules ranked amongst themselves by date below
+  }
+  if(phase==='POST')return 100;
+  if(phase==='MKT')return 101;
+  if(phase==='ADMIN')return 102;
+  return 50;
+}
+function groupByPhase(items,getPhase){
+  const groups={};
+  items.forEach(it=>{
+    const p=getPhase(it)||'';
+    if(!groups[p])groups[p]=[];
+    groups[p].push(it);
+  });
+  const keys=Object.keys(groups).sort((a,b)=>{
+    const ra=phaseSortRank(a),rb=phaseSortRank(b);
+    if(ra!==rb)return ra-rb;
+    // both schedules — sort by schedule startDate, most recent first
+    if(a.startsWith('SCHED:')&&b.startsWith('SCHED:')){
+      const sa=(DB.schedules||[]).find(x=>x.id===a.slice(6));
+      const sb=(DB.schedules||[]).find(x=>x.id===b.slice(6));
+      return(sb?.startDate||'').localeCompare(sa?.startDate||'');
+    }
+    return 0;
+  });
+  return keys.map(k=>({phase:k,label:phaseLabel(k),items:groups[k]}));
+}
 
 function toast(msg,type='ok'){
   const t=document.getElementById('toast');
@@ -5539,7 +5580,7 @@ function _renderPageCore(p){
     if(_dp)_dp.value=estCurrentDay;
     estLoadHeader();estCatFilter();renderEstTable();
   }
-  else if(p==='vehicles'){vehSetDay(vehCurrentDay);renderVehicleLog();}
+  else if(p==='vehicles'){vehSetDay(vehCurrentDay);renderVehicleLog();renderVehiclesMaster();}
   else if(p==='pettycash'){renderPettyCash();}
   else if(p==='actor-contracts'){renderActors();arRenderRoster();arShowTab('roster');}
   else if(p==='ratecard')renderRC();
@@ -5556,7 +5597,7 @@ function _renderPageCore(p){
   else if(p==='payments'){initPayments();payShowView('today');}
   else if(p==='salaries'){renderSalaryEntries();}
   else if(p==='admin-charges'){renderAdminCharges();}
-  else if(p==='hotels'){renderHotelLog();}
+  else if(p==='hotels'){renderHotels();}
   else if(p==='flights'){renderFlights();}
   else if(p==='actorlog'){const _d=[...new Set([...Object.keys(DB.actorLog||{}),...Object.keys(DB.dayHeaders||{})])].filter(Boolean).sort();actSetDay(_d.length?_d[_d.length-1]:tod());}
   else if(p==='dpr'){_dprView='edit';_dprTab='header';dprSetDay(dprCurrentDay||tod());document.getElementById('dpr-edit-view').style.display='';document.getElementById('dpr-print-view').style.display='none';dprRenderTab();setTimeout(function(){if(typeof renderDprSubmissionLog==='function')renderDprSubmissionLog();},100);}
@@ -9053,6 +9094,7 @@ function addHotel(){
   const rate=parseFloat(document.getElementById('htl-rate')?.value)||0;
   const guest=(document.getElementById('htl-guest')?.value||'').trim();
   const notes=(document.getElementById('htl-notes')?.value||'').trim();
+  const phase=document.getElementById('htl-phase')?.value||'';
   const total=rooms*rate*nights;
 
   // Check for overlap with existing hotel entries
@@ -9064,7 +9106,7 @@ function addHotel(){
     if(!confirm('A booking for "'+name+'" with guest "'+guest+'" already overlaps with this date range.\n\nAdd anyway?'))return;
   }
 
-  DB.hotels.push({id:uid(),name,roomType:(document.getElementById('htl-room')?.value||'').trim(),guest,rooms,rate,checkIn:ci,checkOut:co,nights,total,notes,actCost:0});
+  DB.hotels.push({id:uid(),name,roomType:(document.getElementById('htl-room')?.value||'').trim(),guest,rooms,rate,checkIn:ci,checkOut:co,nights,total,notes,phase,actCost:0});
 
   // Add to estimates day-by-day
   let d=new Date(ci+'T00:00:00');
@@ -9092,9 +9134,10 @@ function addHotel(){
     d.setDate(d.getDate()+1);
   }
 
-  saveDB();renderHotelLog();
+  saveDB();renderHotels();
   ['htl-name','htl-room','htl-guest','htl-rate','htl-checkin','htl-checkout','htl-notes'].forEach(x=>{const el=document.getElementById(x);if(el)el.value='';});
   document.getElementById('htl-rooms').value='1';
+  const htlPhaseEl=document.getElementById('htl-phase');if(htlPhaseEl)htlPhaseEl.value='';
   document.getElementById('htl-preview').textContent='';
   toast('✓ '+name+' added — '+nights+' nights, ₹'+fmt(total)+' split across '+added+' days');
 }
@@ -9169,6 +9212,8 @@ function editHotel(id){
   document.getElementById('he-checkin').value=h.checkIn||'';
   document.getElementById('he-checkout').value=h.checkOut||'';
   document.getElementById('he-notes').value=h.notes||'';
+  const hePhaseEl=document.getElementById('he-phase');
+  if(hePhaseEl)hePhaseEl.innerHTML=getPhaseOptionsHtml(h.phase||'');
   heCalc();
   document.getElementById('hotel-edit-modal').style.display='flex';
 }
@@ -9203,6 +9248,7 @@ function saveHotelEdit(){
   h.checkIn=checkIn;h.checkOut=checkOut;h.nights=nights;
   h.total=rate*rooms*nights;
   h.notes=document.getElementById('he-notes').value.trim();
+  h.phase=document.getElementById('he-phase')?.value||'';
   DB.estimates=DB.estimates.filter(e=>e.hotelRef!==_editHotelId&&
     !(e.liKey&&e.liKey.startsWith('Accommodation|Accommodation|')&&e.notes&&e.notes.includes(h.name)));
   _splitHotelToEstimates(h);
@@ -9214,45 +9260,6 @@ function closeHotelEdit(){
   document.getElementById('hotel-edit-modal').style.display='none';
   _editHotelId=null;
 }
-
-function delHotel(id){
-  if(!confirm('Delete this hotel booking? This will NOT remove the day-wise estimate entries.'))return;
-  DB.hotels=(DB.hotels||[]).filter(h=>h.id!==id);
-  saveDB();renderHotelLog();toast('Hotel booking deleted');
-}
-
-function renderHotelLog(){
-  const body=document.getElementById('htl-log-body');
-  const foot=document.getElementById('htl-log-foot');
-  const lbl=document.getElementById('htl-total-lbl');
-  const hotels=DB.hotels||[];
-  if(!body)return;
-  if(!hotels.length){body.innerHTML='<tr><td colspan="11" class="te">No hotel bookings yet</td></tr>';if(foot)foot.innerHTML='';if(lbl)lbl.textContent='';return;}
-  let grand=0;
-  // Filter hotels by range
-  const visibleHotels = (_rangeFrom||_rangeTo) ? hotels.filter(h=>bookingOverlapsRange(h.checkIn,h.checkOut)) : hotels;
-  const rangeLbl=document.getElementById('htl-range-lbl');
-  if(rangeLbl)rangeLbl.textContent=(_rangeFrom||_rangeTo)?'· '+visibleHotels.length+' in range':'';
-  body.innerHTML=visibleHotels.map(h=>{
-    grand+=h.total||0;
-    return`<tr>
-      <td class="semi">${h.name}</td>
-      <td style="color:var(--tx2)">${h.roomType||'—'}</td>
-      <td style="color:var(--tx)">${h.guest||'—'}</td>
-      <td class="tr">${h.rooms}</td>
-      <td class="tr mono" style="white-space:nowrap">${fmt(h.rate)}/night</td>
-      <td style="white-space:nowrap">${fmtD(h.checkIn)}</td>
-      <td style="white-space:nowrap">${fmtD(h.checkOut)}</td>
-      <td class="tr">${h.nights}</td>
-      <td class="tr mono blue semi" style="white-space:nowrap">${fmt(h.total)}</td>
-      <td style="color:var(--tx2);font-size:11px">${h.notes||'—'}</td>
-      <td class="no-print"><button class="btn br xs" data-id="${h.id}" onclick="delHotel(this.dataset.id)">✕</button></td>
-    </tr>`;
-  }).join('');
-  if(foot)foot.innerHTML=`<tr class="est-section-total"><td colspan="8" class="tr semi">Total</td><td class="tr mono semi blue">${fmt(grand)}</td><td colspan="2"></td></tr>`;
-  if(lbl)lbl.textContent=hotels.length+' booking'+(hotels.length>1?'s':'')+' · ₹'+fmt(grand);
-}
-
 
 // ══════════════════════════════════════════
 // VEHICLES
@@ -9280,23 +9287,25 @@ function addVehicle(){
   const hire=parseFloat(document.getElementById('veh-hire')?.value)||0;
   const batta=parseFloat(document.getElementById('veh-batta')?.value)||0;
   const fuel=parseFloat(document.getElementById('veh-fuel')?.value)||0;
+  const phase=document.getElementById('veh-phase')?.value||'';
   const hdr=(DB.dayHeaders||{})[date]||{};
   const cs=parseFloat(hdr.cs)||1;
   const total=(hire+batta*cs)*qty+fuel;
   if(!DB.vehicles)DB.vehicles={};
   if(!DB.vehicles[date])DB.vehicles[date]=[];
-  DB.vehicles[date].push({id:uid(),type,vendorName:document.getElementById('veh-vendor-name')?.value||'',qty,hire,batta,fuel,total,notes:document.getElementById('veh-notes')?.value||'',actHire:0,actBatta:0,actFuel:0});
-  saveDB();renderVehicleLog();renderEstTable();
+  DB.vehicles[date].push({id:uid(),type,vendorName:document.getElementById('veh-vendor-name')?.value||'',qty,hire,batta,fuel,total,notes:document.getElementById('veh-notes')?.value||'',phase,actHire:0,actBatta:0,actFuel:0});
+  saveDB();renderVehicleLog();renderEstTable();renderVehiclesMaster();
   ['veh-type','veh-vendor-name','veh-hire','veh-batta','veh-fuel','veh-notes'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
   document.getElementById('veh-qty').value=1;
   document.getElementById('veh-total').value='';
+  const vehPhaseEl=document.getElementById('veh-phase');if(vehPhaseEl)vehPhaseEl.value='';
   toast(`✓ ${qty}× ${type} added — ${fmt(total)}`);
 }
 
 function delVehicle(date,id){
   if(!confirm('Delete vehicle entry?'))return;
   if(DB.vehicles&&DB.vehicles[date])DB.vehicles[date]=DB.vehicles[date].filter(v=>v.id!==id);
-  saveDB();renderVehicleLog();renderEstTable();
+  saveDB();renderVehicleLog();renderEstTable();renderVehiclesMaster();
 }
 
 function saveVehActual(date,id,field,val){
@@ -9395,22 +9404,24 @@ function addPettyCash(){
   const receipt=(document.getElementById('pc-receipt')?.value||'').trim();
   const approved=(document.getElementById('pc-approved')?.value||'').trim();
   const notes=(document.getElementById('pc-notes')?.value||'').trim();
+  const phase=document.getElementById('pc-phase')?.value||'';
   if(!date||!name||!details||!amount){toast('Date, Name, Details and Amount are required','err');return;}
   if(!DB.pettyCash)DB.pettyCash=[];
   if(_pcEditId){
     const rec=DB.pettyCash.find(r=>r.id===_pcEditId);
-    if(rec){Object.assign(rec,{date,name,cat,details,amount,status,receipt,approved,notes});}
+    if(rec){Object.assign(rec,{date,name,cat,details,amount,status,receipt,approved,notes,phase});}
     _pcEditId=null;
     const btn=document.getElementById('pc-submit-btn');if(btn)btn.textContent='+ Add Entry';
     const title=document.getElementById('pc-form-title');if(title)title.textContent='Add Petty Cash Entry';
     const cancel=document.getElementById('pc-cancel-btn');if(cancel)cancel.style.display='none';
     toast('✓ Entry updated');
   } else {
-    DB.pettyCash.push({id:uid(),date,name,cat,details,amount,status,receipt,approved,notes,createdAt:new Date().toISOString()});
+    DB.pettyCash.push({id:uid(),date,name,cat,details,amount,status,receipt,approved,notes,phase,createdAt:new Date().toISOString()});
     toast('✓ Petty cash entry added');
   }
   saveDB();
   ['pc-name','pc-details','pc-receipt','pc-approved','pc-notes','pc-amount'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
+  const pcPhaseEl=document.getElementById('pc-phase');if(pcPhaseEl)pcPhaseEl.value='';
   renderPettyCash();
 }
 function editPettyCash(id){
@@ -9420,6 +9431,8 @@ function editPettyCash(id){
   set('pc-date',r.date);set('pc-name',r.name);set('pc-cat',r.cat);set('pc-details',r.details);
   set('pc-amount',r.amount);set('pc-status',r.status||'paid');set('pc-receipt',r.receipt);
   set('pc-approved',r.approved);set('pc-notes',r.notes);
+  const pcPhaseSel=document.getElementById('pc-phase');
+  if(pcPhaseSel)pcPhaseSel.innerHTML=getPhaseOptionsHtml(r.phase||'');
   const btn=document.getElementById('pc-submit-btn');if(btn)btn.textContent='Save Changes';
   const title=document.getElementById('pc-form-title');if(title)title.textContent='Edit Entry';
   const cancel=document.getElementById('pc-cancel-btn');if(cancel)cancel.style.display='inline-block';
@@ -9429,6 +9442,7 @@ function editPettyCash(id){
 function cancelEditPettyCash(){
   _pcEditId=null;
   ['pc-name','pc-details','pc-receipt','pc-approved','pc-notes','pc-amount'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
+  const pcPhaseEl=document.getElementById('pc-phase');if(pcPhaseEl)pcPhaseEl.value='';
   const btn=document.getElementById('pc-submit-btn');if(btn)btn.textContent='+ Add Entry';
   const title=document.getElementById('pc-form-title');if(title)title.textContent='Add Petty Cash Entry';
   const cancel=document.getElementById('pc-cancel-btn');if(cancel)cancel.style.display='none';
@@ -9447,28 +9461,23 @@ function renderPettyCash(){
     if(statusF&&(r.status||'paid')!==statusF)return false;
     return true;
   }).sort((a,b)=>a.date.localeCompare(b.date)||a.createdAt?.localeCompare(b.createdAt));
-  const container=document.getElementById('pc-months');
+  const container=document.getElementById('pc-phases');
   if(!container)return;
+  const pcPhaseSel=document.getElementById('pc-phase');
+  if(pcPhaseSel&&!pcPhaseSel.dataset.loaded){pcPhaseSel.innerHTML=getPhaseOptionsHtml('');pcPhaseSel.dataset.loaded='1';}
   const td=(txt,right,style)=>`<td style="padding:6px 10px;border:1px solid var(--bd);font-size:12px;${right?'text-align:right':''}${style?';'+style:''}">${txt}</td>`;
   if(!filtered.length){
     container.innerHTML='<div style="padding:20px;text-align:center;opacity:.4">No petty cash entries yet</div>';
     renderPCDailyRollup();
     return;
   }
-  // Group by month (YYYY-MM), most recent month first
-  const byMonth={};
-  filtered.forEach(r=>{
-    const mk=(r.date||'').slice(0,7)||'—';
-    if(!byMonth[mk])byMonth[mk]=[];
-    byMonth[mk].push(r);
-  });
-  const months=Object.keys(byMonth).sort().reverse();
-  container.innerHTML=months.map((mk,mi)=>{
-    const mRows=byMonth[mk];
-    let mPaid=0,mPayable=0;
-    const rowsHtml=mRows.map(r=>{
+  const groups=groupByPhase(filtered,r=>r.phase);
+  container.innerHTML=groups.map((g,gi)=>{
+    const gRows=g.items;
+    let gPaid=0,gPayable=0;
+    const rowsHtml=gRows.map(r=>{
       const isPaid=(r.status||'paid')==='paid';
-      if(isPaid)mPaid+=r.amount||0; else mPayable+=r.amount||0;
+      if(isPaid)gPaid+=r.amount||0; else gPayable+=r.amount||0;
       const statusBadge=isPaid
         ?'<span style="color:var(--gn);font-size:11px;font-weight:600">Paid</span>'
         :'<span style="color:#f97316;font-size:11px;font-weight:600">Payable</span>';
@@ -9489,22 +9498,21 @@ function renderPettyCash(){
         </td>
       </tr>`;
     }).join('');
-    const mLabel=mk==='—'?'No date':new Date(mk+'-01').toLocaleDateString('en-IN',{month:'long',year:'numeric'});
-    const mId='pcm_'+mk.replace(/-/g,'');
-    const isOpen=mi===0; // most recent month expanded by default, older months collapsed
-    return`<div class="dw-day" id="${mId}">
-      <div class="dw-hdr" onclick="togglePCMonth('${mId}')">
+    const gId='pcp_'+gi;
+    const isOpen=gi===0;
+    return`<div class="dw-day" id="${gId}">
+      <div class="dw-hdr" onclick="togglePCPhase('${gId}')">
         <div class="flex aic gap8">
-          <span class="dw-arrow" id="arr_${mId}">${isOpen?'▼':'▶'}</span>
-          <span class="semi" style="font-size:13px;color:var(--go)">${mLabel}</span>
-          <span class="xs3 dim">${mRows.length} entr${mRows.length>1?'ies':'y'}</span>
+          <span class="dw-arrow" id="arr_${gId}">${isOpen?'▼':'▶'}</span>
+          <span class="semi" style="font-size:13px;color:${g.phase?'var(--go)':'var(--rd)'}">${g.label}</span>
+          <span class="xs3 dim">${gRows.length} entr${gRows.length>1?'ies':'y'}</span>
         </div>
         <div class="flex aic gap12">
-          <span class="xs3 dim">Paid</span><span class="tn semi" style="font-size:12px;color:var(--go)">₹${fmt(mPaid)}</span>
-          ${mPayable?`<span class="xs3 dim" style="margin-left:6px">Payable</span><span class="tn semi" style="font-size:12px;color:#f97316">₹${fmt(mPayable)}</span>`:''}
+          <span class="xs3 dim">Paid</span><span class="tn semi" style="font-size:12px;color:var(--go)">₹${fmt(gPaid)}</span>
+          ${gPayable?`<span class="xs3 dim" style="margin-left:6px">Payable</span><span class="tn semi" style="font-size:12px;color:#f97316">₹${fmt(gPayable)}</span>`:''}
         </div>
       </div>
-      <div class="dw-body" id="body_${mId}" style="display:${isOpen?'block':'none'}">
+      <div class="dw-body" id="body_${gId}" style="display:${isOpen?'block':'none'}">
         <div class="tw"><table style="border-collapse:collapse;width:100%;font-size:11px">
           <thead><tr>
             <th style="padding:6px 10px;background:var(--sf3);border:1px solid var(--bd);font-size:9px;color:var(--tx3);text-transform:uppercase;letter-spacing:1px">Date</th>
@@ -9520,10 +9528,10 @@ function renderPettyCash(){
           </tr></thead>
           <tbody>${rowsHtml}</tbody>
           <tfoot><tr style="font-weight:700;background:var(--bg2)">
-            <td colspan="7" style="padding:6px 10px;border:1px solid var(--bd);font-size:11px">MONTH TOTAL (${mRows.length} entries)</td>
+            <td colspan="7" style="padding:6px 10px;border:1px solid var(--bd);font-size:11px">GROUP TOTAL (${gRows.length} entries)</td>
             <td style="padding:6px 10px;border:1px solid var(--bd);text-align:right;font-family:monospace;font-size:12px">
-              <div style="color:var(--go)">Paid: ${fmt(mPaid)}</div>
-              <div style="color:#f97316">Payable: ${fmt(mPayable)}</div>
+              <div style="color:var(--go)">Paid: ${fmt(gPaid)}</div>
+              <div style="color:#f97316">Payable: ${fmt(gPayable)}</div>
             </td>
             <td colspan="2" style="border:1px solid var(--bd)"></td>
           </tr></tfoot>
@@ -9533,7 +9541,7 @@ function renderPettyCash(){
   }).join('');
   renderPCDailyRollup();
 }
-function togglePCMonth(id){
+function togglePCPhase(id){
   const body=document.getElementById('body_'+id);
   const arr=document.getElementById('arr_'+id);
   if(!body)return;
@@ -9541,8 +9549,8 @@ function togglePCMonth(id){
   body.style.display=open?'block':'none';
   if(arr)arr.textContent=open?'▼':'▶';
 }
-function expandAllPCMonths(){document.querySelectorAll('[id^="body_pcm_"]').forEach(el=>{el.style.display='block';const arr=document.getElementById('arr_'+el.id.replace('body_',''));if(arr)arr.textContent='▼';});}
-function collapseAllPCMonths(){document.querySelectorAll('[id^="body_pcm_"]').forEach(el=>{el.style.display='none';const arr=document.getElementById('arr_'+el.id.replace('body_',''));if(arr)arr.textContent='▶';});}
+function expandAllPCPhases(){document.querySelectorAll('[id^="body_pcp_"]').forEach(el=>{el.style.display='block';const arr=document.getElementById('arr_'+el.id.replace('body_',''));if(arr)arr.textContent='▼';});}
+function collapseAllPCPhases(){document.querySelectorAll('[id^="body_pcp_"]').forEach(el=>{el.style.display='none';const arr=document.getElementById('arr_'+el.id.replace('body_',''));if(arr)arr.textContent='▶';});}
 
 function renderPCDailyRollup(){
   const el=document.getElementById('pc-daily-rollup');if(!el)return;
@@ -9956,10 +9964,79 @@ function renderVehicleLog(){
   </tr>`;
 }
 
+function renderVehiclesMaster(){
+  const container=document.getElementById('veh-phases');
+  if(!container)return;
+  const vehPhaseSel=document.getElementById('veh-phase');
+  if(vehPhaseSel&&!vehPhaseSel.dataset.loaded){vehPhaseSel.innerHTML=getPhaseOptionsHtml('');vehPhaseSel.dataset.loaded='1';}
+  // Flatten DB.vehicles (keyed by date) into a single list with date attached
+  const all=[];
+  Object.entries(DB.vehicles||{}).forEach(([date,list])=>{
+    (list||[]).forEach(v=>all.push({...v,_date:date}));
+  });
+  if(!all.length){
+    container.innerHTML='<div class="te" style="padding:16px">No vehicle entries yet</div>';
+    return;
+  }
+  const groups=groupByPhase(all,v=>v.phase);
+  container.innerHTML=groups.map((g,gi)=>{
+    let gTotal=0;
+    const rowsHtml=g.items.sort((a,b)=>(a._date||'').localeCompare(b._date||'')).map(v=>{
+      const hdr=(DB.dayHeaders||{})[v._date]||{};
+      const cs=parseFloat(hdr.cs)||1;
+      const hireT=(v.hire||0)*(v.qty||1);
+      const battaT=(v.batta||0)*cs*(v.qty||1);
+      const grandT=hireT+battaT+(v.fuel||0);
+      gTotal+=grandT;
+      return`<tr>
+        <td style="white-space:nowrap;font-size:11px;color:var(--tx3)">${fmtD(v._date)}</td>
+        <td class="semi">${esc(v.type)}</td>
+        <td class="dim xs2">${esc(v.vendorName||'—')}</td>
+        <td class="tr">${v.qty}</td>
+        <td class="tn tr blue">${fmt(hireT)}</td>
+        <td class="tn tr blue">${fmt(battaT)}</td>
+        <td class="tn tr">${v.fuel?fmt(v.fuel):'—'}</td>
+        <td class="tn tr gold semi">${fmt(grandT)}</td>
+        <td class="dim xs2">${esc(v.notes||'—')}</td>
+        <td class="no-print"><button class="btn br xs" onclick="delVehicle('${v._date}','${v.id}')">✕</button></td>
+      </tr>`;
+    }).join('');
+    const gId='vehp_'+gi;
+    const isOpen=gi===0;
+    return`<div class="dw-day" id="${gId}">
+      <div class="dw-hdr" onclick="toggleVehPhase('${gId}')">
+        <div class="flex aic gap8">
+          <span class="dw-arrow" id="arr_${gId}">${isOpen?'▼':'▶'}</span>
+          <span class="semi" style="font-size:13px;color:${g.phase?'var(--go)':'var(--rd)'}">${g.label}</span>
+          <span class="xs3 dim">${g.items.length} entr${g.items.length>1?'ies':'y'}</span>
+        </div>
+        <div class="flex aic gap12">
+          <span class="xs3 dim">Total</span><span class="tn semi" style="font-size:12px;color:var(--gn)">₹${fm(gTotal)}</span>
+        </div>
+      </div>
+      <div class="dw-body" id="body_${gId}" style="display:${isOpen?'block':'none'}">
+        <div class="tw"><table style="font-size:11px"><thead><tr>
+          <th>Date</th><th>Type</th><th>Vendor</th><th class="tr">Qty</th>
+          <th class="tr">Hire Total</th><th class="tr">Batta Total</th><th class="tr">Fuel</th>
+          <th class="tr">Grand Total</th><th>Notes</th><th class="no-print"></th>
+        </tr></thead><tbody>${rowsHtml}</tbody>
+        <tfoot><tr class="est-section-total"><td colspan="7" class="tr semi">GROUP TOTAL</td><td class="tr mono semi gold">${fmt(gTotal)}</td><td colspan="2"></td></tr></tfoot>
+        </table></div>
+      </div>
+    </div>`;
+  }).join('');
+}
+function toggleVehPhase(id){
+  const body=document.getElementById('body_'+id);
+  const arr=document.getElementById('arr_'+id);
+  if(!body)return;
+  const open=body.style.display==='none';
+  body.style.display=open?'block':'none';
+  if(arr)arr.textContent=open?'▼':'▶';
+}
+function expandAllVehPhases(){document.querySelectorAll('[id^="body_vehp_"]').forEach(el=>{el.style.display='block';const arr=document.getElementById('arr_'+el.id.replace('body_',''));if(arr)arr.textContent='▼';});}
+function collapseAllVehPhases(){document.querySelectorAll('[id^="body_vehp_"]').forEach(el=>{el.style.display='none';const arr=document.getElementById('arr_'+el.id.replace('body_',''));if(arr)arr.textContent='▶';});}
 
-// ══════════════════════════════════
-// ACTUALS — declared CS
-// ══════════════════════════════════
 function actLIChange(){
   const k=document.getElementById('act-li').value;
   const e=k?allItems().find(x=>liKey(x)===k):null;
@@ -10579,22 +10656,22 @@ function renderActualsLog(){
     const e=allItems().find(x=>liKey(x)===r.liKey);
     const v=DB.vendors.find(x=>x.id===r.vendorId);
     const s=DB.schedules.find(x=>x.id===r.schedId);
-    const hire=isHireItem(e);
-    const ovr=r.rateOverridden||isOverridden(r.liKey);
+    const hire=e?isHireItem(e):false;
+    const ovr=e?(r.rateOverridden||isOverridden(r.liKey)):false;
     // vs estimate plan for this date+liKey
     const plan=DB.estimates.filter(x=>x.date===r.date&&x.liKey===r.liKey).reduce((s,x)=>s+(x.amount||0),0);
     const variance=r.amount-plan;
     let datePrefix='';
     if(r.date!==lastDate){lastDate=r.date;datePrefix=`<tr style="background:rgba(46,204,138,.03)"><td colspan="12" style="padding:5px 8px;font-size:10px;font-weight:700;color:var(--tx2);letter-spacing:1px">${fmtDL(r.date)} ${s?'→ '+s.name:''}</td></tr>`;}
-    return datePrefix+`<tr>
+    return datePrefix+`<tr${e?'':' style="background:rgba(239,68,68,.04)"'}>
       <td>${fmtD(r.date)}</td>
       <td class="dim xs2">${s?.name||'—'}</td>
-      <td class="semi">${e?.item||r.liKey}</td>
+      <td class="semi">${e?.item||(r.liKey?`<span style="color:var(--rd)" title="No matching Rate Card item for key: ${esc(r.liKey)}">⚠ Unmatched item</span>`:'—')}</td>
       <td><span class="tag tb xs2">${e?.cat||'—'}</span></td>
       <td class="dim xs2">${v?.name||'—'}</td>
-      <td class="tn tr gold semi">${hire?'—':r.cs}</td>
-      <td class="tn tr">${r.count}</td>
-      <td class="tn tr dim">${fmt(r.rate)}</td>
+      <td class="tn tr gold semi">${hire?'—':(r.cs??'—')}</td>
+      <td class="tn tr">${r.count??'—'}</td>
+      <td class="tn tr dim">${r.rate!=null?fmt(r.rate):'—'}</td>
       <td>${ovr?'<span class="tag to xs2" title="Rate was overridden from seed">⚠ overridden</span>':'<span class="tag ts xs2">standard</span>'}</td>
       <td class="tn tr green semi">${fmt(r.amount)}</td>
       <td class="tn tr ${plan>0?(variance>0?'red':'green'):'dim'} xs2">${plan>0?(variance>0?'+':'')+fmt(variance):'—'}</td>
@@ -13694,67 +13771,116 @@ function renderHotels(){
   const rf=document.getElementById('range-from');const rt=document.getElementById('range-to');
   if(rf&&!rf.value&&_rangeFrom)rf.value=_rangeFrom;
   if(rt&&!rt.value&&_rangeTo)rt.value=_rangeTo;
-  const body=document.getElementById('htl-body');
-  const foot=document.getElementById('htl-foot');
+  const container=document.getElementById('htl-phases');
+  if(!container)return;
+  const htlPhaseSel=document.getElementById('htl-phase');
+  if(htlPhaseSel&&!htlPhaseSel.dataset.loaded){htlPhaseSel.innerHTML=getPhaseOptionsHtml('');htlPhaseSel.dataset.loaded='1';}
   const hotels=DB.hotels||[];
-  if(!body)return;
   if(!hotels.length){
-    body.innerHTML='<tr><td colspan="14" class="te">No hotel bookings yet</td></tr>';
-    if(foot)foot.innerHTML='';
+    container.innerHTML='<div class="te" style="padding:16px">No hotel bookings yet</div>';
     const s=document.getElementById('htl-summary');if(s)s.textContent='';
     return;
   }
-  let grandEst=0,grandAct=0;
+  let grandEst=0,grandAct=0,grandInRange=0;
   const visibleHotels=(_rangeFrom||_rangeTo)?hotels.filter(h=>bookingOverlapsRange(h.checkIn,h.checkOut)):hotels;
-  body.innerHTML=visibleHotels.map(h=>{
-    grandEst+=h.total||0;
-    grandAct+=h.actCost||0;
-    const _nr=nightsInRange(h.checkIn,h.checkOut);
-    const _cr=_nr*(h.rate||0)*(h.rooms||1);
-    const hasAct=h.actCost&&h.actCost>0;
-    const datesDiffer=(h.actCheckIn&&h.actCheckIn!==h.checkIn)||(h.actCheckOut&&h.actCheckOut!==h.checkOut);
-    const actCell=hasAct
-      ? `<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
-           <span class="mono semi green" style="font-size:12px;white-space:nowrap">${fmt(h.actCost)}</span>
-           <span style="font-size:9px;color:var(--gn);background:rgba(46,204,138,.1);border:1px solid rgba(46,204,138,.25);border-radius:4px;padding:1px 6px;white-space:nowrap">✓ confirmed · ÷${h.nights}n = ${fmt(Math.round(h.actCost/h.nights))}</span>
-           ${datesDiffer?`<span style="font-size:9px;color:var(--or);background:rgba(232,169,69,.12);border:1px solid rgba(232,169,69,.3);border-radius:4px;padding:1px 6px;white-space:nowrap" title="Actual stay differs from booking">📅 Actual: ${fmtD(h.actCheckIn||h.checkIn)} → ${fmtD(h.actCheckOut||h.checkOut)}</span>`:''}
-           ${h.actVarianceReason?`<span style="font-size:9px;color:var(--rd);background:rgba(239,68,68,.08);border:1px solid rgba(239,68,68,.25);border-radius:4px;padding:1px 6px;display:block;width:100%;margin-top:2px" title="${h.actVarianceReason.replace(/"/g,'&quot;')}">⚠ ${h.actVarianceReason}</span>`:''}
-           <button class="btn bs xs" style="font-size:9px;padding:2px 6px;opacity:.6" onclick="htlClearAct('${h.id}')">Edit</button>
-         </div>`
-      : `<div style="display:flex;align-items:center;gap:5px">
-           <input id="htlact-${h.id}" type="number" placeholder="Total actual…"
-             style="width:100px;background:var(--sf2);border:1px solid var(--bd2);border-radius:var(--r2);color:var(--tx);padding:4px 8px;font-size:11px;font-family:'JetBrains Mono',monospace;outline:none;text-align:right"
-             onkeydown="if(event.key==='Enter')confirmHotelAct('${h.id}')">
-           <button class="btn bg xs" style="font-size:10px;padding:4px 8px;white-space:nowrap" onclick="confirmHotelAct('${h.id}')">✓ Add</button>
-           <div style="font-size:9px;color:var(--tx3);margin-top:2px">÷ ${h.nights} nights</div>
-         </div>`;
-    return`<tr>
-      <td class="semi">${h.name}</td>
-      <td style="color:var(--tx2);font-size:11px">${h.roomType||'—'}</td>
-      <td style="color:var(--tx)">${h.guest||'—'}</td>
-      <td class="tr">${h.rooms}</td>
-      <td class="tr mono" style="white-space:nowrap">${fmt(h.rate)}</td>
-      <td style="white-space:nowrap">${fmtD(h.checkIn)}</td>
-      <td style="white-space:nowrap">${fmtD(h.checkOut)}</td>
-      <td class="tr">${h.nights}</td>
-      <td class="tr${_nr<h.nights?' orange':''}" style="white-space:nowrap">${_nr}</td>
-      <td class="tr mono semi${_nr>0?' blue':' muted'}" style="white-space:nowrap">${_nr>0?fmt(_cr):'—'}</td>
-      <td class="tr mono semi" style="white-space:nowrap">${fmt(h.total)}</td>
-      <td style="color:var(--tx2);font-size:11px;max-width:110px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${h.notes||'—'}</td>
-      <td style="min-width:200px">${actCell}</td>
-      <td class="no-print" style="white-space:nowrap">
-        <button class="btn bs xs" data-hid="${h.id}" onclick="moveHotel(this.dataset.hid,-1)" style="padding:2px 4px">▲</button>
-        <button class="btn bs xs" data-hid="${h.id}" onclick="moveHotel(this.dataset.hid,1)" style="padding:2px 4px;margin:0 4px">▼</button>
-        <button class="btn br xs" data-hid="${h.id}" onclick="delHotel(this.dataset.hid)">✕</button>
-      </td>
-    </tr>`;
+  const rangeLbl=document.getElementById('htl-range-lbl');
+  if(rangeLbl)rangeLbl.textContent=(_rangeFrom||_rangeTo)?'· '+visibleHotels.length+' in range':'';
+  const groups=groupByPhase(visibleHotels,h=>h.phase);
+  container.innerHTML=groups.map((g,gi)=>{
+    let gEst=0,gAct=0;
+    const rowsHtml=g.items.map(h=>{
+      gEst+=h.total||0;grandEst+=h.total||0;
+      gAct+=h.actCost||0;grandAct+=h.actCost||0;
+      const _nr=nightsInRange(h.checkIn,h.checkOut);
+      const _cr=_nr*(h.rate||0)*(h.rooms||1);
+      grandInRange+=_cr;
+      const hasAct=h.actCost&&h.actCost>0;
+      const datesDiffer=(h.actCheckIn&&h.actCheckIn!==h.checkIn)||(h.actCheckOut&&h.actCheckOut!==h.checkOut);
+      const actCell=hasAct
+        ? `<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
+             <span class="mono semi green" style="font-size:12px;white-space:nowrap">${fmt(h.actCost)}</span>
+             <span style="font-size:9px;color:var(--gn);background:rgba(46,204,138,.1);border:1px solid rgba(46,204,138,.25);border-radius:4px;padding:1px 6px;white-space:nowrap">✓ confirmed · ÷${h.nights}n = ${fmt(Math.round(h.actCost/h.nights))}</span>
+             ${datesDiffer?`<span style="font-size:9px;color:var(--or);background:rgba(232,169,69,.12);border:1px solid rgba(232,169,69,.3);border-radius:4px;padding:1px 6px;white-space:nowrap" title="Actual stay differs from booking">📅 Actual: ${fmtD(h.actCheckIn||h.checkIn)} → ${fmtD(h.actCheckOut||h.checkOut)}</span>`:''}
+             ${h.actVarianceReason?`<span style="font-size:9px;color:var(--rd);background:rgba(239,68,68,.08);border:1px solid rgba(239,68,68,.25);border-radius:4px;padding:1px 6px;display:block;width:100%;margin-top:2px" title="${h.actVarianceReason.replace(/"/g,'&quot;')}">⚠ ${h.actVarianceReason}</span>`:''}
+             <button class="btn bs xs" style="font-size:9px;padding:2px 6px;opacity:.6" onclick="htlClearAct('${h.id}')">Edit</button>
+           </div>`
+        : `<div style="display:flex;align-items:center;gap:5px">
+             <input id="htlact-${h.id}" type="number" placeholder="Total actual…"
+               style="width:100px;background:var(--sf2);border:1px solid var(--bd2);border-radius:var(--r2);color:var(--tx);padding:4px 8px;font-size:11px;font-family:'JetBrains Mono',monospace;outline:none;text-align:right"
+               onkeydown="if(event.key==='Enter')confirmHotelAct('${h.id}')">
+             <button class="btn bg xs" style="font-size:10px;padding:4px 8px;white-space:nowrap" onclick="confirmHotelAct('${h.id}')">✓ Add</button>
+             <div style="font-size:9px;color:var(--tx3);margin-top:2px">÷ ${h.nights} nights</div>
+           </div>`;
+      return`<tr>
+        <td class="semi">${h.name}</td>
+        <td style="color:var(--tx2);font-size:11px">${h.roomType||'—'}</td>
+        <td style="color:var(--tx)">${h.guest||'—'}</td>
+        <td class="tr">${h.rooms}</td>
+        <td class="tr mono" style="white-space:nowrap">${fmt(h.rate)}</td>
+        <td style="white-space:nowrap">${fmtD(h.checkIn)}</td>
+        <td style="white-space:nowrap">${fmtD(h.checkOut)}</td>
+        <td class="tr">${h.nights}</td>
+        <td class="tr${_nr<h.nights?' orange':''}" style="white-space:nowrap">${_nr}</td>
+        <td class="tr mono semi${_nr>0?' blue':' muted'}" style="white-space:nowrap">${_nr>0?fmt(_cr):'—'}</td>
+        <td class="tr mono semi" style="white-space:nowrap">${fmt(h.total)}</td>
+        <td style="color:var(--tx2);font-size:11px;max-width:110px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${h.notes||'—'}</td>
+        <td style="min-width:200px">${actCell}</td>
+        <td class="no-print" style="white-space:nowrap">
+          <button class="btn bs xs" data-hid="${h.id}" onclick="moveHotel(this.dataset.hid,-1)" style="padding:2px 4px">▲</button>
+          <button class="btn bs xs" data-hid="${h.id}" onclick="moveHotel(this.dataset.hid,1)" style="padding:2px 4px;margin:0 4px">▼</button>
+          <button class="btn br xs" data-hid="${h.id}" onclick="delHotel(this.dataset.hid)">✕</button>
+        </td>
+      </tr>`;
+    }).join('');
+    const gId='htlp_'+gi;
+    const isOpen=gi===0;
+    return`<div class="dw-day" id="${gId}">
+      <div class="dw-hdr" onclick="toggleHtlPhase('${gId}')">
+        <div class="flex aic gap8">
+          <span class="dw-arrow" id="arr_${gId}">${isOpen?'▼':'▶'}</span>
+          <span class="semi" style="font-size:13px;color:${g.phase?'var(--go)':'var(--rd)'}">${g.label}</span>
+          <span class="xs3 dim">${g.items.length} booking${g.items.length>1?'s':''}</span>
+        </div>
+        <div class="flex aic gap12">
+          <span class="xs3 dim">Est</span><span class="tn semi blue" style="font-size:12px">₹${fm(gEst)}</span>
+          ${gAct?`<span class="xs3 dim" style="margin-left:6px">Actual</span><span class="tn semi orange" style="font-size:12px">₹${fm(gAct)}</span>`:''}
+        </div>
+      </div>
+      <div class="dw-body" id="body_${gId}" style="display:${isOpen?'block':'none'}">
+        <div class="tw"><table style="width:100%;font-size:11px"><colgroup>
+          <col style="width:145px"><col style="width:95px"><col style="width:155px">
+          <col style="width:60px"><col style="width:100px">
+          <col style="width:95px"><col style="width:95px"><col style="width:60px">
+          <col style="width:90px"><col style="width:105px">
+          <col style="width:105px"><col style="width:120px">
+          <col style="width:155px"><col style="width:85px">
+        </colgroup><thead><tr>
+          <th>Hotel</th><th>Room Type</th><th>Guest / Group</th>
+          <th class="tr">Rooms</th><th class="tr">Rate/Night</th>
+          <th>Check-In</th><th>Check-Out</th><th class="tr">Nights</th>
+          <th class="tr">In Range</th><th class="tr">Cost in Range</th>
+          <th class="tr">Total Cost</th><th>Notes</th>
+          <th class="tr">Act. Cost → splits daily</th><th class="no-print"></th>
+        </tr></thead><tbody>${rowsHtml}</tbody>
+        <tfoot><tr class="est-section-total"><td colspan="10" class="tr semi">GROUP TOTAL</td><td class="tr mono semi">${fmt(gEst)}</td><td></td><td class="tr mono green">${gAct?fmt(gAct):'—'}</td><td></td></tr></tfoot>
+        </table></div>
+      </div>
+    </div>`;
   }).join('');
-  const grandInRange=visibleHotels.reduce((s,h)=>s+nightsInRange(h.checkIn,h.checkOut)*(h.rate||0)*(h.rooms||1),0);
-  if(foot)foot.innerHTML=`<tr class="est-section-total"><td colspan="8" class="tr semi">Total</td><td class="tr mono">—</td><td class="tr mono blue semi">${fmt(grandInRange)}</td><td class="tr mono semi">${fmt(grandEst)}</td><td></td><td class="tr mono green">${grandAct?fmt(grandAct):'—'}</td><td></td></tr>`;
   const htlRtEl=document.getElementById('htl-range-total');if(htlRtEl)htlRtEl.textContent=(_rangeFrom||_rangeTo)?'Range total: '+fmt(grandInRange):'Total: '+fmt(grandEst);
   const s=document.getElementById('htl-summary');
   if(s)s.textContent=hotels.length+' booking'+(hotels.length>1?'s':'')+' · '+fmt(grandEst)+' est'+(grandAct?' · '+fmt(grandAct)+' actual':'');
 }
+function toggleHtlPhase(id){
+  const body=document.getElementById('body_'+id);
+  const arr=document.getElementById('arr_'+id);
+  if(!body)return;
+  const open=body.style.display==='none';
+  body.style.display=open?'block':'none';
+  if(arr)arr.textContent=open?'▼':'▶';
+}
+function expandAllHtlPhases(){document.querySelectorAll('[id^="body_htlp_"]').forEach(el=>{el.style.display='block';const arr=document.getElementById('arr_'+el.id.replace('body_',''));if(arr)arr.textContent='▼';});}
+function collapseAllHtlPhases(){document.querySelectorAll('[id^="body_htlp_"]').forEach(el=>{el.style.display='none';const arr=document.getElementById('arr_'+el.id.replace('body_',''));if(arr)arr.textContent='▶';});}
 
 // ══════════════════════════════════════════
 // FLIGHTS
@@ -13767,6 +13893,7 @@ function addFlight(){
   const bookdate=document.getElementById('flt-bookdate')?.value||'';
   const airline=(document.getElementById('flt-airline')?.value||'').trim();
   const dept=(document.getElementById('flt-dept')?.value||'').trim();
+  const phase=document.getElementById('flt-phase')?.value||'';
   const from=(document.getElementById('flt-from')?.value||'').trim();
   const to=(document.getElementById('flt-to')?.value||'').trim();
   const travelClass=document.getElementById('flt-class')?.value||'';
@@ -13780,7 +13907,7 @@ function addFlight(){
   const approved=(document.getElementById('flt-approved')?.value||'').trim();
   const notes=(document.getElementById('flt-notes')?.value||'').trim();
   const count=parseFloat(document.getElementById('flt-count')?.value)||1;
-  const entry={id:uid(),bookdate,date,pax,dept,airline,from,to,travelClass,mmt,ticket,actCost:actual,luggage,meals,seat,reason,approved,notes,count,
+  const entry={id:uid(),bookdate,date,pax,dept,phase,airline,from,to,travelClass,mmt,ticket,actCost:actual,luggage,meals,seat,reason,approved,notes,count,
     // legacy compat
     estCost:mmt};
   if(!DB.flights)DB.flights=[];
@@ -13789,6 +13916,7 @@ function addFlight(){
   ['flt-airline','flt-pax','flt-from','flt-to','flt-notes','flt-mmt','flt-ticket','flt-actual','flt-luggage','flt-meals','flt-seat','flt-reason','flt-approved','flt-dept','flt-bookdate'].forEach(x=>{const el=document.getElementById(x);if(el)el.value='';});
   document.getElementById('flt-count').value='1';
   document.getElementById('flt-class').value='';
+  document.getElementById('flt-phase').value='';
   toast('✓ Flight added for '+fmtD(date));
 }
 
@@ -13800,6 +13928,8 @@ function editFlight(id){
   document.getElementById('flt-edit-date').value=f.date||'';
   document.getElementById('flt-edit-pax').value=f.pax||'';
   document.getElementById('flt-edit-dept').value=f.dept||'';
+  const phaseSel=document.getElementById('flt-edit-phase');
+  if(phaseSel)phaseSel.innerHTML=getPhaseOptionsHtml(f.phase||'');
   document.getElementById('flt-edit-airline').value=f.airline||'';
   document.getElementById('flt-edit-from').value=f.from||'';
   document.getElementById('flt-edit-to').value=f.to||'';
@@ -13827,6 +13957,7 @@ function saveFlightEdit(){
   f.bookdate=document.getElementById('flt-edit-bookdate').value;
   f.date=date;f.pax=pax;
   f.dept=document.getElementById('flt-edit-dept').value.trim();
+  f.phase=document.getElementById('flt-edit-phase')?.value||'';
   f.airline=document.getElementById('flt-edit-airline').value.trim();
   f.from=document.getElementById('flt-edit-from').value.trim();
   f.to=document.getElementById('flt-edit-to').value.trim();
@@ -13863,25 +13994,20 @@ function setFlightField(id,field,val){
 }
 
 function renderFlights(){
-  const container=document.getElementById('flt-months');
+  const container=document.getElementById('flt-phases');
   if(!container)return;
+  const phaseSel=document.getElementById('flt-phase');
+  if(phaseSel&&!phaseSel.dataset.loaded){phaseSel.innerHTML=getPhaseOptionsHtml('');phaseSel.dataset.loaded='1';}
   const flights=(DB.flights||[]).sort((a,b)=>(a.date||'').localeCompare(b.date||''));
   if(!flights.length){
     container.innerHTML='<div class="te" style="padding:16px">No flight bookings yet</div>';
     const s=document.getElementById('flt-summary');if(s)s.textContent='';
     return;
   }
-  // Group by travel month (YYYY-MM), most recent month first
-  const byMonth={};
-  flights.forEach(f=>{
-    const mk=(f.date||'').slice(0,7)||'—';
-    if(!byMonth[mk])byMonth[mk]=[];
-    byMonth[mk].push(f);
-  });
-  const months=Object.keys(byMonth).sort().reverse();
+  const groups=groupByPhase(flights,f=>f.phase);
   let grandMmt=0,grandTicket=0,grandAct=0,grandLuggage=0;
-  container.innerHTML=months.map((mk,mi)=>{
-    const rows=byMonth[mk];
+  container.innerHTML=groups.map((g,gi)=>{
+    const rows=g.items;
     let mMmt=0,mTicket=0,mAct=0,mLuggage=0;
     const rowsHtml=rows.map(f=>{
       mMmt+=f.mmt||f.estCost||0;grandMmt+=f.mmt||f.estCost||0;
@@ -13912,14 +14038,13 @@ function renderFlights(){
         </td>
       </tr>`;
     }).join('');
-    const mLabel=mk==='—'?'No date':new Date(mk+'-01').toLocaleDateString('en-IN',{month:'long',year:'numeric'});
-    const mId='fltm_'+mk.replace(/-/g,'');
-    const isOpen=mi===0; // most recent month expanded by default, older months collapsed
-    return`<div class="dw-day" id="${mId}">
-      <div class="dw-hdr" onclick="toggleFltMonth('${mId}')">
+    const gId='fltp_'+gi;
+    const isOpen=gi===0; // first group in phase order (Unassigned, else ATL, else earliest phase present) expanded by default
+    return`<div class="dw-day" id="${gId}">
+      <div class="dw-hdr" onclick="toggleFltPhase('${gId}')">
         <div class="flex aic gap8">
-          <span class="dw-arrow" id="arr_${mId}">${isOpen?'▼':'▶'}</span>
-          <span class="semi" style="font-size:13px;color:var(--go)">${mLabel}</span>
+          <span class="dw-arrow" id="arr_${gId}">${isOpen?'▼':'▶'}</span>
+          <span class="semi" style="font-size:13px;color:${g.phase?'var(--go)':'var(--rd)'}">${g.label}</span>
           <span class="xs3 dim">${rows.length} booking${rows.length>1?'s':''}</span>
         </div>
         <div class="flex aic gap12">
@@ -13927,7 +14052,7 @@ function renderFlights(){
           ${mAct?`<span class="xs3 dim" style="margin-left:6px">Actual</span><span class="tn semi orange" style="font-size:12px">₹${fm(mAct)}</span>`:''}
         </div>
       </div>
-      <div class="dw-body" id="body_${mId}" style="display:${isOpen?'block':'none'}">
+      <div class="dw-body" id="body_${gId}" style="display:${isOpen?'block':'none'}">
         <div class="tw"><table style="font-size:11px"><thead><tr>
           <th>Book Date</th><th>Travel Date</th><th>Passenger</th><th>Dept</th>
           <th>Route</th><th>Airline</th><th>Class</th>
@@ -13936,7 +14061,7 @@ function renderFlights(){
           <th class="no-print"></th>
         </tr></thead><tbody>${rowsHtml}</tbody>
         <tfoot><tr class="est-section-total">
-          <td colspan="7" style="text-align:right;font-weight:700;color:var(--tx3);font-size:11px;letter-spacing:.5px">MONTH TOTAL</td>
+          <td colspan="7" style="text-align:right;font-weight:700;color:var(--tx3);font-size:11px;letter-spacing:.5px">GROUP TOTAL</td>
           <td style="text-align:right;font-weight:800;color:var(--bl);font-family:'JetBrains Mono',monospace">₹${fm(mMmt)}</td>
           <td style="text-align:right;font-weight:700;font-family:'JetBrains Mono',monospace;color:var(--tx2)">${mTicket?'₹'+fm(mTicket):'—'}</td>
           <td style="text-align:right;font-weight:700;font-family:'JetBrains Mono',monospace;color:var(--tx2)">${mAct?'₹'+fm(mAct):'—'}</td>
@@ -13949,7 +14074,7 @@ function renderFlights(){
   const s=document.getElementById('flt-summary');
   if(s)s.textContent=flights.length+' booking'+(flights.length>1?'s':'')+' · MMT: ₹'+fm(grandMmt)+(grandAct?' · Actual: ₹'+fm(grandAct):'');
 }
-function toggleFltMonth(id){
+function toggleFltPhase(id){
   const body=document.getElementById('body_'+id);
   const arr=document.getElementById('arr_'+id);
   if(!body)return;
@@ -13957,8 +14082,9 @@ function toggleFltMonth(id){
   body.style.display=open?'block':'none';
   if(arr)arr.textContent=open?'▼':'▶';
 }
-function expandAllFltMonths(){document.querySelectorAll('[id^="body_fltm_"]').forEach(el=>{el.style.display='block';const arr=document.getElementById('arr_'+el.id.replace('body_',''));if(arr)arr.textContent='▼';});}
-function collapseAllFltMonths(){document.querySelectorAll('[id^="body_fltm_"]').forEach(el=>{el.style.display='none';const arr=document.getElementById('arr_'+el.id.replace('body_',''));if(arr)arr.textContent='▶';});}
+function expandAllFltPhases(){document.querySelectorAll('[id^="body_fltp_"]').forEach(el=>{el.style.display='block';const arr=document.getElementById('arr_'+el.id.replace('body_',''));if(arr)arr.textContent='▼';});}
+function collapseAllFltPhases(){document.querySelectorAll('[id^="body_fltp_"]').forEach(el=>{el.style.display='none';const arr=document.getElementById('arr_'+el.id.replace('body_',''));if(arr)arr.textContent='▶';});}
+
 
 // Flight rollup for estimates table — estimate = MMT Fare per travel date
 function getFlightRollup(date){
@@ -18030,15 +18156,14 @@ function renderBills(){
   const filter=document.getElementById('bills-filter')?.value||'';
   let bills=[...(DB.bills||[])].sort((a,b)=>b.uploadedAt.localeCompare(a.uploadedAt));
   if(filter)bills=bills.filter(b=>b.status===filter);
-  const body=document.getElementById('bills-body');const foot=document.getElementById('bills-foot');
-  if(!body)return;
+  const container=document.getElementById('bills-groups');
+  if(!container)return;
   if(!bills.length){
-    body.innerHTML='<tr><td colspan="10" class="te">No bills yet</td></tr>';
-    if(foot)foot.innerHTML='';return;
+    container.innerHTML='<div class="te" style="padding:20px">No bills yet</div>';
+    updateBillsBadge();
+    return;
   }
-  let grand=0;
-  body.innerHTML=bills.map(b=>{
-    grand+=b.total||0;
+  const rowHtml=(b)=>{
     const isPaid=b.status==='paid';const isApproved=b.status==='approved';
     const st=isPaid
       ?`<span class="tag" style="background:rgba(34,197,94,.12);color:#22c55e;font-size:10px;border:1px solid rgba(34,197,94,.3)">💳 PAID</span>`
@@ -18087,10 +18212,60 @@ function renderBills(){
         ${hasTopsheet?`<button class="btn bs xs" onclick="alPromptFlexBill((DB.bills||[]).find(x=>x.id==='${b.id}'))" style="font-size:10px;margin-left:4px;color:var(--pu);border-color:var(--pu)">🔗 Link</button>`:''}
       </td>
     </tr>`;
+  };
+  // Group by Schedule (existing schedId), styled/sorted consistently with the shared
+  // Phase system used by Flights/Hotels/Petty Cash. Bills don't yet have ATL/Pre-Prod/
+  // Post/Marketing/Admin tagging — that would need its own follow-up since bills are
+  // created through several different flows (scan approval, batch entry, topsheets),
+  // not a single simple add-form like the other lists.
+  const groups=groupByPhase(bills,b=>b.schedId?('SCHED:'+b.schedId):'');
+  let grandTotal=0;
+  container.innerHTML=groups.map((g,gi)=>{
+    const groupBills=g.items;
+    let gTotal=0;
+    const rowsHtml=groupBills.map(b=>{gTotal+=b.total||0;grandTotal+=b.total||0;return rowHtml(b);}).join('');
+    const gId='billg_'+gi;
+    const isOpen=gi===0;
+    return`<div class="dw-day" id="${gId}">
+      <div class="dw-hdr" onclick="toggleBillGroup('${gId}')">
+        <div class="flex aic gap8">
+          <span class="dw-arrow" id="arr_${gId}">${isOpen?'▼':'▶'}</span>
+          <span class="semi" style="font-size:13px;color:${g.phase?'var(--go)':'var(--rd)'}">${g.label}</span>
+          <span class="xs3 dim">${groupBills.length} bill${groupBills.length>1?'s':''}</span>
+        </div>
+        <div class="flex aic gap12">
+          <span class="xs3 dim">Total</span><span class="tn semi" style="font-size:12px;color:var(--gn)">₹${fm(gTotal)}</span>
+        </div>
+      </div>
+      <div class="dw-body" id="body_${gId}" style="display:${isOpen?'block':'none'}">
+        <div style="overflow-x:auto">
+        <table style="width:100%;table-layout:auto;font-size:11px">
+          <thead><tr>
+            <th style="white-space:nowrap">Date</th><th>Vendor</th><th>Description</th><th>Department</th>
+            <th class="tr" style="white-space:nowrap">Amount ₹</th><th class="tr" style="white-space:nowrap">GST ₹</th><th class="tr" style="white-space:nowrap;color:var(--gn)">Total ₹</th>
+            <th>Status</th><th style="white-space:nowrap">Shoot Date</th>
+            <th style="white-space:nowrap;width:80px">📎 Scans</th>
+            <th class="no-print" style="white-space:nowrap">Actions</th>
+          </tr></thead>
+          <tbody>${rowsHtml}</tbody>
+          <tfoot><tr class="tfoot-row"><td colspan="6" class="tr semi xs2">GROUP TOTAL</td><td class="tr mono semi" style="color:var(--gn)">${fmt(gTotal)}</td><td colspan="4"></td></tr></tfoot>
+        </table>
+        </div>
+      </div>
+    </div>`;
   }).join('');
-  if(foot)foot.innerHTML=`<tr class="tfoot-row"><td colspan="6" class="tr semi xs2">TOTAL</td><td class="tr mono semi" style="color:var(--gn)">${fmt(grand)}</td><td colspan="4"></td></tr>`;
   updateBillsBadge();
 }
+function toggleBillGroup(id){
+  const body=document.getElementById('body_'+id);
+  const arr=document.getElementById('arr_'+id);
+  if(!body)return;
+  const open=body.style.display==='none';
+  body.style.display=open?'block':'none';
+  if(arr)arr.textContent=open?'▼':'▶';
+}
+function expandAllBillGroups(){document.querySelectorAll('[id^="body_billg_"]').forEach(el=>{el.style.display='block';const arr=document.getElementById('arr_'+el.id.replace('body_',''));if(arr)arr.textContent='▼';});}
+function collapseAllBillGroups(){document.querySelectorAll('[id^="body_billg_"]').forEach(el=>{el.style.display='none';const arr=document.getElementById('arr_'+el.id.replace('body_',''));if(arr)arr.textContent='▶';});}
 
 
 
