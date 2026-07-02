@@ -9691,10 +9691,14 @@ function exportHotelsExcel(){
 function exportFlightsExcel(){
   const flights=DB.flights||[];
   if(!flights.length){toast('No flights','err');return;}
-  const data=[['Date','Airline','PAX','Count','From','To','Est Cost','Actual Cost','Notes']];
-  flights.forEach(f=>data.push([f.date,f.airline||'',f.pax||'',f.count||1,f.from||'',f.to||'',f.estCost||0,f.actCost||'',f.notes||'']));
+  const data=[['Booking Date','Travel Date','Passenger / Group','Dept / Designation','Airline','From','To','Travel Class','Count','MMT Fare (₹)','Ticket Fare (₹)','Actual (₹)','Excess Luggage (₹)','Seat / Meals','Seat Preference','Reason for Travel','Approved By','Comments']];
+  flights.sort((a,b)=>(a.date||'').localeCompare(b.date||'')).forEach(f=>data.push([
+    f.bookdate||'',f.date||'',f.pax||'',f.dept||'',f.airline||'',f.from||'',f.to||'',f.travelClass||'',f.count||1,
+    f.mmt||f.estCost||0,f.ticket||0,f.actCost||0,f.luggage||0,
+    f.meals||'',f.seat||'',f.reason||'',f.approved||'',f.notes||''
+  ]));
   const ws=XLSX.utils.aoa_to_sheet(data);
-  ws['!cols']=[{wch:12},{wch:16},{wch:20},{wch:6},{wch:10},{wch:10},{wch:12},{wch:12},{wch:24}];
+  ws['!cols']=[{wch:13},{wch:13},{wch:22},{wch:18},{wch:14},{wch:8},{wch:8},{wch:16},{wch:6},{wch:13},{wch:13},{wch:13},{wch:14},{wch:18},{wch:16},{wch:20},{wch:14},{wch:28}];
   const wb=XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb,ws,'Flights');
   xlsxDownload(wb,'K2_Flights_All');
@@ -13025,11 +13029,19 @@ async function _saveToSupabase(){
       }
     });
 
+    // Check payload size — Supabase has a ~1MB row limit
+    const payload=JSON.stringify({project:SB_PROJECT,data:dbClean,updated_at:new Date().toISOString()});
+    const sizeKB=Math.round(payload.length/1024);
+    if(sizeKB>900){
+      console.warn('Payload size: '+sizeKB+'KB — approaching Supabase limit');
+      updateSyncStatus('⚠ Data size: '+sizeKB+'KB (limit 1MB)','var(--or)');
+    }
+
     // Upsert main data
     const res=await sbFetch('/rest/v1/k2_data',{
       method:'POST',
       headers:{'Prefer':'resolution=merge-duplicates,return=minimal'},
-      body:JSON.stringify({project:SB_PROJECT,data:dbClean,updated_at:new Date().toISOString()})
+      body:payload
     });
 
     if(res.ok||res.status===201||res.status===204){
@@ -13050,6 +13062,11 @@ async function _saveToSupabase(){
       console.error('Supabase save error:',res.status,err);
       if(err.includes('does not exist')||err.includes('42P01')){
         showSbSetupGuide();
+      } else if(res.status===413||err.includes('too large')||err.includes('payload')){
+        updateSyncStatus('⚠ Data too large for cloud — saved locally','var(--or)');
+        toast('Cloud save failed: data size too large. Please contact support.','err');
+        try{localStorage.setItem(STORAGE_KEY,JSON.stringify(DB));}catch(e){}
+        _unsaved=false;
       } else {
         updateSyncStatus('⚠ Cloud error: '+res.status+' — saved locally','var(--or)');
         toast('Cloud save failed ('+res.status+'): '+err.slice(0,80),'err');
@@ -13665,35 +13682,35 @@ function renderFlights(){
     grandLuggage+=f.luggage||0;
     const route=(f.from&&f.to)?f.from+' → '+f.to:(f.from||f.to||'—');
     return`<tr>
-      <td class="xs2">${f.bookdate?fmtD(f.bookdate):'—'}</td>
-      <td class="semi">${fmtD(f.date)}</td>
-      <td>${esc(f.pax)}</td>
-      <td class="xs2 dim">${esc(f.dept||'—')}</td>
-      <td class="xs2">${esc(route)}</td>
-      <td class="xs2">${esc(f.airline||'—')}</td>
-      <td class="xs2">${esc(f.travelClass||'—')}</td>
-      <td class="tr mono blue semi">${f.mmt||f.estCost?fmt(f.mmt||f.estCost||0):'—'}</td>
-      <td class="tr mono">${f.ticket?fmt(f.ticket):'—'}</td>
-      <td class="tr"><input class="act-inline" type="number" value="${f.actCost||''}" placeholder="Actual" style="width:80px" data-fid="${f.id}" onchange="setFlightField(this.dataset.fid,'actCost',this.value)"></td>
-      <td class="tr mono xs2">${f.luggage?fmt(f.luggage):'—'}</td>
-      <td class="xs2 dim">${esc(f.meals||'—')}</td>
-      <td class="xs2 dim">${esc(f.seat||'—')}</td>
-      <td class="xs2 dim">${esc(f.reason||'—')}</td>
-      <td class="xs2 dim">${esc(f.approved||'—')}</td>
-      <td class="xs2 dim">${esc(f.notes||'—')}</td>
+      <td style="color:var(--tx3);font-size:11px">${f.bookdate?fmtD(f.bookdate):'—'}</td>
+      <td style="font-weight:600;color:var(--tx)">${fmtD(f.date)}</td>
+      <td style="font-weight:700;color:var(--tx)">${esc(f.pax)}</td>
+      <td style="color:var(--tx2);font-size:11px">${esc(f.dept||'—')}</td>
+      <td style="font-weight:600;color:var(--tx2)">${esc(route)}</td>
+      <td style="color:var(--tx2)">${esc(f.airline||'—')}</td>
+      <td style="color:var(--tx3);font-size:11px">${esc(f.travelClass||'—')}</td>
+      <td style="text-align:right;font-weight:700;color:var(--bl);font-family:'JetBrains Mono',monospace">${f.mmt||f.estCost?'₹'+fm(f.mmt||f.estCost||0):'—'}</td>
+      <td style="text-align:right;font-family:'JetBrains Mono',monospace;color:var(--tx2)">${f.ticket?'₹'+fm(f.ticket):'—'}</td>
+      <td style="text-align:right"><input class="act-inline" type="number" value="${f.actCost||''}" placeholder="—" style="width:88px;font-family:'JetBrains Mono',monospace" data-fid="${f.id}" onchange="setFlightField(this.dataset.fid,'actCost',this.value)"></td>
+      <td style="text-align:right;font-family:'JetBrains Mono',monospace;color:var(--tx3);font-size:11px">${f.luggage?'₹'+fm(f.luggage):'—'}</td>
+      <td style="color:var(--tx3);font-size:11px">${esc(f.meals||'—')}</td>
+      <td style="color:var(--tx3);font-size:11px">${esc(f.seat||'—')}</td>
+      <td style="color:var(--tx2);font-size:11px">${esc(f.reason||'—')}</td>
+      <td style="color:var(--go);font-size:11px;font-weight:600">${esc(f.approved||'—')}</td>
+      <td style="color:var(--tx3);font-size:11px;max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(f.notes||'')}">${esc(f.notes||'—')}</td>
       <td class="no-print"><button class="btn br xs" data-fid="${f.id}" onclick="delFlight(this.dataset.fid)">✕</button></td>
     </tr>`;
   }).join('');
   if(foot)foot.innerHTML=`<tr class="est-section-total">
-    <td colspan="7" class="tr semi">Total</td>
-    <td class="tr mono semi blue">${fmt(grandMmt)}</td>
-    <td class="tr mono semi">${grandTicket?fmt(grandTicket):'—'}</td>
-    <td class="tr mono semi">${grandAct?fmt(grandAct):'—'}</td>
-    <td class="tr mono semi">${grandLuggage?fmt(grandLuggage):'—'}</td>
+    <td colspan="7" style="text-align:right;font-weight:700;color:var(--tx3);font-size:11px;letter-spacing:.5px">TOTAL</td>
+    <td style="text-align:right;font-weight:800;color:var(--bl);font-family:'JetBrains Mono',monospace">₹${fm(grandMmt)}</td>
+    <td style="text-align:right;font-weight:700;font-family:'JetBrains Mono',monospace;color:var(--tx2)">${grandTicket?'₹'+fm(grandTicket):'—'}</td>
+    <td style="text-align:right;font-weight:700;font-family:'JetBrains Mono',monospace;color:var(--tx2)">${grandAct?'₹'+fm(grandAct):'—'}</td>
+    <td style="text-align:right;font-family:'JetBrains Mono',monospace;color:var(--tx3)">${grandLuggage?'₹'+fm(grandLuggage):'—'}</td>
     <td colspan="6"></td>
   </tr>`;
   const s=document.getElementById('flt-summary');
-  if(s)s.textContent=flights.length+' booking'+(flights.length>1?'s':'')+' · MMT: ₹'+fmt(grandMmt)+' · Actual: ₹'+fmt(grandAct);
+  if(s)s.textContent=flights.length+' booking'+(flights.length>1?'s':'')+' · MMT: ₹'+fm(grandMmt)+(grandAct?' · Actual: ₹'+fm(grandAct):'');
 }
 
 // Flight rollup for estimates table — estimate = MMT Fare per travel date
