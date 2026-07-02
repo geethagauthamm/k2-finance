@@ -496,6 +496,12 @@ tr:hover td{background:#070d1a}
   .age-green,.age-yellow,.age-orange,.age-red{border:1px solid #999;background:none!important;color:#000!important;font-size:8pt;padding:1px 5px;border-radius:3px}
   .age-summary{display:none}
   .pp-print-title{display:block!important}
+  /* Dark navy TOTAL/summary bars (topsheets, bills, etc.) set color:#fff on the <tr>
+     but not on each <td>/<th> — the td{color:#000} rule above overrides the inherited
+     white specifically when printing, making the total invisible on its own dark bar. */
+  tr[style*="background:#1e3a5f"] td,tr[style*="background:#1e3a5f"] th,
+  tr[style*="background:#28486e"] td,tr[style*="background:#28486e"] th,
+  tr[style*="background:#2d4a6e"] td,tr[style*="background:#2d4a6e"] th{color:#fff!important}
 }
 .pp-print-title{display:none;font-size:12pt;font-weight:700;text-align:center;padding:6px 0;margin-bottom:6px;border-bottom:2px solid #555;color:#000}
 
@@ -9258,101 +9264,6 @@ function renderHotelLog(){
   if(lbl)lbl.textContent=hotels.length+' booking'+(hotels.length>1?'s':'')+' · ₹'+fmt(grand);
 }
 
-// ══════════════════════════════════════════
-// FLIGHTS
-// DB.flights = [{id, airline, pax, count, from, to, date, estCost, actCost, notes}]
-// ══════════════════════════════════════════
-function addFlight(){
-  const pax=(document.getElementById('flt-pax')?.value||'').trim();
-  const date=document.getElementById('flt-date')?.value;
-  if(!pax||!date){toast('Passenger name/group and travel date required','err');return;}
-  const airline=(document.getElementById('flt-airline')?.value||'').trim();
-  const count=parseInt(document.getElementById('flt-count')?.value)||1;
-  const from=(document.getElementById('flt-from')?.value||'').trim().toUpperCase();
-  const to=(document.getElementById('flt-to')?.value||'').trim().toUpperCase();
-  const estCost=parseFloat(document.getElementById('flt-est')?.value)||0;
-  const actCost=parseFloat(document.getElementById('flt-act')?.value)||0;
-  const notes=(document.getElementById('flt-notes')?.value||'').trim();
-
-  if(!DB.flights)DB.flights=[];
-  DB.flights.push({id:uid(),airline,pax,count,from,to,date,estCost,actCost,notes});
-
-  // Add to estimates for that date under Travel/Accommodation
-  if(estCost>0){
-    const k='Accommodation|Expenses|Flight — '+from+' to '+to;
-    DB.estimates.push({
-      id:uid(),date,
-      liKey:'Accommodation|Expenses|Flight',
-      cat:'Accommodation',sub:'Expenses',
-      rate:estCost,count:1,cs:0,amount:estCost,
-      notes:(airline?airline+' — ':'')+pax+(count>1?' ('+count+'pax)':'')+(from&&to?' '+from+'→'+to:'')+(notes?' — '+notes:''),
-      dayType:'Weekday',call:'',pack:''
-    });
-  }
-
-  saveDB();renderFlightLog();
-  ['flt-airline','flt-pax','flt-from','flt-to','flt-date','flt-est','flt-act','flt-notes'].forEach(x=>{const el=document.getElementById(x);if(el)el.value='';});
-  document.getElementById('flt-count').value='1';
-  toast('✓ Flight added'+(estCost>0?' — ₹'+fmt(estCost)+' added to estimates':''));
-}
-
-function updateFlightAct(id,val){
-  const f=(DB.flights||[]).find(x=>x.id===id);
-  if(!f)return;
-  const newAct=parseFloat(val)||0;
-  const estCost=f.estCost||0;
-  const variance=newAct-estCost;
-  const variancePct=estCost?Math.abs(variance)/estCost*100:0;
-  if(newAct>0&&Math.abs(variance)>50&&variancePct>1){
-    const dirWord=variance>0?'higher':'lower';
-    const reason=prompt(`⚠ Actual cost (${fmt(newAct)}) is ${fmt(Math.abs(variance))} ${dirWord} than estimated (${fmt(estCost)}).\n\nReason for this variance:`,f.actVarianceReason||'');
-    if(reason===null){toast('Cancelled — actual cost not changed','err');renderFlights();return;}
-    f.actVarianceReason=reason.trim();
-  } else {
-    f.actVarianceReason='';
-  }
-  f.actCost=newAct;
-  saveDB();renderFlights();
-}
-
-function resyncFlightsToEstimates(){
-  toast('Flights auto-sync to estimates — no manual sync needed');
-}
-function delFlight(id){
-  if(!confirm('Delete this flight booking?'))return;
-  DB.flights=(DB.flights||[]).filter(f=>f.id!==id);
-  saveDB();renderFlightLog();
-}
-
-function renderFlightLog(){
-  const body=document.getElementById('flt-log-body');
-  const foot=document.getElementById('flt-log-foot');
-  const lbl=document.getElementById('flt-total-lbl');
-  const flights=DB.flights||[];
-  if(!body)return;
-  if(!flights.length){body.innerHTML='<tr><td colspan="11" class="te">No flight bookings yet</td></tr>';if(foot)foot.innerHTML='';if(lbl)lbl.textContent='';return;}
-  let totEst=0,totAct=0;
-  const visibleFlights=(_rangeFrom||_rangeTo)?flights.filter(f=>inRange(f.date)):flights;
-  body.innerHTML=visibleFlights.map(f=>{
-    totEst+=f.estCost||0;totAct+=f.actCost||0;
-    const v=(f.actCost||0)-(f.estCost||0);
-    return`<tr>
-      <td>${fmtD(f.date)}</td>
-      <td class="dim xs2">${f.airline||'—'}</td>
-      <td class="semi">${f.pax}</td>
-      <td class="tr">${f.count}</td>
-      <td>${f.from||'—'}</td>
-      <td>${f.to||'—'}</td>
-      <td class="tr mono blue">${fmt(f.estCost||0)}</td>
-      <td class="tr no-print"><input class="act-inline" type="number" value="${f.actCost||''}" placeholder="actual" style="width:80px" data-id="${f.id}" onchange="updateFlightAct(this.dataset.id,this.value)"></td>
-      <td class="tr ${v>0?'red':v<0?'green':'dim'}" title="${(f.actVarianceReason||'').replace(/"/g,'&quot;')}">${f.actCost?(v>0?'+':'')+fmt(Math.abs(v)):'—'}${f.actVarianceReason?' ⚠':''}</td>
-      <td class="dim xs2">${f.notes||'—'}</td>
-      <td class="no-print"><button class="btn bs xs no-print" data-id="${f.id}" onclick="moveFlight(this.dataset.id,-1)" style="padding:2px 4px">▲</button><button class="btn bs xs no-print" data-id="${f.id}" onclick="moveFlight(this.dataset.id,1)" style="padding:2px 4px;margin:0 4px">▼</button><button class="btn br xs" data-id="${f.id}" onclick="delFlight(this.dataset.id)">✕</button></td>
-    </tr>`;
-  }).join('');
-  if(foot)foot.innerHTML=`<tr class="est-section-total"><td colspan="6" class="tr semi">Total</td><td class="tr mono blue semi">${fmt(totEst)}</td><td class="tr mono green semi no-print">${fmt(totAct)}</td><td colspan="3"></td></tr>`;
-  if(lbl)lbl.textContent=flights.length+' booking'+(flights.length>1?'s':'')+' · Est ₹'+fmt(totEst);
-}
 
 // ══════════════════════════════════════════
 // VEHICLES
@@ -13885,8 +13796,9 @@ function saveFlightEdit(){
   saveDB();closeModal('modal-flight-edit');renderFlights();toast('✓ Flight updated');
 }
 
-function delFlight(id){
-  if(!confirm('Delete flight booking?'))return;
+async function delFlight(id){
+  const choice=await k2Confirm('Delete this flight booking?',[{label:'Cancel',value:'cancel'},{label:'Delete',value:'delete',primary:true}]);
+  if(choice!=='delete')return;
   DB.flights=(DB.flights||[]).filter(f=>f.id!==id);
   saveDB();renderFlights();toast('Flight removed');
 }
