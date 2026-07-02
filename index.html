@@ -5411,9 +5411,10 @@ function go(p){
     p=getLandingPage();
   }
   sessionStorage.setItem('k2_last_page',p);
-  document.querySelectorAll('.page').forEach(x=>x.classList.remove('active'));
+  document.querySelectorAll('.page').forEach(x=>{x.classList.remove('active');x.style.display='none';});
   document.querySelectorAll('.ni').forEach(x=>x.classList.remove('active'));
-  document.getElementById('page-'+p)?.classList.add('active');
+  const pageEl=document.getElementById('page-'+p);
+  if(pageEl){pageEl.classList.add('active');pageEl.style.display='block';}
   document.querySelectorAll('.ni').forEach(x=>{if(x.getAttribute('onclick')?.includes("'"+p+"'"))x.classList.add('active');});
   document.getElementById('tbt').textContent=PTITLES[p]||p;
   renderPage(p);
@@ -13388,6 +13389,8 @@ function _startApp(){
     const startPage=(lastPage&&(!allowed||allowed.includes(lastPage)))?lastPage:getLandingPage();
     go(startPage);
     setTimeout(applySidebarFilter,600);
+    // Re-render after a short delay to ensure Supabase data is reflected
+    if(loaded) setTimeout(()=>{ try{ go(startPage); }catch(e){} },800);
   }).catch(function(e){
     console.error('startApp error:',e);
     init();applyUserRole();applyStoredTheme();go(getLandingPage());setTimeout(applySidebarFilter,600);
