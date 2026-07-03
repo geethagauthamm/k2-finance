@@ -3945,6 +3945,15 @@ function renderDuplicatePayments(){
     });
   });
   var dupeGroups=Object.values(buckets).filter(function(g){return g.length>1;});
+  // Skip groups the user already reviewed and confirmed are genuinely separate
+  // payments (e.g. same vendor/amount/category but different purpose) — matched
+  // by the exact set of entry IDs in the group, not just vendor+amount+category,
+  // so a real future duplicate involving a different combination still gets flagged.
+  var dismissed=new Set(DB._dupeDismissed||[]);
+  dupeGroups=dupeGroups.filter(function(g){
+    var idKey=g.map(function(e){return e.id;}).sort().join(',');
+    return!dismissed.has(idKey);
+  });
   dupeGroups.sort(function(a,b){return b.length-a.length;});
 
   if(!dupeGroups.length){card.style.display='none';if(countEl)countEl.textContent='';return;}
@@ -3979,9 +3988,17 @@ function renderDuplicatePayments(){
       '<table class="tbl"><thead><tr><th style="width:24px">Keep</th><th>Date</th><th>Description</th><th>Producer</th><th>Payment</th></tr></thead><tbody>'+rows+'</tbody></table>'+
       '<div class="flex gap8" style="margin-top:8px">'+
         '<button class="btn bg sm" onclick="dupeMergeGroup(\''+groupKey+'\')">✓ Merge duplicates — keep selected, archive history of the rest</button>'+
+        '<button class="btn bs sm" onclick="dupeKeepBoth(\''+g.map(function(e){return e.id;}).sort().join(',')+'\')">✕ Not duplicates — keep all, stop flagging</button>'+
       '</div>'+
     '</div>';
   }).join('');
+}
+function dupeKeepBoth(idKey){
+  if(!DB._dupeDismissed)DB._dupeDismissed=[];
+  if(!DB._dupeDismissed.includes(idKey))DB._dupeDismissed.push(idKey);
+  saveDB();
+  renderDuplicatePayments();
+  toast('✓ Marked as separate payments — won\'t flag this pair again');
 }
 
 /**
