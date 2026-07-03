@@ -12478,6 +12478,7 @@ function getAllPhasesForAssignment(){
     {id:'atl-writer',label:'Writer / Story',optgroup:'ATL / Talent'},
     {id:'atl-music',label:'Music',optgroup:'ATL / Talent'},
     {id:'atl-playback',label:'Playback',optgroup:'ATL / Talent'},
+    {id:'salary-monthly',label:'Monthly Salary Payment',optgroup:'Salaries'},
     {id:'pre-general',label:'Pre-Production General',optgroup:'Pre-Production'},
     {id:'pre-recce',label:'Location Recce',optgroup:'Pre-Production'},
     {id:'pre-script',label:'Script & Research',optgroup:'Pre-Production'},
@@ -12651,10 +12652,14 @@ function renderFinancePhases(){
     var progPct=progBase>0?Math.min(Math.round(p.data.paid/progBase*100),100):0;
     var gid='ps-grp-'+pi;
     var subCount;
+    var subCatIds=(!isATL&&!p.isBTL&&!p.isSalary&&p.ids&&p.ids.length)?p.ids.filter(function(id){
+      var d=phaseFinanceTotals(function(x){return x===id;});
+      return d.agreed>0||d.paid>0;
+    }):[];
     if(isATL)subCount=arArtists.length;
     else if(p.isBTL)subCount=btlSchedules.length;
     else if(p.isSalary)subCount=(DB.salaryEntries||[]).length||((DB.salaries||[]).filter(function(s){return s.active!==false;}).length);
-    else subCount=0;
+    else subCount=subCatIds.length;
     var hasChildren=subCount>0;
     function N(v,col){return '<span class="ps-n" style="color:'+col+'">'+fmt(v)+'</span>';}
     function Ns(v,col){return '<span class="ps-ns" style="color:'+col+'">'+fmt(v)+'</span>';}
@@ -12769,6 +12774,22 @@ function renderFinancePhases(){
           html+='<td style="border-left:1px solid var(--bd)"></td></tr>';
         });
       }
+      html+='</tbody>';
+    } else if(subCatIds.length){
+      var allPhaseDefs=typeof getAllPhasesForAssignment==='function'?getAllPhasesForAssignment():[];
+      var labelFor={};allPhaseDefs.forEach(function(d){labelFor[d.id]=d.label;});
+      subCatIds.forEach(function(subId){
+        var sd=phaseFinanceTotals(function(x){return x===subId;});
+        var sBal=sd.agreed-sd.paid,sPct=sd.agreed>0?Math.min(Math.round(sd.paid/sd.agreed*100),100):0;
+        html+='<tr style="background:rgba('+hexToRgb(p.color)+',.07);border-bottom:1px solid var(--bd)">';
+        html+='<td style="padding:8px 12px 8px 42px"><div style="display:flex;align-items:center;gap:7px"><div style="width:2px;height:18px;border-radius:2px;background:'+p.color+';flex-shrink:0"></div><div class="ps-ns" style="color:var(--tx)">'+(labelFor[subId]||subId)+'</div></div></td>';
+        html+='<td style="padding:8px 12px;text-align:right;border-left:1px solid var(--bd)"><span class="ps-ns" style="color:var(--tx3)">—</span></td>';
+        html+='<td style="padding:8px 12px;text-align:right;border-left:1px solid var(--bd)">'+N(sd.agreed,p.color)+'</td>';
+        html+='<td style="padding:8px 12px;text-align:right;border-left:1px solid var(--bd)">'+N(sd.paid,'#4ade80')+'</td>';
+        html+='<td style="padding:8px 12px;text-align:right;border-left:1px solid var(--bd)">'+N(sBal,sBal>0?'#fb7185':'#4ade80')+'</td>';
+        html+='<td style="padding:8px 12px;border-left:1px solid var(--bd)"><div style="background:var(--sf3);border-radius:99px;height:3px;overflow:hidden;margin-bottom:2px"><div style="width:'+sPct+'%;background:'+p.color+';height:100%;border-radius:99px"></div></div><div class="ps-ns" style="color:var(--tx2)">'+sPct+'%</div></td>';
+        html+='<td style="border-left:1px solid var(--bd)"></td></tr>';
+      });
       html+='</tbody>';
     }
   });
