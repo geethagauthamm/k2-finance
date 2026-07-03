@@ -1176,10 +1176,10 @@ body.auditor-mode #save-btn { display:none !important; }
         </div>
       </div>
       <div class="fg mb8" style="grid-template-columns:1fr 1fr 1fr 1fr">
-        <div class="fld"><label>MMT Fare / Pax (₹)</label><input type="number" id="flt-mmt" placeholder="0" oninput="fltCalcTotal()"></div>
-        <div class="fld"><label>Ticket Fare / Pax (₹)</label><input type="number" id="flt-ticket" placeholder="0" oninput="fltCalcTotal()"></div>
-        <div class="fld"><label>Actual (₹)</label><input type="number" id="flt-actual" placeholder="0"></div>
-        <div class="fld"><label>Excess Luggage (₹)</label><input type="number" id="flt-luggage" placeholder="0"></div>
+        <div class="fld"><label>MMT Fare (₹)</label><input type="text" id="flt-mmt" placeholder="0 or =5*1000" onblur="fltEvalCell(this)"></div>
+        <div class="fld"><label>Ticket Fare (₹)</label><input type="text" id="flt-ticket" placeholder="0 or =5*1000" onblur="fltEvalCell(this)"></div>
+        <div class="fld"><label>Actual / Pax (₹)</label><input type="text" id="flt-actual" placeholder="0 or =5*1000" onblur="fltEvalCell(this)" oninput="fltCalcTotal()"></div>
+        <div class="fld"><label>Excess Luggage (₹)</label><input type="text" id="flt-luggage" placeholder="0 or =5*1000" onblur="fltEvalCell(this)"></div>
       </div>
       <div class="fg mb8" style="grid-template-columns:1fr 1fr 1fr 1fr">
         <div class="fld"><label>Seat / Meals</label><input type="text" id="flt-meals" placeholder="Window + Veg meal..."></div>
@@ -14169,14 +14169,39 @@ function collapseAllHtlPhases(){document.querySelectorAll('[id^="body_htlp_"]').
 // FLIGHTS
 // DB.flights = [{id,airline,pax,count,from,to,date,estCost,actCost,notes}]
 // ══════════════════════════════════════════
+// Safe Excel-style formula evaluator for plain input cells. Supports typing
+// "=5*1000" and having it resolve to 5000 on blur — deliberately NOT using
+// eval() or the Function constructor on raw input; only digits, ., +, -, *, /,
+// parentheses, and spaces are ever allowed through, so no arbitrary code can
+// execute here regardless of what gets typed in.
+function evalCellFormula(raw){
+  const s=(raw||'').trim();
+  if(!s.startsWith('='))return parseFloat(s)||0;
+  const expr=s.slice(1).trim();
+  if(!/^[0-9.+\-*/() \t]+$/.test(expr))return NaN; // reject anything that isn't pure arithmetic
+  try{
+    // eslint-disable-next-line no-new-func
+    const result=Function('"use strict";return('+expr+')')();
+    return typeof result==='number'&&isFinite(result)?result:NaN;
+  }catch(e){return NaN;}
+}
+function fltEvalCell(input){
+  if(!input)return;
+  const val=evalCellFormula(input.value);
+  if(isNaN(val)){
+    toast('⚠ Could not calculate "'+input.value+'" — check the formula','err');
+    return;
+  }
+  input.value=val?String(Math.round(val*100)/100):'';
+  fltCalcTotal();
+}
 function fltCalcTotal(){
-  const mmt=parseFloat(document.getElementById('flt-mmt')?.value)||0;
-  const ticket=parseFloat(document.getElementById('flt-ticket')?.value)||0;
+  const actual=evalCellFormula(document.getElementById('flt-actual')?.value)||0;
   const count=parseFloat(document.getElementById('flt-count')?.value)||1;
   const el=document.getElementById('flt-total-preview');
   if(!el)return;
-  if(count>1&&(mmt>0||ticket>0)){
-    el.innerHTML='× '+count+' pax → MMT total: <strong style="color:var(--bl)">₹'+fm(mmt*count)+'</strong>'+(ticket>0?' · Ticket total: <strong style="color:var(--tx2)">₹'+fm(ticket*count)+'</strong>':'');
+  if(count>1&&actual>0){
+    el.innerHTML='× '+count+' pax → Actual total: <strong style="color:var(--gn)">₹'+fm(actual*count)+'</strong>';
   }else{
     el.textContent='';
   }
@@ -14193,21 +14218,20 @@ function addFlight(){
   const to=(document.getElementById('flt-to')?.value||'').trim();
   const travelClass=document.getElementById('flt-class')?.value||'';
   const count=parseFloat(document.getElementById('flt-count')?.value)||1;
-  // MMT Fare / Ticket Fare are entered PER PASSENGER — multiply by count here so
-  // the stored amount is the real total. Everywhere else in the app (totals,
-  // Dashboard, Schedule Summary) reads this stored amount directly as-is.
-  const mmtPerPax=parseFloat(document.getElementById('flt-mmt')?.value)||0;
-  const ticketPerPax=parseFloat(document.getElementById('flt-ticket')?.value)||0;
-  const mmt=mmtPerPax*count;
-  const ticket=ticketPerPax*count;
-  const actual=parseFloat(document.getElementById('flt-actual')?.value)||0;
-  const luggage=parseFloat(document.getElementById('flt-luggage')?.value)||0;
+  // MMT Fare and Ticket Fare are flat totals as entered — not multiplied.
+  // Actual is entered PER PASSENGER and gets multiplied by count here, since
+  // that's the one that actually scales with headcount in practice.
+  const mmt=evalCellFormula(document.getElementById('flt-mmt')?.value)||0;
+  const ticket=evalCellFormula(document.getElementById('flt-ticket')?.value)||0;
+  const actualPerPax=evalCellFormula(document.getElementById('flt-actual')?.value)||0;
+  const actual=actualPerPax*count;
+  const luggage=evalCellFormula(document.getElementById('flt-luggage')?.value)||0;
   const meals=(document.getElementById('flt-meals')?.value||'').trim();
   const seat=(document.getElementById('flt-seat')?.value||'').trim();
   const reason=(document.getElementById('flt-reason')?.value||'').trim();
   const approved=(document.getElementById('flt-approved')?.value||'').trim();
   const notes=(document.getElementById('flt-notes')?.value||'').trim();
-  const entry={id:uid(),bookdate,date,pax,dept,phase,airline,from,to,travelClass,mmt,ticket,actCost:actual,luggage,meals,seat,reason,approved,notes,count,mmtPerPax,ticketPerPax,
+  const entry={id:uid(),bookdate,date,pax,dept,phase,airline,from,to,travelClass,mmt,ticket,actCost:actual,luggage,meals,seat,reason,approved,notes,count,actualPerPax,
     // legacy compat
     estCost:mmt};
   if(!DB.flights)DB.flights=[];
@@ -14218,7 +14242,7 @@ function addFlight(){
   document.getElementById('flt-class').value='';
   document.getElementById('flt-phase').value='';
   document.getElementById('flt-total-preview').textContent='';
-  toast('✓ Flight added for '+fmtD(date)+(count>1?' ('+count+' pax, ₹'+fm(mmt)+' total MMT)':''));
+  toast('✓ Flight added for '+fmtD(date)+(count>1&&actual>0?' ('+count+' pax, ₹'+fm(actual)+' total actual)':''));
 }
 
 function editFlight(id){
@@ -14324,9 +14348,9 @@ function renderFlights(){
         <td style="font-weight:600;color:var(--tx2)">${esc(route)}</td>
         <td style="color:var(--tx2)">${esc(f.airline||'—')}</td>
         <td style="color:var(--tx3);font-size:11px">${esc(f.travelClass||'—')}</td>
-        <td style="text-align:right;font-weight:700;color:var(--bl);font-family:'JetBrains Mono',monospace">${f.mmt||f.estCost?'₹'+fm(f.mmt||f.estCost||0):'—'}${f.count>1?`<div style="font-size:9px;font-weight:400;color:var(--tx3)">${f.count} pax × ₹${fm(f.mmtPerPax||((f.mmt||0)/f.count))}</div>`:''}</td>
+        <td style="text-align:right;font-weight:700;color:var(--bl);font-family:'JetBrains Mono',monospace">${f.mmt||f.estCost?'₹'+fm(f.mmt||f.estCost||0):'—'}</td>
         <td style="text-align:right;font-family:'JetBrains Mono',monospace;color:var(--tx2)">${f.ticket?'₹'+fm(f.ticket):'—'}</td>
-        <td style="text-align:right"><input class="act-inline" type="number" value="${f.actCost||''}" placeholder="—" style="width:88px;font-family:'JetBrains Mono',monospace" data-fid="${f.id}" onchange="setFlightField(this.dataset.fid,'actCost',this.value)"></td>
+        <td style="text-align:right"><input class="act-inline" type="number" value="${f.actCost||''}" placeholder="—" style="width:88px;font-family:'JetBrains Mono',monospace" data-fid="${f.id}" onchange="setFlightField(this.dataset.fid,'actCost',this.value)">${f.count>1&&f.actualPerPax?`<div style="font-size:9px;font-weight:400;color:var(--tx3)">${f.count} pax × ₹${fm(f.actualPerPax)}</div>`:''}</td>
         <td style="text-align:right;font-family:'JetBrains Mono',monospace;color:var(--tx3);font-size:11px">${f.luggage?'₹'+fm(f.luggage):'—'}</td>
         <td style="color:var(--tx3);font-size:11px">${esc(f.meals||'—')}</td>
         <td style="color:var(--tx3);font-size:11px">${esc(f.seat||'—')}</td>
