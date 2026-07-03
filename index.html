@@ -1452,7 +1452,8 @@ body.auditor-mode #save-btn { display:none !important; }
               <col style="width:110px">
               <col style="width:140px">
               <col style="width:140px">
-              <col style="width:40px">
+              <col style="width:120px">
+              <col style="width:70px">
             </colgroup>
             <thead><tr>
               <th>#</th>
@@ -1466,9 +1467,10 @@ body.auditor-mode #save-btn { display:none !important; }
               <th class="tr">Per Day ₹</th>
               <th>Agent / Contact</th>
               <th>Notes</th>
+              <th class="tr">Advances ₹</th>
               <th class="no-print"></th>
             </tr></thead>
-            <tbody id="ar-roster-body"><tr><td colspan="12" class="te">No artists yet — add one above</td></tr></tbody>
+            <tbody id="ar-roster-body"><tr><td colspan="13" class="te">No artists yet — add one above</td></tr></tbody>
           </table>
         </div>
       </div>
@@ -12641,7 +12643,7 @@ function renderFinancePhases(){
     return pkg||pday||0;
   }
   const arContracted=arArtists.reduce((s,a)=>s+arContractFee(a),0);
-  const arAdvPaid=arArtists.reduce((s,a)=>{const adv=(DB._arAdv&&DB._arAdv[a.id])||{};return s+(parseFloat(adv.adv1)||0)+(parseFloat(adv.adv2)||0);},0);
+  const arAdvPaid=arArtists.reduce((s,a)=>s+(typeof arAdvTotal==='function'?arAdvTotal(a.id):((parseFloat((DB._arAdv&&DB._arAdv[a.id]||{}).adv1)||0)+(parseFloat((DB._arAdv&&DB._arAdv[a.id]||{}).adv2)||0))),0);
   const arAgreedTotal=arArtists.reduce((s,a)=>s+arContractFee(a),0);
 
   // Paid to each artist from paytracker (match by name, case-insensitive, in Remuneration cat)
@@ -12650,8 +12652,7 @@ function renderFinancePhases(){
     const artist=(DB._arArtists||[]).find(a=>(a.name||'').toLowerCase().trim()===nm);
     let advPaid=0;
     if(artist){
-      const adv=DB._arAdv&&DB._arAdv[artist.id]||{};
-      advPaid=(parseFloat(adv.adv1)||0)+(parseFloat(adv.adv2)||0);
+      advPaid=typeof arAdvTotal==='function'?arAdvTotal(artist.id):((parseFloat((DB._arAdv&&DB._arAdv[artist.id]||{}).adv1)||0)+(parseFloat((DB._arAdv&&DB._arAdv[artist.id]||{}).adv2)||0));
     }
     // Also pick up any Payment Tracker entries paid to this exact name — this is
     // how most real ATL payments actually get recorded, not through the separate
@@ -18995,6 +18996,13 @@ function arTogglePtype(){
   document.getElementById('ar-f-xday').style.display=pt==='Package Variable'?'':'none';
   document.getElementById('ar-f-pday').style.display=pt==='Per Day'?'':'none';
 }
+function arEditTogglePtype(){
+  var pt=document.getElementById('aredit-ptype').value;
+  document.getElementById('aredit-f-pkg').style.display=(pt==='Package Fixed'||pt==='Package Variable')?'':'none';
+  document.getElementById('aredit-f-gdays').style.display=pt==='Package Variable'?'':'none';
+  document.getElementById('aredit-f-xday').style.display=pt==='Package Variable'?'':'none';
+  document.getElementById('aredit-f-pday').style.display=pt==='Per Day'?'':'none';
+}
 
 function arAddArtist(){
   var name=(document.getElementById('ar-name').value||'').trim();
@@ -19030,8 +19038,9 @@ function arRenderRoster(){
   var body=document.getElementById('ar-roster-body');
   if(!body)return;
   var artists=arArtists();
-  if(!artists.length){body.innerHTML='<tr><td colspan="12" class="te">No artists yet — add one above</td></tr>';return;}
+  if(!artists.length){body.innerHTML='<tr><td colspan="13" class="te">No artists yet — add one above</td></tr>';return;}
   body.innerHTML=artists.map(function(a,i){
+    var advTotal=arAdvTotal(a.id);
     return'<tr>'+
       '<td class="xs2 dim">'+(i+1)+'</td>'+
       '<td class="semi">'+a.name+'</td>'+
@@ -19044,9 +19053,124 @@ function arRenderRoster(){
       '<td class="tn tr">'+(a.pday?'₹'+arFmt(a.pday):'—')+'</td>'+
       '<td class="xs2">'+(a.agent||'—')+'</td>'+
       '<td class="xs2">'+(a.notes||'—')+'</td>'+
-      '<td class="no-print"><button class="btn br xs" onclick="arDelArtist(\''+a.id+'\')">✕</button></td>'+
+      '<td class="tn tr"><span class="ps-ns" onclick="arOpenAdvLedger(\''+a.id+'\')" style="cursor:pointer;text-decoration:underline dotted;text-underline-offset:3px;color:'+(advTotal>0?'var(--gn)':'var(--tx3)')+'">'+(advTotal>0?'₹'+arFmt(advTotal):'—')+'</span></td>'+
+      '<td class="no-print" style="white-space:nowrap"><button class="btn bs xs" onclick="arOpenEdit(\''+a.id+'\')" title="Edit">✎</button> <button class="btn br xs" onclick="arDelArtist(\''+a.id+'\')" title="Delete">✕</button></td>'+
       '</tr>';
   }).join('');
+}
+// Sum of all dated advance entries for an artist, plus the legacy adv1/adv2
+// flat fields for backward compatibility with data entered before this ledger existed.
+function arAdvTotal(aid){
+  var adv=(DB._arAdv&&DB._arAdv[aid])||{};
+  var entriesTotal=(adv.entries||[]).reduce(function(s,e){return s+(parseFloat(e.amount)||0);},0);
+  var legacyTotal=(parseFloat(adv.adv1)||0)+(parseFloat(adv.adv2)||0);
+  return entriesTotal+legacyTotal;
+}
+function arOpenAdvLedger(aid){
+  var artist=arArtists().find(function(a){return a.id===aid;});
+  if(!artist)return;
+  document.getElementById('ar-adv-modal-name').textContent=artist.name+' — Advance Ledger';
+  document.getElementById('ar-adv-modal').dataset.aid=aid;
+  document.getElementById('ar-adv-date').value='';
+  document.getElementById('ar-adv-amt').value='';
+  document.getElementById('ar-adv-note').value='';
+  arRenderAdvLedger(aid);
+  document.getElementById('ar-adv-modal').style.display='flex';
+}
+function arCloseAdvLedger(){
+  document.getElementById('ar-adv-modal').style.display='none';
+}
+function arRenderAdvLedger(aid){
+  var adv=(DB._arAdv&&DB._arAdv[aid])||{};
+  var entries=(adv.entries||[]).slice().sort(function(x,y){return(x.date||'').localeCompare(y.date||'');});
+  var legacyRows='';
+  if(parseFloat(adv.adv1)||parseFloat(adv.adv2)){
+    legacyRows='<div class="xs3 dim" style="margin:6px 0 4px">Legacy advance fields (no date on file):</div>'+
+      (adv.adv1?'<div class="flex jb aic" style="padding:4px 0"><span class="xs2">Advance 1</span><span class="ps-ns" style="color:var(--gn)">₹'+arFmt(adv.adv1)+'</span></div>':'')+
+      (adv.adv2?'<div class="flex jb aic" style="padding:4px 0"><span class="xs2">Advance 2</span><span class="ps-ns" style="color:var(--gn)">₹'+arFmt(adv.adv2)+'</span></div>':'');
+  }
+  var rows=entries.length?entries.map(function(e){
+    return'<div class="flex jb aic" style="padding:6px 0;border-bottom:1px solid var(--bd)">'+
+      '<div><span class="ps-ns">'+fmtD(e.date)+'</span>'+(e.note?'<div class="xs3 dim">'+e.note+'</div>':'')+'</div>'+
+      '<div class="flex aic gap8"><span class="ps-ns" style="color:var(--gn)">₹'+arFmt(e.amount)+'</span>'+
+      '<button class="btn br xs" onclick="arDeleteAdvEntry(\''+aid+'\',\''+e.id+'\')">✕</button></div>'+
+    '</div>';
+  }).join('') : '<div class="te" style="padding:10px 0">No dated advances logged yet</div>';
+  var totalEl=document.getElementById('ar-adv-total');
+  if(totalEl)totalEl.textContent='₹'+arFmt(arAdvTotal(aid));
+  document.getElementById('ar-adv-list').innerHTML=rows+legacyRows;
+}
+function arAddAdvEntry(){
+  var modal=document.getElementById('ar-adv-modal');
+  var aid=modal.dataset.aid;
+  var date=document.getElementById('ar-adv-date').value;
+  var amount=parseFloat(document.getElementById('ar-adv-amt').value);
+  var note=(document.getElementById('ar-adv-note').value||'').trim();
+  if(!date){toast('Pick a date first','err');return;}
+  if(isNaN(amount)||amount<=0){toast('Enter a valid amount','err');return;}
+  if(!DB._arAdv)DB._arAdv={};
+  if(!DB._arAdv[aid])DB._arAdv[aid]={};
+  if(!DB._arAdv[aid].entries)DB._arAdv[aid].entries=[];
+  DB._arAdv[aid].entries.push({id:uid(),date:date,amount:amount,note:note});
+  saveDB();
+  document.getElementById('ar-adv-date').value='';
+  document.getElementById('ar-adv-amt').value='';
+  document.getElementById('ar-adv-note').value='';
+  arRenderAdvLedger(aid);
+  arRenderRoster();
+  if(typeof renderFinancePhases==='function')renderFinancePhases();
+  toast('✓ Advance logged');
+}
+function arDeleteAdvEntry(aid,entryId){
+  if(!DB._arAdv||!DB._arAdv[aid]||!DB._arAdv[aid].entries)return;
+  DB._arAdv[aid].entries=DB._arAdv[aid].entries.filter(function(e){return e.id!==entryId;});
+  saveDB();
+  arRenderAdvLedger(aid);
+  arRenderRoster();
+  if(typeof renderFinancePhases==='function')renderFinancePhases();
+}
+function arOpenEdit(aid){
+  var artist=arArtists().find(function(a){return a.id===aid;});
+  if(!artist)return;
+  document.getElementById('ar-edit-modal').dataset.aid=aid;
+  document.getElementById('aredit-name').value=artist.name||'';
+  document.getElementById('aredit-char').value=artist.char||'';
+  document.getElementById('aredit-cat').value=artist.cat||'Primary';
+  document.getElementById('aredit-ptype').value=artist.ptype||'Package Fixed';
+  document.getElementById('aredit-pkg').value=artist.pkg||'';
+  document.getElementById('aredit-gdays').value=artist.gdays||'';
+  document.getElementById('aredit-xday').value=artist.xday||'';
+  document.getElementById('aredit-pday').value=artist.pday||'';
+  document.getElementById('aredit-agent').value=artist.agent||'';
+  document.getElementById('aredit-notes').value=artist.notes||'';
+  document.getElementById('ar-edit-modal').style.display='flex';
+  arEditTogglePtype();
+}
+function arCloseEdit(){
+  document.getElementById('ar-edit-modal').style.display='none';
+}
+function arSaveEditModal(){
+  var modal=document.getElementById('ar-edit-modal');
+  var aid=modal.dataset.aid;
+  var artist=arArtists().find(function(a){return a.id===aid;});
+  if(!artist)return;
+  var name=(document.getElementById('aredit-name').value||'').trim();
+  if(!name){toast('Artist name required','err');return;}
+  artist.name=name;
+  artist.char=(document.getElementById('aredit-char').value||'').trim();
+  artist.cat=document.getElementById('aredit-cat').value;
+  artist.ptype=document.getElementById('aredit-ptype').value;
+  artist.pkg=parseFloat(document.getElementById('aredit-pkg').value)||0;
+  artist.gdays=parseFloat(document.getElementById('aredit-gdays').value)||0;
+  artist.xday=parseFloat(document.getElementById('aredit-xday').value)||0;
+  artist.pday=parseFloat(document.getElementById('aredit-pday').value)||0;
+  artist.agent=(document.getElementById('aredit-agent').value||'').trim();
+  artist.notes=(document.getElementById('aredit-notes').value||'').trim();
+  saveDB();
+  arRenderRoster();
+  if(typeof renderFinancePhases==='function')renderFinancePhases();
+  arCloseEdit();
+  toast('✓ '+name+' updated');
 }
 
 function arAddDate(){
@@ -19483,6 +19607,62 @@ function arRenderPayables(){
 </div>
 
 <!-- PRINT OVERLAY - replaces window.open for file:// compatibility -->
+<!-- ADVANCE LEDGER MODAL -->
+<div class="modal-bg" id="ar-adv-modal" style="display:none">
+  <div class="modal" style="width:min(94vw,520px)">
+    <h3 id="ar-adv-modal-name">Advance Ledger</h3>
+    <div style="display:grid;grid-template-columns:1fr 1fr 1.4fr auto;gap:8px;margin-bottom:12px;align-items:end">
+      <div class="fld"><label>Date</label><input type="date" id="ar-adv-date"></div>
+      <div class="fld"><label>Amount ₹</label><input type="number" id="ar-adv-amt" placeholder="0" min="0"></div>
+      <div class="fld"><label>Note (optional)</label><input type="text" id="ar-adv-note" placeholder="e.g. 1st tranche"></div>
+      <button class="btn bg" onclick="arAddAdvEntry()">+ Add</button>
+    </div>
+    <div class="flex jb aic mb8" style="border-top:1px solid var(--bd);padding-top:10px">
+      <span class="ps-hdl">Total Advances</span>
+      <span class="ps-nh" id="ar-adv-total" style="color:var(--gn)">₹0</span>
+    </div>
+    <div id="ar-adv-list" style="max-height:320px;overflow-y:auto"></div>
+    <div class="flex jc" style="margin-top:14px"><button class="btn bs" onclick="arCloseAdvLedger()">Close</button></div>
+  </div>
+</div>
+
+<!-- EDIT ARTIST MODAL -->
+<div class="modal-bg" id="ar-edit-modal" style="display:none">
+  <div class="modal" style="width:min(94vw,640px)">
+    <h3>Edit Artist</h3>
+    <div style="display:flex;flex-wrap:wrap;gap:10px;margin-bottom:12px">
+      <div class="fld" style="min-width:180px;flex:1.5"><label>Artist Name *</label><input type="text" id="aredit-name" placeholder="Full name"></div>
+      <div class="fld" style="min-width:150px;flex:1"><label>Character / Role</label><input type="text" id="aredit-char" placeholder="Character name"></div>
+      <div class="fld" style="min-width:130px;flex:1"><label>Category</label>
+        <select id="aredit-cat">
+          <option value="Primary">Primary</option>
+          <option value="Secondary">Secondary</option>
+          <option value="Supporting">Supporting</option>
+          <option value="Cameo">Cameo</option>
+        </select>
+      </div>
+      <div class="fld" style="min-width:150px;flex:1"><label>Payment Type</label>
+        <select id="aredit-ptype" onchange="arEditTogglePtype()">
+          <option value="Package Fixed">🟡 Package Fixed</option>
+          <option value="Package Variable">🟠 Package Variable</option>
+          <option value="Per Day">🟢 Per Day</option>
+        </select>
+      </div>
+    </div>
+    <div style="display:flex;flex-wrap:wrap;gap:10px;margin-bottom:12px">
+      <div class="fld" id="aredit-f-pkg" style="min-width:130px;flex:1"><label>Package Amt ₹</label><input type="number" id="aredit-pkg" placeholder="0" min="0"></div>
+      <div class="fld" id="aredit-f-gdays" style="min-width:120px;flex:1"><label>Guaranteed Days</label><input type="number" id="aredit-gdays" placeholder="0" min="0"></div>
+      <div class="fld" id="aredit-f-xday" style="min-width:130px;flex:1"><label>Extra Day Rate ₹</label><input type="number" id="aredit-xday" placeholder="0" min="0"></div>
+      <div class="fld" id="aredit-f-pday" style="min-width:130px;flex:1"><label>Per Day Rate ₹</label><input type="number" id="aredit-pday" placeholder="0" min="0"></div>
+    </div>
+    <div style="display:flex;flex-wrap:wrap;gap:10px;margin-bottom:14px">
+      <div class="fld" style="min-width:150px;flex:1"><label>Agent / Contact</label><input type="text" id="aredit-agent" placeholder="Optional"></div>
+      <div class="fld" style="min-width:180px;flex:2"><label>Notes / Deal Terms</label><input type="text" id="aredit-notes" placeholder="Deal terms…"></div>
+    </div>
+    <div class="flex jc gap8"><button class="btn bs" onclick="arCloseEdit()">Cancel</button><button class="btn bg" onclick="arSaveEditModal()">Save Changes</button></div>
+  </div>
+</div>
+
 <div id="print-overlay" style="display:none;position:fixed;inset:0;background:#fff;z-index:999999;overflow-y:auto">
   <div class="no-print" style="position:sticky;top:0;background:#1e3a5f;padding:10px 20px;display:flex;align-items:center;gap:10px;z-index:1">
     <span style="color:#fff;font-weight:700;font-size:13px" id="print-overlay-title">Topsheet</span>
