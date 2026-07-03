@@ -13266,10 +13266,75 @@ function showSbSetupGuide(){
 }
 
 // ── SAVE TO SUPABASE ──────────────────────────────────────────────
+// SAFETY MERGE — runs immediately before every cloud save. Fetches the latest
+// cloud state and folds in anything present there but missing from this tab's
+// local memory (by id). Without this, a tab that's been open a while (or on
+// another device) would silently ERASE any bills/flights/hotels/etc. added
+// elsewhere the moment it saves, since a normal save just overwrites the whole
+// cloud row with whatever's in local memory. This makes save additive-safe.
+function mergeInCloudAdditions(cloud){
+  if(!cloud||typeof cloud!=='object')return;
+  const idArrayFields=['bills','flights','hotels','pettyCash','schedules','salaries',
+    '_arArtists','callSheets','vendors','pendingQueue','actorContracts','estimates',
+    'actuals','payments','inlineActuals','artistStaff','shootDays'];
+  idArrayFields.forEach(f=>{
+    if(!Array.isArray(cloud[f]))return;
+    if(!Array.isArray(DB[f]))DB[f]=[];
+    cloud[f].forEach(item=>{
+      if(item&&item.id&&!DB[f].find(x=>x.id===item.id))DB[f].push(item);
+    });
+  });
+  // Vehicles: keyed by date, each an array of entries keyed by id
+  if(cloud.vehicles&&typeof cloud.vehicles==='object'&&!Array.isArray(cloud.vehicles)){
+    if(!DB.vehicles||typeof DB.vehicles!=='object')DB.vehicles={};
+    Object.keys(cloud.vehicles).forEach(date=>{
+      const cloudList=cloud.vehicles[date];
+      if(!Array.isArray(cloudList))return;
+      if(!Array.isArray(DB.vehicles[date]))DB.vehicles[date]=[];
+      cloudList.forEach(item=>{
+        if(item&&item.id&&!DB.vehicles[date].find(x=>x.id===item.id))DB.vehicles[date].push(item);
+      });
+    });
+  }
+  // Paytracker: keyed by day, {entries:[...]}, plus a special _cats array (not a day)
+  if(cloud.paytracker&&typeof cloud.paytracker==='object'&&!Array.isArray(cloud.paytracker)){
+    if(!DB.paytracker||typeof DB.paytracker!=='object')DB.paytracker={};
+    Object.keys(cloud.paytracker).forEach(k=>{
+      if(k==='_cats'){
+        if(Array.isArray(cloud.paytracker._cats)){
+          if(!Array.isArray(DB.paytracker._cats))DB.paytracker._cats=[];
+          cloud.paytracker._cats.forEach(c=>{if(!DB.paytracker._cats.includes(c))DB.paytracker._cats.push(c);});
+        }
+        return;
+      }
+      const cloudDay=cloud.paytracker[k];
+      if(!cloudDay||typeof cloudDay!=='object'||Array.isArray(cloudDay))return;
+      if(!DB.paytracker[k]||typeof DB.paytracker[k]!=='object'||Array.isArray(DB.paytracker[k]))DB.paytracker[k]={entries:[]};
+      if(!Array.isArray(DB.paytracker[k].entries))DB.paytracker[k].entries=[];
+      (cloudDay.entries||[]).forEach(e=>{
+        if(e&&e.id&&!DB.paytracker[k].entries.find(x=>x.id===e.id))DB.paytracker[k].entries.push(e);
+      });
+    });
+  }
+  // actAdhoc / _arAdv: keyed by date/id -> object, shallow-merge missing keys
+  ['actAdhoc','_arAdv'].forEach(f=>{
+    if(!cloud[f]||typeof cloud[f]!=='object'||Array.isArray(cloud[f]))return;
+    if(!DB[f]||typeof DB[f]!=='object')DB[f]={};
+    Object.keys(cloud[f]).forEach(k=>{if(!(k in DB[f]))DB[f][k]=cloud[f][k];});
+  });
+}
+
 async function _saveToSupabase(){
   if(_sbSaving)return;
   _sbSaving=true;
   try{
+    try{
+      const freshRes=await sbFetch('/rest/v1/k2_data?project=eq.'+SB_PROJECT+'&limit=1',{headers:{'Prefer':'return=representation'}});
+      if(freshRes.ok){
+        const freshRows=await freshRes.json();
+        if(freshRows&&freshRows.length&&freshRows[0].data)mergeInCloudAdditions(freshRows[0].data);
+      }
+    }catch(e){console.warn('Pre-save cloud merge check failed, proceeding with local data only:',e);}
     const dbClean=JSON.parse(JSON.stringify(DB));
     // Strip snapshots — they're huge and local-only
     dbClean.snapshots=[];
