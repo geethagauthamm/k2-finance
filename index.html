@@ -12653,6 +12653,27 @@ function renderFinancePhases(){
           if(aHas) html+='<div style="background:var(--sf3);border-radius:99px;height:3px;overflow:hidden;margin-bottom:2px"><div style="width:'+aPct+'%;background:#8b5cf6;height:100%;border-radius:99px"></div></div><div class="ps-ns" style="color:var(--tx2)">'+aPct+'%</div>';
           html+='</td><td style="border-left:1px solid var(--bd)"></td></tr>';
         });
+        // Reconciliation row — any ATL-tagged money that doesn't match any listed
+        // artist's exact name (e.g. a name that's misspelled everywhere it appears,
+        // so even the Mismatch Checker can't pair it against a real record) would
+        // otherwise silently vanish from this breakdown while still counting in the
+        // top total above. Surface it explicitly instead of leaving an invisible gap.
+        (function(){
+          var atlTotals=typeof phaseFinanceTotalsATL==='function'?phaseFinanceTotalsATL():{agreed:0,paid:0};
+          var sumAgreed=arArtists.reduce(function(s,a){return s+arContractFee(a);},0);
+          var sumPaid=arArtists.reduce(function(s,a){return s+arPaidFor(a.name);},0);
+          var unAgreed=Math.round((atlTotals.agreed-sumAgreed)*100)/100;
+          var unPaid=Math.round((atlTotals.paid-sumPaid)*100)/100;
+          if(Math.abs(unAgreed)>1||Math.abs(unPaid)>1){
+            html+='<tr style="background:rgba(239,68,68,.07);border-bottom:1px solid var(--bd)">';
+            html+='<td style="padding:8px 12px 8px 42px"><div style="display:flex;align-items:center;gap:7px"><div style="width:2px;height:18px;border-radius:2px;background:#ef4444;flex-shrink:0"></div><div><div class="ps-ns" style="color:#ef4444">⚠ Other / Unmatched ATL Entries</div><div class="ps-sub">Tagged ATL but name doesn\'t match any artist above — check Name Mismatch Checker</div></div></div></td>';
+            html+='<td style="padding:8px 12px;text-align:right;border-left:1px solid var(--bd)">'+D()+'</td>';
+            html+='<td style="padding:8px 12px;text-align:right;border-left:1px solid var(--bd)">'+Ns(unAgreed,'#ef4444')+'</td>';
+            html+='<td style="padding:8px 12px;text-align:right;border-left:1px solid var(--bd)">'+Ns(unPaid,'#ef4444')+'</td>';
+            html+='<td style="padding:8px 12px;text-align:right;border-left:1px solid var(--bd)">'+Ns(unAgreed-unPaid,'#ef4444')+'</td>';
+            html+='<td style="border-left:1px solid var(--bd)"></td><td style="border-left:1px solid var(--bd)"></td></tr>';
+          }
+        })();
       } else if(p.isBTL){
         btlSchedules.forEach(function(s){
           var sbal=s.agreed-s.paid,spct=s.agreed>0?Math.min(Math.round(s.paid/s.agreed*100),100):0,sHas=s.agreed>0||s.paid>0;
