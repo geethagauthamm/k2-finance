@@ -12768,6 +12768,33 @@ function init(){
   if(!window._autoSnapshotTimer){
     window._autoSnapshotTimer=setInterval(autoSnapshot,5*60*1000);
   }
+  // Background cloud sync every 45s — pulls in anything added on another device/tab
+  // (bills, flights, hotels, etc.) even if this tab never saves in the meantime.
+  // Multiple tabs/devices being open concurrently is normal here, and every save
+  // pushes the WHOLE local DB — a tab that's been open a while without refreshing
+  // could otherwise silently overwrite something added elsewhere. This keeps every
+  // open tab's local copy current so that risk stays small even during a long session.
+  if(!window._bgSyncTimer){
+    window._bgSyncTimer=setInterval(async()=>{
+      if(_sbSaving||CURRENT_USER?.role==='auditor')return; // don't fight an in-flight save; auditors are read-only anyway
+      try{
+        const res=await sbFetch('/rest/v1/k2_data?project=eq.'+SB_PROJECT+'&limit=1',{headers:{'Prefer':'return=representation'}});
+        if(!res.ok)return;
+        const rows=await res.json();
+        if(rows&&rows.length&&rows[0].data){
+          const before=JSON.stringify({bills:(DB.bills||[]).length,flights:(DB.flights||[]).length,hotels:(DB.hotels||[]).length,pettyCash:(DB.pettyCash||[]).length});
+          mergeInCloudAdditions(rows[0].data);
+          const after=JSON.stringify({bills:(DB.bills||[]).length,flights:(DB.flights||[]).length,hotels:(DB.hotels||[]).length,pettyCash:(DB.pettyCash||[]).length});
+          if(before!==after){
+            if(!window._unsavedChanges){
+              try{const cp=sessionStorage.getItem('k2_last_page')||'';if(cp&&document.getElementById('page-'+cp)){_renderPageCore(cp);}}catch(e){}
+            }
+            toast('✓ Synced new entries from another device','ok');
+          }
+        }
+      }catch(e){/* silent — this is a background convenience sync, not user-initiated */}
+    },45*1000);
+  }
   // Deduplicate estimates — keep only the first occurrence of each liKey per date
   if(DB.estimates&&DB.estimates.length){
     const seen={};const _before=DB.estimates.length;
@@ -15796,43 +15823,44 @@ function renderSchedSummary(){
     return;
   }
 
-  // Group by vendor
+  // One row per bill — NOT consolidated by vendor. This report feeds an audit
+  // process where each bill needs to stay individually traceable; two separate
+  // bills from the same vendor must never be silently combined into one row.
   const byVendor={};
   bills.forEach(b=>{
-    const key=b.vendor||'Unknown';
-    if(!byVendor[key])byVendor[key]={vendor:key,bills:[],dates:new Set(),total:0,paid:0,dept:'',sub:'',hasLegacyBill:false,legacyBillId:null};
-    byVendor[key].bills.push(b);
-    if(!b.schedId){byVendor[key].hasLegacyBill=true;if(!byVendor[key].legacyBillId)byVendor[key].legacyBillId=b.id;}
+    const key='bill:'+b.id;
+    byVendor[key]={vendor:b.vendor||'Unknown',bills:[b],dates:new Set(),total:0,paid:0,dept:'',sub:'',hasLegacyBill:false,legacyBillId:null,billNo:b.billNo||b.invoiceNo||''};
+    if(!b.schedId){byVendor[key].hasLegacyBill=true;byVendor[key].legacyBillId=b.id;}
     // Collect dates
     if(b.shootDateFrom&&b.shootDateTo){
       dateRangeList(b.shootDateFrom,b.shootDateTo).forEach(d=>byVendor[key].dates.add(d));
     } else if(b.shootDate) byVendor[key].dates.add(b.shootDate);
     byVendor[key].total+=b.total||0;
     byVendor[key].paid+=billActualPaid(b);
-    if(!byVendor[key].dept&&b.department)byVendor[key].dept=b.department;
-    if(!byVendor[key].sub&&b.items?.[0]?.sub)byVendor[key].sub=b.items[0].sub;
+    if(b.department)byVendor[key].dept=b.department;
+    if(b.items?.[0]?.sub)byVendor[key].sub=b.items[0].sub;
   });
 
   // Also fold in Pay Tracker entries for this schedule that have NO linked bill —
   // these represent real money committed/paid against the schedule but never
   // formalized as a Bill. Without this, this report's total would understate
   // what the Dashboard's Production Finance panel shows for the same schedule
-  // (which already includes these bill-less entries).
+  // (which already includes these bill-less entries). Each entry gets its own
+  // row too, same reasoning as bills above — no silent consolidation.
   const billedIds=new Set((DB.bills||[]).map(b=>b.id));
   if(schedId){
     Object.values(DB.paytracker||{}).filter(day=>day&&typeof day==="object"&&!Array.isArray(day)).forEach(day=>{
       (day.entries||[]).forEach(e=>{
         if(e.schedId!==schedId)return;
         if(e.billId&&billedIds.has(e.billId))return; // already represented by its bill above
-        const key=e.vendor||'Unknown';
-        if(!byVendor[key])byVendor[key]={vendor:key,bills:[],dates:new Set(),total:0,paid:0,dept:e.cat||'',sub:'',hasLegacyBill:false,legacyBillId:null,fromPayTracker:true};
+        const key='pt:'+e.id;
+        byVendor[key]={vendor:e.vendor||'Unknown',bills:[],dates:new Set(),total:0,paid:0,dept:e.cat||'',sub:'',hasLegacyBill:false,legacyBillId:null,fromPayTracker:true};
         const a=parseFloat(e.amt||0);
         const appAmt=parseFloat(e.producerApprovedAmt||e.accApprovedAmt||e.amt||0);
         const agreedAmt=(['approved','partial'].includes(e.producerStatus))?appAmt:a;
         const paidAmt=e.payStatus==='pay-paid'?parseFloat(e.payAmt||e.amt||0):0;
         byVendor[key].total+=agreedAmt;
         byVendor[key].paid+=paidAmt;
-        byVendor[key].fromPayTracker=true;
         if(e.invDate)byVendor[key].dates.add(e.invDate);
       });
     });
@@ -15850,7 +15878,7 @@ function renderSchedSummary(){
     const balance=Math.round((v.total-v.paid)*100)/100;
     return{
       vendor:v.vendor,dept:v.dept||'—',sub:v.sub||'—',hasLegacyBill:v.hasLegacyBill,legacyBillId:v.legacyBillId,
-      fromPayTracker:!!v.fromPayTracker&&!v.bills.length,
+      fromPayTracker:!!v.fromPayTracker&&!v.bills.length,billNo:v.billNo||'',
       dates:sortedDates,total:Math.round(v.total*100)/100,paid:Math.round(v.paid*100)/100,balance,
       accountName:vProf?.accountName||vProf?.name||'—',
       bankName:vProf?.bankName||'—',accountNo:vProf?.accountNo||'—',
@@ -17736,7 +17764,9 @@ function viewBill(id){
     <td style="padding:6px 8px;border:1px solid var(--bd);text-align:right;font-family:monospace;color:var(--tx2)">${item.rate?fmt(item.rate):'—'}</td>
     <td style="padding:6px 8px;border:1px solid var(--bd);text-align:right;font-family:monospace;font-weight:700;color:${isPaid?'#22c55e':'var(--gn)'}">${fmt(item.amount||0)}</td>
   </tr>`).join('');
-  const schedOptions='<option value="">— No schedule —</option>'+(DB.schedules||[]).map(s=>`<option value="${s.id}"${b.schedId===s.id?' selected':''}>${s.name}</option>`).join('');
+  const PHASE_CODES_FOR_SELECT=['ATL','PRE','POST','MKT','ADMIN'];
+  const currentPhaseValue=b.schedId?(PHASE_CODES_FOR_SELECT.includes(b.schedId)?b.schedId:'SCHED:'+b.schedId):'';
+  const schedOptions=getPhaseOptionsHtml(currentPhaseValue);
   document.getElementById('bill-modal-body').innerHTML=`
     <div style="position:relative">
       ${(()=>{const imgs=[...(b.images||[])];if(!imgs.length&&b.imageData)imgs.push({data:b.imageData,type:b.imageType,label:'Scan 1'});if(!imgs.length)return'';return`<div style="margin-bottom:14px"><div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px"><span class="xs2 semi" style="color:var(--tx2)">${imgs.length} scan${imgs.length>1?'s':''} attached</span><label class="btn bs sm" style="cursor:pointer;font-size:11px;padding:3px 10px">📎 Attach Scan<input type="file" accept="image/*,application/pdf" style="display:none" onchange="billAttachScan('${id}',this)"></label></div><div style="display:flex;flex-wrap:wrap;gap:8px">${imgs.map((img,i)=>{const safeId=id;return`<div style="position:relative;flex:1;min-width:140px;max-width:220px"><img src="data:${img.type||'image/jpeg'};base64,${img.data}" style="width:100%;max-height:160px;object-fit:contain;border-radius:6px;border:1px solid var(--bd);cursor:pointer" data-billid="${safeId}" data-idx="${i}" class="bill-scan-thumb" title="${img.label||'Scan '+(i+1)}"><div style="font-size:10px;color:var(--tx3);text-align:center;margin-top:2px">${img.label||'Scan '+(i+1)}${img.date?' · '+img.date:''}</div><button data-billid="${safeId}" data-idx="${i}" class="bill-scan-del" style="position:absolute;top:3px;right:3px;background:rgba(0,0,0,.6);border:none;color:#f87171;cursor:pointer;border-radius:3px;font-size:10px;padding:1px 4px">✕</button></div>`;}).join('')}</div></div>`})()}
@@ -17748,7 +17778,7 @@ function viewBill(id){
         ${isPaid?`<div style="grid-column:1/-1"><span class="dim">Paid:</span> <strong style="color:#22c55e">${new Date(b.paidAt).toLocaleString('en-IN',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'})}</strong></div>`:''}
       </div>
       <div class="no-print" style="display:flex;align-items:center;gap:8px;margin-bottom:12px;padding:8px 10px;background:${b.schedId?'var(--sf2)':'rgba(239,68,68,.06)'};border:1px solid ${b.schedId?'var(--bd)':'rgba(239,68,68,.3)'};border-radius:6px">
-        <label style="font-size:11px;font-weight:700;white-space:nowrap;color:${b.schedId?'var(--tx2)':'#b91c1c'}">${b.schedId?'Schedule:':'⚠ Schedule not set:'}</label>
+        <label style="font-size:11px;font-weight:700;white-space:nowrap;color:${b.schedId?'var(--tx2)':'#b91c1c'}">${b.schedId?'Phase:':'⚠ Phase not set:'}</label>
         <select id="bill-sched-select" onchange="updateBillSchedule('${id}',this.value)" style="flex:1;font-size:12px;padding:4px 8px;border-radius:4px;border:1px solid var(--bd2);background:var(--sf)">${schedOptions}</select>
       </div>
       <table style="width:100%;border-collapse:collapse;font-size:12px;margin-bottom:12px">
@@ -17788,21 +17818,24 @@ function viewBill(id){
   document.getElementById('bill-modal').style.display='';
 }
 
-function updateBillSchedule(id,schedId){
+function updateBillSchedule(id,phase){
   const b=(DB.bills||[]).find(x=>x.id===id);if(!b)return;
-  b.schedId=schedId||'';
+  // Store schedules as their plain id (unprefixed) for backward compatibility with
+  // everywhere else that compares b.schedId against a raw schedule id — only the
+  // new ATL/PRE/POST/MKT/ADMIN phase codes get stored as-is.
+  b.schedId=phase&&phase.startsWith('SCHED:')?phase.slice(6):(phase||'');
   saveDB();
   const sel=document.getElementById('bill-sched-select');
   if(sel){
     const wrap=sel.closest('div');
     if(wrap){
-      wrap.style.background=schedId?'var(--sf2)':'rgba(239,68,68,.06)';
-      wrap.style.borderColor=schedId?'var(--bd)':'rgba(239,68,68,.3)';
+      wrap.style.background=phase?'var(--sf2)':'rgba(239,68,68,.06)';
+      wrap.style.borderColor=phase?'var(--bd)':'rgba(239,68,68,.3)';
       const label=wrap.querySelector('label');
-      if(label){label.textContent=schedId?'Schedule:':'⚠ Schedule not set:';label.style.color=schedId?'var(--tx2)':'#b91c1c';}
+      if(label){label.textContent=phase?'Phase:':'⚠ Phase not set:';label.style.color=phase?'var(--tx2)':'#b91c1c';}
     }
   }
-  toast(schedId?'✓ Schedule updated':'Schedule cleared');
+  toast(phase?'✓ Phase updated to '+phaseLabel(phase):'Phase cleared');
   if(typeof renderBills==='function')renderBills();
   if(typeof renderSchedSummary==='function'&&document.getElementById('ss-tbody'))renderSchedSummary();
 }
@@ -18305,7 +18338,12 @@ function renderBills(){
   // Post/Marketing/Admin tagging — that would need its own follow-up since bills are
   // created through several different flows (scan approval, batch entry, topsheets),
   // not a single simple add-form like the other lists.
-  const groups=groupByPhase(bills,b=>b.schedId?('SCHED:'+b.schedId):'');
+  const PHASE_CODES=['ATL','PRE','POST','MKT','ADMIN'];
+  const groups=groupByPhase(bills,b=>{
+    if(!b.schedId)return '';
+    if(PHASE_CODES.includes(b.schedId)||b.schedId.startsWith('SCHED:'))return b.schedId; // new-style value
+    return 'SCHED:'+b.schedId; // legacy bill — raw schedule id with no prefix
+  });
   let grandTotal=0;
   container.innerHTML=groups.map((g,gi)=>{
     const groupBills=g.items;
