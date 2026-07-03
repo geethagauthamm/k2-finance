@@ -1905,6 +1905,19 @@ body.auditor-mode #save-btn { display:none !important; }
         <div id="bill-modal-body" style="padding:18px"></div>
       </div>
     </div>
+
+    <div id="bill-paid-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:9500;align-items:center;justify-content:center">
+      <div style="max-width:420px;width:95%;background:var(--sf);border:1px solid var(--bd);border-radius:12px;padding:20px 22px">
+        <div class="semi" style="font-size:15px;margin-bottom:4px" id="bill-paid-modal-title">Mark as Paid</div>
+        <div class="xs2 dim" style="margin-bottom:14px">Enter the actual payment details — this is what the PAID stamp will show, not today's date.</div>
+        <div class="fld mb10"><label>Payment Date</label><input type="date" id="bpm-date"></div>
+        <div class="fld mb10"><label>UTR / Reference Number (optional)</label><input type="text" id="bpm-utr" placeholder="e.g. IOBAN26134442905"></div>
+        <div class="flex gap8" style="justify-content:flex-end;margin-top:8px">
+          <button class="btn bs" onclick="document.getElementById('bill-paid-modal').style.display='none'">Cancel</button>
+          <button class="btn bg" onclick="confirmMarkBillPaid()">✓ Confirm Paid</button>
+        </div>
+      </div>
+    </div>
   </div>
 
 
@@ -5584,6 +5597,7 @@ function syncBillFromPaytrackerEntry(e){
   if(e.payStatus==='pay-paid'&&b.status!=='paid'){
     b.status='paid';
     b.paidAt=e.payDate?new Date(e.payDate).toISOString():new Date().toISOString();
+    if(e.payUTR)b.paidUTR=e.payUTR;
   }else if(e.payStatus!=='pay-paid'&&b.status==='paid'){
     // Payment was reverted from Paid — un-mark the bill too, so it doesn't
     // silently claim to be paid when the linked payment no longer is.
@@ -17693,24 +17707,39 @@ function resetBillUpload(){
   const old=document.getElementById('bill-scan-error');if(old)old.remove();
 }
 
-function markBillPaid(id){
+let _bpmBillId=null;
+function openMarkBillPaidModal(id){
   const bill=(DB.bills||[]).find(b=>b.id===id);
   if(!bill)return;
-  if(!confirm(`Mark bill from "${bill.vendor}" (${fmt(bill.total)}) as PAID?`))return;
-  bill.status='paid'; bill.paidAt=new Date().toISOString();
+  _bpmBillId=id;
+  document.getElementById('bill-paid-modal-title').textContent='Mark as Paid — '+(bill.vendor||'Vendor');
+  document.getElementById('bpm-date').value=new Date().toISOString().slice(0,10);
+  document.getElementById('bpm-utr').value='';
+  document.getElementById('bill-paid-modal').style.display='flex';
+}
+function confirmMarkBillPaid(){
+  const id=_bpmBillId;
+  const bill=(DB.bills||[]).find(b=>b.id===id);
+  if(!bill)return;
+  const payDate=document.getElementById('bpm-date').value||new Date().toISOString().slice(0,10);
+  const utr=document.getElementById('bpm-utr').value.trim();
+  bill.status='paid';
+  bill.paidAt=new Date(payDate+'T00:00:00').toISOString();
+  bill.paidUTR=utr||'';
   if(bill.shootDate&&DB.actAdhoc?.[bill.shootDate])
     DB.actAdhoc[bill.shootDate].forEach(r=>{if(r.billId===id)r._paid=true;});
   saveDB(); renderBills(); updateBillsBadge();
+  document.getElementById('bill-paid-modal').style.display='none';
   toast('✓ PAID stamp applied — actuals turned green');
-  viewBill(id);
+  document.getElementById('bill-modal').style.display='none';
   const _billPaidRows=(bill.items||[]).map(it=>'<tr><td>'+esc(it.description||'')+'</td><td style="text-align:right">'+(it.qty||1)+'</td><td style="text-align:right">'+fmt(it.amount)+'</td></tr>').join('');
   const _billPaidReportHtml=notifBuildReportHtml('Bill Paid — '+(bill.vendor||'Vendor'),
-    '<p><strong>Bill No:</strong> '+esc(bill.billNo||'—')+' · <strong>Paid at:</strong> '+esc(new Date(bill.paidAt).toLocaleString('en-IN'))+'</p>'
+    '<p><strong>Bill No:</strong> '+esc(bill.billNo||'—')+' · <strong>Paid at:</strong> '+esc(new Date(bill.paidAt).toLocaleString('en-IN'))+(bill.paidUTR?' · <strong>UTR:</strong> '+esc(bill.paidUTR):'')+'</p>'
     +'<table><thead><tr><th>Description</th><th style="text-align:right">Qty</th><th style="text-align:right">Amount</th></tr></thead><tbody>'
     +_billPaidRows+'</tbody><tfoot><tr class="tot"><td colspan="2">Total</td><td style="text-align:right">'+fmt(bill.total)+'</td></tr></tfoot></table>');
   notifSend('payments',{
     subject:'Bill Paid — '+(bill.vendor||'Vendor')+' · '+fmt(bill.total),
-    message:'A bill payment has been marked PAID.\nProject: '+(DB.project?.name||'K2')+'\nVendor: '+(bill.vendor||'Unknown')+'\nAmount: '+fmt(bill.total)+'\nPaid at: '+new Date(bill.paidAt).toLocaleString('en-IN'),
+    message:'A bill payment has been marked PAID.\nProject: '+(DB.project?.name||'K2')+'\nVendor: '+(bill.vendor||'Unknown')+'\nAmount: '+fmt(bill.total)+'\nPaid at: '+new Date(bill.paidAt).toLocaleString('en-IN')+(bill.paidUTR?'\nUTR: '+bill.paidUTR:''),
     reportHtml:_billPaidReportHtml,
     reportFilename:'BillPaid_'+(bill.vendor||'vendor').replace(/[^a-z0-9]+/gi,'_')+'_'+id.toString().slice(0,6)+'.html'
   }).catch(e=>console.warn('notifSend payments failed',e));
@@ -17897,10 +17926,11 @@ function viewBill(id){
       ${isPaid?`<div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%) rotate(-15deg);pointer-events:none;z-index:10">
         <div style="border:5px solid #ef4444;border-radius:8px;padding:6px 20px;color:#ef4444;font-size:48px;font-weight:900;font-family:serif;letter-spacing:4px;opacity:.88;line-height:1">PAID</div>
         <div style="text-align:center;color:#ef4444;font-size:11px;font-weight:700;margin-top:2px">${new Date(b.paidAt).toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'})}</div>
+        ${b.paidUTR?`<div style="text-align:center;color:#ef4444;font-size:9px;font-weight:600;margin-top:1px">UTR: ${esc(b.paidUTR)}</div>`:''}
       </div>`:''}
       <div class="flex gap8 no-print" style="margin-top:4px">
-        ${isApproved?`<button class="btn bg" onclick="markBillPaid('${id}');document.getElementById('bill-modal').style.display='none'" style="background:#ef4444">💳 Mark as PAID</button>`:''}
-        ${isPaid?`<span style="color:#22c55e;font-weight:700;font-size:13px">✓ Paid on ${new Date(b.paidAt).toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'})}</span>`:''}
+        ${isApproved?`<button class="btn bg" onclick="openMarkBillPaidModal('${id}')" style="background:#ef4444">💳 Mark as PAID</button>`:''}
+        ${isPaid?`<span style="color:#22c55e;font-weight:700;font-size:13px">✓ Paid on ${new Date(b.paidAt).toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'})}${b.paidUTR?' · UTR: '+esc(b.paidUTR):''}</span>`:''}
         <button class="btn bs" onclick="printBillTopsheet('${id}')">🖨 Topsheet</button>
         <button class="btn bs" onclick="deleteBill('${id}');document.getElementById('bill-modal').style.display='none'" style="color:var(--rd)">🗑 Delete</button>
       </div>
@@ -18417,7 +18447,7 @@ function renderBills(){
       <td class="no-print" style="white-space:nowrap">
         <button class="btn bs xs" onclick="viewBill('${b.id}')" style="font-size:10px">View</button>
         ${hasTopsheet?`<button class="btn bs xs" onclick="fxEditBill('${b.id}')" style="font-size:10px;margin-left:4px;color:var(--bl);border-color:var(--bl)" title="Edit topsheet">✎ Edit</button>`:''}
-        ${isApproved?`<button class="btn bg xs" onclick="markBillPaid('${b.id}')" style="font-size:10px;margin-left:4px;background:#ef4444">💳 PAID</button>`:''}
+        ${isApproved?`<button class="btn bg xs" onclick="openMarkBillPaidModal('${b.id}')" style="font-size:10px;margin-left:4px;background:#ef4444">💳 PAID</button>`:''}
         ${isApproved?`<button class="btn bs xs" onclick="sendBillToPayments('${b.id}')" style="font-size:10px;margin-left:4px;color:var(--go)">→ Pay</button>`:''}
         ${hasTopsheet?`<button class="btn bs xs" onclick="alPromptFlexBill((DB.bills||[]).find(x=>x.id==='${b.id}'))" style="font-size:10px;margin-left:4px;color:var(--pu);border-color:var(--pu)">🔗 Link</button>`:''}
       </td>
