@@ -12540,8 +12540,8 @@ function renderFinancePhases(){
       html+='<tbody id="'+gid+'" style="display:none">';
       if(isATL){
         arArtists.forEach(function(a){
-          var aFee=arContractFee(a),_aAdv=(DB._arAdv&&DB._arAdv[a.id])||{};
-          var aPaid=(parseFloat(_aAdv.adv1)||0)+(parseFloat(_aAdv.adv2)||0),aBal=aFee-aPaid;
+          var aFee=arContractFee(a);
+          var aPaid=arPaidFor(a.name),aBal=aFee-aPaid;
           var aPct=aFee>0?Math.min(Math.round(aPaid/aFee*100),100):0,aHas=aFee>0||aPaid>0;
           html+='<tr style="background:rgba(139,92,246,.07);border-bottom:1px solid var(--bd)" onmouseenter="this.style.background=\'rgba(139,92,246,.13)\'" onmouseleave="this.style.background=\'rgba(139,92,246,.07)\'">';
           html+='<td style="padding:8px 12px 8px 42px"><div style="display:flex;align-items:center;gap:7px"><div style="width:2px;height:18px;border-radius:2px;background:#a78bfa;flex-shrink:0"></div><div><div class="ps-ns" style="color:var(--tx)">'+(a.name||a.artistName||'Artist')+'</div>'+(a.role?'<div class="ps-sub">'+a.role+'</div>':'')+'</div></div></td>';
