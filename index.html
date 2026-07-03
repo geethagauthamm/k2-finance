@@ -5609,6 +5609,102 @@ function blockIfPayeeMissing(name){
   return true;
 }
 
+// ── NAME MISMATCH CHECKER ──────────────────────────────────────────────
+// Everything in this app matches people by exact name text — no stable ID
+// links a Payment Tracker entry to an Artist/Vendor record. A single typo
+// anywhere (like "Masilmani" vs "Masilamni") silently breaks that link, and
+// the person's real payment stops showing up in their own Dashboard row —
+// with zero warning. This scans every name used anywhere for likely typos
+// and lets them be fixed everywhere at once, rather than found one at a time.
+function _levenshtein(a,b){
+  const m=a.length,n=b.length;
+  const d=Array.from({length:m+1},(_,i)=>[i,...Array(n).fill(0)]);
+  for(let j=0;j<=n;j++)d[0][j]=j;
+  for(let i=1;i<=m;i++)for(let j=1;j<=n;j++){
+    d[i][j]=a[i-1]===b[j-1]?d[i-1][j-1]:1+Math.min(d[i-1][j],d[i][j-1],d[i-1][j-1]);
+  }
+  return d[m][n];
+}
+function collectAllPayeeNames(){
+  const names=new Map(); // lowercased trimmed -> {display, sources:Set}
+  const add=(raw,source)=>{
+    const n=(raw||'').trim();
+    if(!n)return;
+    const key=n.toLowerCase();
+    if(!names.has(key))names.set(key,{display:n,sources:new Set()});
+    names.get(key).sources.add(source);
+  };
+  (DB._arArtists||[]).forEach(a=>add(a.name,'Artists & Contracts'));
+  (DB.vendors||[]).forEach(v=>add(v.name,'Vendors'));
+  (DB.bills||[]).forEach(b=>add(b.vendor,'Bills'));
+  Object.values(DB.paytracker||{}).filter(d=>d&&typeof d==='object'&&!Array.isArray(d)).forEach(day=>{
+    (day.entries||[]).forEach(e=>add(e.vendor,'Payment Tracker'));
+  });
+  return[...names.values()];
+}
+function findNameMismatches(){
+  const all=collectAllPayeeNames();
+  const pairs=[];
+  for(let i=0;i<all.length;i++){
+    for(let j=i+1;j<all.length;j++){
+      const a=all[i].display,b=all[j].display;
+      const dist=_levenshtein(a.toLowerCase(),b.toLowerCase());
+      // Flag as likely-typo if very close relative to length, but not identical
+      const maxLen=Math.max(a.length,b.length);
+      if(dist>0&&dist<=Math.max(2,Math.round(maxLen*0.12))){
+        pairs.push({a,b,dist,sourcesA:[...all[i].sources],sourcesB:[...all[j].sources]});
+      }
+    }
+  }
+  return pairs.sort((x,y)=>x.dist-y.dist);
+}
+function renameVendorEverywhere(oldName,newName){
+  let count=0;
+  const oldKey=(oldName||'').toLowerCase().trim();
+  (DB.bills||[]).forEach(b=>{if((b.vendor||'').toLowerCase().trim()===oldKey){b.vendor=newName;count++;}});
+  Object.values(DB.paytracker||{}).filter(d=>d&&typeof d==='object'&&!Array.isArray(d)).forEach(day=>{
+    (day.entries||[]).forEach(e=>{if((e.vendor||'').toLowerCase().trim()===oldKey){e.vendor=newName;count++;}});
+  });
+  return count;
+}
+function openNameMismatchChecker(){
+  const pairs=findNameMismatches();
+  const body=pairs.length?pairs.map((p,i)=>`
+    <div style="border:1px solid var(--bd);border-radius:8px;padding:10px 14px;margin-bottom:8px">
+      <div class="flex aic jb wrap gap8">
+        <div>
+          <div><strong>${esc(p.a)}</strong> <span class="xs3 dim">(${p.sourcesA.join(', ')})</span></div>
+          <div><strong>${esc(p.b)}</strong> <span class="xs3 dim">(${p.sourcesB.join(', ')})</span></div>
+        </div>
+        <div class="flex gap8">
+          <button class="btn bs xs" onclick="fixNameMismatch('${esc(p.b).replace(/'/g,"\\'")}','${esc(p.a).replace(/'/g,"\\'")}',this)">→ Use "${esc(p.a)}"</button>
+          <button class="btn bs xs" onclick="fixNameMismatch('${esc(p.a).replace(/'/g,"\\'")}','${esc(p.b).replace(/'/g,"\\'")}',this)">→ Use "${esc(p.b)}"</button>
+        </div>
+      </div>
+    </div>`).join('')
+    : '<div class="te" style="padding:20px">✓ No likely name typos found — everything matches cleanly.</div>';
+  const bg=document.createElement('div');
+  bg.className='modal-bg open';
+  bg.style.zIndex='9500';
+  const box=document.createElement('div');
+  box.style.cssText='max-width:640px;width:95%;max-height:80vh;overflow-y:auto;background:#0f172a;border:1px solid #1e293b;border-radius:12px;padding:20px 22px';
+  box.innerHTML='<div class="flex aic jb mb10"><div class="semi" style="font-size:15px;color:#e8eaf0">🔍 Name Mismatch Check</div><button class="btn bs xs" id="nmc-close">✕</button></div>'
+    +'<div class="xs2" style="color:#b0bacf;margin-bottom:14px">These look like the same person/vendor spelled differently in different places — each spelling is silently treated as a separate person, so their payments split apart instead of adding up in one place.</div>'
+    +'<div id="nmc-body">'+body+'</div>';
+  bg.appendChild(box);
+  document.body.appendChild(bg);
+  box.querySelector('#nmc-close').onclick=()=>document.body.removeChild(bg);
+}
+function fixNameMismatch(oldName,newName,btn){
+  const count=renameVendorEverywhere(oldName,newName);
+  saveDB();
+  toast('✓ Renamed "'+oldName+'" → "'+newName+'" in '+count+' place'+(count>1?'s':''));
+  if(typeof renderFinancePhases==='function')renderFinancePhases();
+  if(typeof renderBills==='function')renderBills();
+  const row=btn.closest('div[style*="border:1px solid var(--bd)"]');
+  if(row)row.remove();
+}
+
 function syncBillFromPaytrackerEntry(e){
   if(!e||!e.billId)return;
   const b=(DB.bills||[]).find(x=>x.id===e.billId);
@@ -12476,6 +12572,7 @@ function renderFinancePhases(){
   // Header totals
   html+='<div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;padding-bottom:12px;margin-bottom:2px;border-bottom:2px solid var(--bd)">';
   html+='<div class="ps-title">💰 PRODUCTION FINANCE</div>';
+  html+='<button class="btn bs xs no-print" onclick="openNameMismatchChecker()" style="margin-left:8px" title="Scan all vendor/artist names for typos that could be silently breaking Dashboard totals">🔍 Check Name Mismatches</button>';
   html+='<div style="display:flex;gap:20px;flex-wrap:wrap">';
   if(arContracted>0) html+='<div style="text-align:right"><div class="ps-hdl" style="color:#a78bfa">Contracted</div><div class="ps-nh" style="color:#a78bfa">'+fmt(arContracted)+'</div></div>';
   html+='<div style="text-align:right"><div class="ps-hdl" style="color:#60a5fa">Agreed</div><div class="ps-nh" style="color:#60a5fa">'+fmt(grandAgreed)+'</div></div>';
