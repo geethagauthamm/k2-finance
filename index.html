@@ -5674,7 +5674,11 @@ function showUnmatchedATLEntries(){
   Object.entries(DB.paytracker||{}).forEach(([dayKey,day])=>{
     if(!day||typeof day!=="object"||Array.isArray(day))return;
     (day.entries||[]).forEach(e=>{
-      if(!ATL_IDS.includes(e.schedId))return;
+      // Matches phaseFinanceTotalsATL()'s two paths: explicitly tagged, OR
+      // untagged but categorized as Remuneration (the fallback that was missing here).
+      const isExplicit=ATL_IDS.includes(e.schedId);
+      const isFallback=!e.schedId&&(e.cat||'').toLowerCase()==='remuneration';
+      if(!isExplicit&&!isFallback)return;
       const nm=(e.vendor||'').toLowerCase().trim();
       if(artistNames.has(nm))return; // matches a real artist — not the problem
       const amt=e.payStatus==='pay-paid'?parseFloat(e.payAmt||e.amt||0):parseFloat(e.amt||0);
@@ -5682,7 +5686,9 @@ function showUnmatchedATLEntries(){
     });
   });
   (DB.bills||[]).forEach(b=>{
-    if(!ATL_IDS.includes(b.schedId))return;
+    const isExplicit=ATL_IDS.includes(b.schedId);
+    const isFallback=!b.schedId&&(b.department||'').toLowerCase().includes('remuneration');
+    if(!isExplicit&&!isFallback)return;
     const nm=(b.vendor||'').toLowerCase().trim();
     if(artistNames.has(nm))return;
     found.push({vendor:b.vendor||'(blank)',amount:b.total||0,date:b.billDate||b.shootDate||'',source:'Bills',paid:b.status==='paid'});
