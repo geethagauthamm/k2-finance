@@ -2016,7 +2016,7 @@ body.auditor-mode #save-btn { display:none !important; }
     </div>
     <div class="sg g4 mb12" id="de-day-stats"></div>
     <div class="card"><div class="ct">Estimates (Plan) &mdash; <span id="de-est-date"></span></div>
-      <div class="tw"><table><thead><tr><th>Line Item</th><th>Category</th><th>Sub</th><th>Shift</th><th>Day Type</th><th class="tr">Call Sheet</th><th class="tr">Count</th><th class="tr">Est. Amount</th><th>Notes</th></tr></thead><tbody id="de-est-body"></tbody></table></div>
+      <div class="tw"><table><thead><tr><th>Line Item</th><th>Category</th><th>Sub</th><th>Shift</th><th>Day Type</th><th class="tr">Call Sheet</th><th class="tr">Count</th><th class="tr">Est. Amount</th><th class="tr">Submitted Actual</th><th>Notes</th></tr></thead><tbody id="de-est-body"></tbody></table></div>
     </div>
     <div class="card"><div class="ct">Actuals &mdash; <span id="de-act-date"></span></div>
       <div class="tw"><table><thead><tr><th>Line Item</th><th>Category</th><th>Vendor</th><th class="tr">Call Sheet</th><th class="tr">Count</th><th class="tr">Amount</th><th class="tr">vs Plan</th><th>Notes</th></tr></thead><tbody id="de-act-body"></tbody></table></div>
@@ -11615,7 +11615,12 @@ function renderDaySheet(){
   const actRows=DB.actuals.filter(a=>a.date===d);
   const payRows=DB.payments.filter(p=>p.date===d);
   const estTot=estRows.reduce((s,r)=>s+(r.amount||0),0);
-  const actTot=actRows.reduce((s,r)=>s+(r.amount||0),0);
+  // Submit Actuals stores its numbers separately (DB.inlineActuals, keyed by
+  // estimate row id) rather than in DB.actuals — pull those in too so Day
+  // Sheet reflects entries made through either system, not just one.
+  const ia=DB.inlineActuals||{};
+  const inlineActTot=estRows.reduce((s,r)=>s+((ia[r.id]||{}).actAmt||0),0);
+  const actTot=actRows.reduce((s,r)=>s+(r.amount||0),0)+inlineActTot;
   const payTot=payRows.filter(p=>p.status==='Paid'||p.status==='Partial').reduce((s,p)=>s+(p.amount||0),0);
   const variance=actTot-estTot;
   const statsEl=document.getElementById('de-day-stats');
@@ -11630,13 +11635,16 @@ function renderDaySheet(){
     <div class="stat"><div class="sl">Paid Today</div><div class="sv green">${fmt(payTot)}</div><div class="ss">${payRows.length} transactions</div></div>`;
   // Est table
   const eTb=document.getElementById('de-est-body');
-  if(eTb)eTb.innerHTML=estRows.map(r=>{const e=allItems().find(x=>liKey(x)===r.liKey);const hire=isHireItem(e);return`<tr>
+  if(eTb)eTb.innerHTML=estRows.map(r=>{const e=allItems().find(x=>liKey(x)===r.liKey);const hire=isHireItem(e);
+    const subAct=(ia[r.id]||{}).actAmt;
+    const subActCell=subAct!=null?'<span class="'+(subAct>r.amount?'red':'green')+' semi">'+fmt(subAct)+'</span>':'<span class="dim xs3">—</span>';
+    return`<tr>
     <td class="semi">${e?.item||r.liKey}</td><td><span class="tag tb xs2">${e?.cat||'—'}</span></td><td>${SUBTAG[e?.sub]||'—'}</td>
     <td class="dim xs2">${hire?'Hire/Rem':((r.call||'—')+'→'+(r.pack||'—'))}</td>
     <td><span class="tag ${r.dayType==='Weekday'?'ts':'tr2'} xs2">${r.dayType}</span></td>
     <td class="tn tr gold">${hire?'—':r.cs}</td><td class="tn tr">${r.count}</td>
-    <td class="tn tr green semi">${fmt(r.amount)}</td><td class="dim xs2">${r.notes||'—'}</td></tr>`;
-  }).join('')||'<tr><td colspan="9" class="te">No estimates planned for this date</td></tr>';
+    <td class="tn tr green semi">${fmt(r.amount)}</td><td class="tn tr">${subActCell}</td><td class="dim xs2">${r.notes||'—'}</td></tr>`;
+  }).join('')||'<tr><td colspan="10" class="te">No estimates planned for this date</td></tr>';
   // Act table
   const aTb=document.getElementById('de-act-body');
   if(aTb)aTb.innerHTML=actRows.map(r=>{
