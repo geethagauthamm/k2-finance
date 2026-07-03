@@ -1176,8 +1176,8 @@ body.auditor-mode #save-btn { display:none !important; }
         </div>
       </div>
       <div class="fg mb8" style="grid-template-columns:1fr 1fr 1fr 1fr">
-        <div class="fld"><label>MMT Fare (₹)</label><input type="number" id="flt-mmt" placeholder="0"></div>
-        <div class="fld"><label>Ticket Fare (₹)</label><input type="number" id="flt-ticket" placeholder="0"></div>
+        <div class="fld"><label>MMT Fare / Pax (₹)</label><input type="number" id="flt-mmt" placeholder="0" oninput="fltCalcTotal()"></div>
+        <div class="fld"><label>Ticket Fare / Pax (₹)</label><input type="number" id="flt-ticket" placeholder="0" oninput="fltCalcTotal()"></div>
         <div class="fld"><label>Actual (₹)</label><input type="number" id="flt-actual" placeholder="0"></div>
         <div class="fld"><label>Excess Luggage (₹)</label><input type="number" id="flt-luggage" placeholder="0"></div>
       </div>
@@ -1189,9 +1189,10 @@ body.auditor-mode #save-btn { display:none !important; }
       </div>
       <div class="fg mb8" style="grid-template-columns:2fr 1fr auto">
         <div class="fld"><label>Comments</label><input type="text" id="flt-notes" placeholder="PNR, remarks, special instructions..."></div>
-        <div class="fld"><label>Count (Pax)</label><input type="number" id="flt-count" value="1" min="1"></div>
+        <div class="fld"><label>Count (Pax)</label><input type="number" id="flt-count" value="1" min="1" oninput="fltCalcTotal()"></div>
         <div class="fld" style="padding-top:18px"><button class="btn bg" onclick="addFlight()">+ Add</button></div>
       </div>
+      <div class="xs2 dim" id="flt-total-preview" style="margin-top:-2px;margin-bottom:4px"></div>
     </div>
     <div class="flex gap8 mb8 no-print">
       <button class="btn bs sm no-print" onclick="exportFlightsExcel()">⬇ Excel</button>
@@ -14168,6 +14169,18 @@ function collapseAllHtlPhases(){document.querySelectorAll('[id^="body_htlp_"]').
 // FLIGHTS
 // DB.flights = [{id,airline,pax,count,from,to,date,estCost,actCost,notes}]
 // ══════════════════════════════════════════
+function fltCalcTotal(){
+  const mmt=parseFloat(document.getElementById('flt-mmt')?.value)||0;
+  const ticket=parseFloat(document.getElementById('flt-ticket')?.value)||0;
+  const count=parseFloat(document.getElementById('flt-count')?.value)||1;
+  const el=document.getElementById('flt-total-preview');
+  if(!el)return;
+  if(count>1&&(mmt>0||ticket>0)){
+    el.innerHTML='× '+count+' pax → MMT total: <strong style="color:var(--bl)">₹'+fm(mmt*count)+'</strong>'+(ticket>0?' · Ticket total: <strong style="color:var(--tx2)">₹'+fm(ticket*count)+'</strong>':'');
+  }else{
+    el.textContent='';
+  }
+}
 function addFlight(){
   const pax=(document.getElementById('flt-pax')?.value||'').trim();
   const date=document.getElementById('flt-date')?.value;
@@ -14179,8 +14192,14 @@ function addFlight(){
   const from=(document.getElementById('flt-from')?.value||'').trim();
   const to=(document.getElementById('flt-to')?.value||'').trim();
   const travelClass=document.getElementById('flt-class')?.value||'';
-  const mmt=parseFloat(document.getElementById('flt-mmt')?.value)||0;
-  const ticket=parseFloat(document.getElementById('flt-ticket')?.value)||0;
+  const count=parseFloat(document.getElementById('flt-count')?.value)||1;
+  // MMT Fare / Ticket Fare are entered PER PASSENGER — multiply by count here so
+  // the stored amount is the real total. Everywhere else in the app (totals,
+  // Dashboard, Schedule Summary) reads this stored amount directly as-is.
+  const mmtPerPax=parseFloat(document.getElementById('flt-mmt')?.value)||0;
+  const ticketPerPax=parseFloat(document.getElementById('flt-ticket')?.value)||0;
+  const mmt=mmtPerPax*count;
+  const ticket=ticketPerPax*count;
   const actual=parseFloat(document.getElementById('flt-actual')?.value)||0;
   const luggage=parseFloat(document.getElementById('flt-luggage')?.value)||0;
   const meals=(document.getElementById('flt-meals')?.value||'').trim();
@@ -14188,8 +14207,7 @@ function addFlight(){
   const reason=(document.getElementById('flt-reason')?.value||'').trim();
   const approved=(document.getElementById('flt-approved')?.value||'').trim();
   const notes=(document.getElementById('flt-notes')?.value||'').trim();
-  const count=parseFloat(document.getElementById('flt-count')?.value)||1;
-  const entry={id:uid(),bookdate,date,pax,dept,phase,airline,from,to,travelClass,mmt,ticket,actCost:actual,luggage,meals,seat,reason,approved,notes,count,
+  const entry={id:uid(),bookdate,date,pax,dept,phase,airline,from,to,travelClass,mmt,ticket,actCost:actual,luggage,meals,seat,reason,approved,notes,count,mmtPerPax,ticketPerPax,
     // legacy compat
     estCost:mmt};
   if(!DB.flights)DB.flights=[];
@@ -14199,7 +14217,8 @@ function addFlight(){
   document.getElementById('flt-count').value='1';
   document.getElementById('flt-class').value='';
   document.getElementById('flt-phase').value='';
-  toast('✓ Flight added for '+fmtD(date));
+  document.getElementById('flt-total-preview').textContent='';
+  toast('✓ Flight added for '+fmtD(date)+(count>1?' ('+count+' pax, ₹'+fm(mmt)+' total MMT)':''));
 }
 
 function editFlight(id){
@@ -14305,7 +14324,7 @@ function renderFlights(){
         <td style="font-weight:600;color:var(--tx2)">${esc(route)}</td>
         <td style="color:var(--tx2)">${esc(f.airline||'—')}</td>
         <td style="color:var(--tx3);font-size:11px">${esc(f.travelClass||'—')}</td>
-        <td style="text-align:right;font-weight:700;color:var(--bl);font-family:'JetBrains Mono',monospace">${f.mmt||f.estCost?'₹'+fm(f.mmt||f.estCost||0):'—'}</td>
+        <td style="text-align:right;font-weight:700;color:var(--bl);font-family:'JetBrains Mono',monospace">${f.mmt||f.estCost?'₹'+fm(f.mmt||f.estCost||0):'—'}${f.count>1?`<div style="font-size:9px;font-weight:400;color:var(--tx3)">${f.count} pax × ₹${fm(f.mmtPerPax||((f.mmt||0)/f.count))}</div>`:''}</td>
         <td style="text-align:right;font-family:'JetBrains Mono',monospace;color:var(--tx2)">${f.ticket?'₹'+fm(f.ticket):'—'}</td>
         <td style="text-align:right"><input class="act-inline" type="number" value="${f.actCost||''}" placeholder="—" style="width:88px;font-family:'JetBrains Mono',monospace" data-fid="${f.id}" onchange="setFlightField(this.dataset.fid,'actCost',this.value)"></td>
         <td style="text-align:right;font-family:'JetBrains Mono',monospace;color:var(--tx3);font-size:11px">${f.luggage?'₹'+fm(f.luggage):'—'}</td>
