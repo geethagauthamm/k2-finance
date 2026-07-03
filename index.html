@@ -2878,18 +2878,32 @@ function autoTagAllATL(silent){
 function getPhaseOpts(){
   var schedules=DB.schedules||[];
   var schedOpts=schedules.map(function(s){
-    return{val:'Sched:'+s.id,label:'🎬 '+s.name,schedId:s.id,isSchedule:true};
+    return{val:'Sched:'+s.id,label:'🎬 '+s.name,schedId:s.id,isSchedule:true,topLevel:'Sched:'+s.id};
   });
-  if(!schedOpts.length)schedOpts=[{val:'Sched:unassigned',label:'🎬 Shoot (no schedules set up)',isSchedule:true}];
-  return[
-    {val:'',label:'— No Phase —'},
-    {val:'Pre-Production',label:'🟡 Pre-Production'},
-  ].concat(schedOpts).concat([
-    {val:'Post-Production',label:'🟢 Post-Production'},
-    {val:'ATL / Talent',label:'🟣 ATL / Talent'},
-    {val:'Marketing & Release',label:'🩷 Marketing & Release'},
-    {val:'Admin & Finance',label:'⚫ Admin & Finance'},
-  ]);
+  if(!schedOpts.length)schedOpts=[{val:'Sched:unassigned',label:'🎬 Shoot (no schedules set up)',isSchedule:true,topLevel:'Sched:unassigned'}];
+  var allDetailed=typeof getAllPhasesForAssignment==='function'?getAllPhasesForAssignment():[];
+  var byGroup={};
+  allDetailed.forEach(function(d){
+    if(!byGroup[d.optgroup])byGroup[d.optgroup]=[];
+    byGroup[d.optgroup].push(d);
+  });
+  var iconFor={'ATL / Talent':'🟣','Pre-Production':'🟡','Post-Production':'🟢','Marketing & Release':'🩷','Admin & Finance':'⚫','Salaries':'🟠'};
+  // Sub-category options carry BOTH a real schedId (drives actual Dashboard totals)
+  // and a topLevel (the simple group label existing badges/filters already expect) —
+  // selecting "Costume Prep" now genuinely tags the entry financially, not just cosmetically.
+  function subOpts(group){
+    return(byGroup[group]||[]).map(function(d){
+      return{val:d.id,label:(iconFor[group]||'')+' '+d.label,topLevel:group,schedIdVal:d.id};
+    });
+  }
+  return[{val:'',label:'— No Phase —'}]
+    .concat(subOpts('ATL / Talent'))
+    .concat(subOpts('Pre-Production'))
+    .concat(schedOpts)
+    .concat(subOpts('Post-Production'))
+    .concat(subOpts('Marketing & Release'))
+    .concat(subOpts('Admin & Finance'))
+    .concat(subOpts('Salaries'));
 }
 var PHASE_OPTS=[
   {val:'',label:'— No Phase —'},
@@ -2919,14 +2933,19 @@ function rebuildPhaseDropdown(){
 
 function setEntryPhase(id,val){
   var e=findEntry(id);if(!e)return;
-  e.productionPhase=val;
+  var opt=getPhaseOpts().find(function(o){return o.val===val;});
+  var newSchedId=opt?(opt.schedIdVal||opt.schedId||''):'';
+  if(newSchedId&&typeof blockIfNotDeclaredArtist==='function'&&blockIfNotDeclaredArtist(e.vendor,newSchedId))return;
+  e.productionPhase=opt?(opt.topLevel||val||null):(val||null);
+  e.schedId=newSchedId;
   sv();
   var row=document.getElementById('cr-'+id);
   if(row)row.querySelector('.hist-inner').innerHTML=buildCommentThread(e);
   renderEntries();
   renderPhaseSummary();
   if(typeof renderDash==='function')renderDash();
-  toast(val?'Phase set: '+val+' — dashboard updated':'Phase cleared');
+  if(typeof renderFinancePhases==='function')renderFinancePhases();
+  toast(val?'Phase set: '+(opt?opt.label:val)+' — dashboard updated':'Phase cleared');
 }
 
 function renderPhaseSummary(){
@@ -2987,7 +3006,8 @@ function buildCommentThread(e){
 
   // Phase selector
   var phaseOpts=getPhaseOpts().map(function(o){
-    return '<option value="'+o.val+'"'+(e.productionPhase===o.val?' selected':'')+'>'+o.label+'</option>';
+    var isSelected=o.val===''?(!e.schedId&&!e.productionPhase):(e.schedId?e.schedId===(o.schedIdVal||o.schedId):e.productionPhase===o.val);
+    return '<option value="'+o.val+'"'+(isSelected?' selected':'')+'>'+o.label+'</option>';
   }).join('');
   html+='<div class="phase-select-wrap">'+
     '<label>📌 Production Phase:</label>'+
@@ -3700,7 +3720,8 @@ function toggleHistRow(id){
 function buildHistEntryPanel(e){
   // Phase selector
   var phaseOpts=getPhaseOpts().map(function(o){
-    return'<option value="'+o.val+'"'+(e.productionPhase===o.val?' selected':'')+'>'+o.label+'</option>';
+    var isSelected=o.val===''?(!e.schedId&&!e.productionPhase):(e.schedId?e.schedId===(o.schedIdVal||o.schedId):e.productionPhase===o.val);
+    return'<option value="'+o.val+'"'+(isSelected?' selected':'')+'>'+o.label+'</option>';
   }).join('');
   var phaseHtml='<div class="phase-select-wrap" style="justify-content:space-between">'+
     '<div style="display:flex;align-items:center;gap:6px">'+
