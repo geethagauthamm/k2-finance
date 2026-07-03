@@ -2341,7 +2341,7 @@ body.auditor-mode #save-btn { display:none !important; }
 
 <div id="view-history" style="display:none">
   <div class="sb np" style="margin-bottom:12px">
-    <input id="hist-q" placeholder="🔍  Search across all days…" oninput="renderHistory()">
+    <input id="hist-q" placeholder="🔍  Search across all days…" oninput="renderHistory();if(typeof renderUnscheduledPayments==='function')renderUnscheduledPayments();">
   </div>
   <div class="card np" id="unsched-pay-card" style="display:none">
     <div class="ct" style="display:flex;align-items:center;justify-content:space-between">
@@ -3862,7 +3862,13 @@ function renderUnscheduledPayments(){
   var schedOpts=phaseOptionsHtml('— Choose a phase/schedule for selected —');
   if(bulkSel)bulkSel.innerHTML=schedOpts;
 
-  tbody.innerHTML=entries.map(function(e){
+  var q=(document.getElementById('hist-q')?.value||'').toLowerCase().trim();
+  var filteredEntries=q?entries.filter(function(e){
+    return(e.vendor+' '+(e.inv||'')+' '+(e.cat||'')+' '+(e.desc||'')).toLowerCase().indexOf(q)>=0;
+  }):entries;
+  if(countEl)countEl.textContent=filteredEntries.length+(q?' of '+entries.length:'');
+
+  tbody.innerHTML=filteredEntries.map(function(e){
     var ps=e.payStatus||'pay-awaiting';
     var statusLabel='<span class="sp '+payClass(ps)+'">'+payLabel(ps)+'</span>';
     var rowSchedOpts=phaseOptionsHtml('— No phase/schedule —');
