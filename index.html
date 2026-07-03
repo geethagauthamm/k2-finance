@@ -3428,6 +3428,8 @@ function showApprovalStamp(id){
 function saveAccountsStatus(){
   var e=findEntry(EID);if(!e)return;
   var ps=document.getElementById('m2-pay-status').value;
+  var newSchedId=document.getElementById('m2-schedid')?.value||'';
+  if(newSchedId&&newSchedId!==e.schedId&&typeof blockIfNotDeclaredArtist==='function'&&blockIfNotDeclaredArtist(e.vendor,newSchedId))return;
   if(ps==='pay-paid'&&blockIfPayeeMissing(e.vendor))return;
   e.payStatus=ps;
   e.payUTR=ps==='pay-paid'?document.getElementById('m2-utr').value.trim():(ps==='pay-partial'?document.getElementById('m2-p-utr').value.trim():'');
@@ -3901,6 +3903,10 @@ function unschedAssignOne(dayKey,entryId,schedId){
   var day=S[dayKey];if(!day)return;
   var entry=(day.entries||[]).find(function(e){return String(e.id)===String(entryId);});
   if(!entry)return;
+  if(schedId&&typeof blockIfNotDeclaredArtist==='function'&&blockIfNotDeclaredArtist(entry.vendor,schedId)){
+    renderUnscheduledPayments(); // reset the dropdown back to its prior value
+    return;
+  }
   entry.schedId=schedId||'';
   sv();
   toast(schedId?'✓ Schedule assigned':'Schedule cleared');
@@ -3915,6 +3921,14 @@ function unschedBulkAssign(){
   if(!checked.length){toast('No rows selected','err');return;}
   var allPhases=typeof getAllPhasesForAssignment==='function'?getAllPhasesForAssignment():[];
   var schedName=allPhases.find(function(p){return p.id===schedId;})?.label||'this phase/schedule';
+  if(ATL_SCHED_IDS.includes(schedId)){
+    for(const cb of checked){
+      var dk=cb.dataset.day,eid=cb.dataset.id;
+      var dy=S[dk];if(!dy)continue;
+      var en=(dy.entries||[]).find(function(e){return String(e.id)===String(eid);});
+      if(en&&blockIfNotDeclaredArtist(en.vendor,schedId))return; // aborts the whole bulk action
+    }
+  }
   if(!confirm('Assign '+checked.length+' payment(s) to "'+schedName+'"?'))return;
   checked.forEach(function(cb){
     var dayKey=cb.dataset.day,entryId=cb.dataset.id;
@@ -5628,6 +5642,22 @@ function blockIfPayeeMissing(name){
   if(vendorRecordExists(name))return false;
   const nm=(name||'').trim()||'(blank name)';
   k2Confirm('⚠ Cannot mark this Paid yet.\n\n"'+nm+'" isn\'t in Artists & Contracts or Vendors yet — every payment needs to be linked to a record there first.\n\nAdd them there, then come back and mark this Paid.',
+    [{label:'OK, I\'ll add them first',value:'ok',primary:true}]);
+  return true;
+}
+const ATL_SCHED_IDS=['atl-artist','atl-director','atl-dop','atl-writer','atl-music','atl-playback'];
+// ATL specifically requires an actual Artists & Contracts record — a generic
+// Vendor entry isn't enough, since ATL totals and the per-artist Dashboard
+// breakdown are both built directly from Artists & Contracts. Tagging someone
+// ATL without adding them there first is exactly how Naseeruddin Shah's
+// payment went untracked earlier.
+function blockIfNotDeclaredArtist(name,schedId){
+  if(!ATL_SCHED_IDS.includes(schedId))return false; // only applies to ATL phase codes
+  const nm=(name||'').toLowerCase().trim();
+  if(!nm)return false; // blank vendor — a different problem, not this check's job
+  const isArtist=(DB._arArtists||[]).some(a=>(a.name||'').toLowerCase().trim()===nm);
+  if(isArtist)return false;
+  k2Confirm('⚠ "'+esc(name)+'" isn\'t declared in Artists & Contracts yet.\n\nATL/Talent payments need an actual artist record — that\'s what drives their Dashboard row and contract totals. Add them in Artists & Contracts first (using this exact name), then come back and tag this payment ATL.',
     [{label:'OK, I\'ll add them first',value:'ok',primary:true}]);
   return true;
 }
