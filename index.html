@@ -5441,6 +5441,24 @@ function applyDefaultCSRules(){
   if(applied>0)saveDB();
 }
 function liKey(e){return(e.cat||'')+'|'+(e.sub||'')+'|'+(e.item||'');}
+// Actuals entries come from two different sources with different field names:
+// rate-card-linked entries use liKey+amount+vendorId+count+cs; hotel-sourced
+// entries (created automatically from Hotels bookings) use hotelId+actCost+
+// notes+rooms+rate and have NO liKey at all. Reading r.amount directly on a
+// hotel entry silently returns undefined/0 — these helpers read the right
+// field regardless of source.
+function actualAmount(r){return r.amount!=null?r.amount:(r.actCost!=null?r.actCost:0);}
+function actualDisplayName(r){
+  if(r.liKey){
+    const e=allItems().find(x=>liKey(x)===r.liKey);
+    if(e)return e.item;
+  }
+  // No liKey (e.g. hotel-sourced) or liKey didn't match anything — fall back
+  // to notes, stripping any parenthetical detail (that stays visible in the
+  // Notes column already, so showing it twice here is just clutter).
+  const notesClean=(r.notes||'').replace(/\s*\([^)]*\)\s*/g,' ').trim();
+  return notesClean||null;
+}
 function getRate(e){
   const k=liKey(e);
   const ovr=DB.rateOverrides[k];
@@ -11043,12 +11061,12 @@ function renderActualsLog(){
   if(df)rows=rows.filter(r=>r.date===df);
   if(sf)rows=rows.filter(r=>r.schedId===sf);
   if(cf)rows=rows.filter(r=>allItems().find(x=>liKey(x)===r.liKey)?.cat===cf);
-  if(_actShowUnmatchedOnly)rows=rows.filter(r=>!allItems().find(x=>liKey(x)===r.liKey));
+  if(_actShowUnmatchedOnly)rows=rows.filter(r=>r.liKey&&!allItems().find(x=>liKey(x)===r.liKey));
   const tb=document.getElementById('act-log');if(!tb)return;
   const summaryEl=document.getElementById('act-unmatched-summary');
   if(summaryEl){
-    const totalUnmatched=DB.actuals.filter(r=>!allItems().find(x=>liKey(x)===r.liKey));
-    const sumAmt=totalUnmatched.reduce((s,r)=>s+(r.amount||0),0);
+    const totalUnmatched=DB.actuals.filter(r=>r.liKey&&!allItems().find(x=>liKey(x)===r.liKey));
+    const sumAmt=totalUnmatched.reduce((s,r)=>s+actualAmount(r),0);
     summaryEl.textContent=totalUnmatched.length?`⚠ ${totalUnmatched.length} unmatched entr${totalUnmatched.length>1?'ies':'y'} across the whole log, totaling ₹${fmt(sumAmt)}`:'✓ No unmatched entries';
     summaryEl.style.color=totalUnmatched.length?'var(--rd)':'var(--gn)';
   }
@@ -11060,33 +11078,35 @@ function renderActualsLog(){
     const s=DB.schedules.find(x=>x.id===r.schedId);
     const hire=e?isHireItem(e):false;
     const ovr=e?(r.rateOverridden||isOverridden(r.liKey)):false;
+    const amt=actualAmount(r);
     // vs estimate plan for this date+liKey
     const plan=DB.estimates.filter(x=>x.date===r.date&&x.liKey===r.liKey).reduce((s,x)=>s+(x.amount||0),0);
-    const variance=r.amount-plan;
+    const variance=amt-plan;
     let datePrefix='';
     if(r.date!==lastDate){lastDate=r.date;datePrefix=`<tr style="background:rgba(46,204,138,.03)"><td colspan="12" style="padding:5px 8px;font-size:10px;font-weight:700;color:var(--tx2);letter-spacing:1px">${fmtDL(r.date)} ${s?'→ '+s.name:''}</td></tr>`;}
-    // For unmatched entries, use the notes text as a fallback display name, but split
-    // off anything in parentheses — that detail stays visible in the Notes column
-    // already, so showing it twice in Line Item too is just clutter.
-    const notesClean=(r.notes||'').replace(/\s*\([^)]*\)\s*/g,' ').trim();
+    // For unmatched entries (including hotel-sourced ones, which have no
+    // liKey at all), use the notes text as a fallback display name, split
+    // off anything in parentheses — that detail stays visible in the Notes
+    // column already, so showing it twice in Line Item too is just clutter.
+    const displayName=actualDisplayName(r);
     return datePrefix+`<tr${e?'':' style="background:rgba(239,68,68,.04)"'}>
       <td>${fmtD(r.date)}</td>
       <td class="dim xs2">${s?.name||'—'}</td>
-      <td class="semi">${e?.item||(notesClean?`<span title="No matching Rate Card item for key: ${esc(r.liKey||'')} — showing notes as name">⚠ ${esc(notesClean)}</span>`:(r.liKey?`<span style="color:var(--rd)" title="No matching Rate Card item for key: ${esc(r.liKey)}">⚠ Unmatched item</span>`:'—'))}</td>
-      <td><span class="tag tb xs2">${e?.cat||(r.liKey?r.liKey.split('|')[0]:'')||'—'}</span></td>
+      <td class="semi">${e?.item||(displayName?`<span title="${r.liKey?'No matching Rate Card item for key: '+esc(r.liKey):'No Rate Card link — hotel/other auto-generated entry'} — showing notes as name">⚠ ${esc(displayName)}</span>`:(r.liKey?`<span style="color:var(--rd)" title="No matching Rate Card item for key: ${esc(r.liKey)}">⚠ Unmatched item</span>`:'—'))}</td>
+      <td><span class="tag tb xs2">${e?.cat||r.cat||(r.liKey?r.liKey.split('|')[0]:'')||'—'}</span></td>
       <td class="dim xs2">${v?.name||'—'}</td>
       <td class="tn tr gold semi">${hire?'—':(r.cs??'—')}</td>
-      <td class="tn tr">${r.count??'—'}</td>
+      <td class="tn tr">${r.count??r.rooms??'—'}</td>
       <td class="tn tr dim">${r.rate!=null?fmt(r.rate):'—'}</td>
       <td>${ovr?'<span class="tag to xs2" title="Rate was overridden from seed">⚠ overridden</span>':'<span class="tag ts xs2">standard</span>'}</td>
-      <td class="tn tr green semi">${fmt(r.amount)}</td>
+      <td class="tn tr green semi">${fmt(amt)}</td>
       <td class="tn tr ${plan>0?(variance>0?'red':'green'):'dim'} xs2">${plan>0?(variance>0?'+':'')+fmt(variance):'—'}</td>
       <td class="dim xs2">${r.notes||'—'}</td>
       <td class="no-print"><button class="btn br xs" onclick="delActual('${r.id}')">✕</button></td>
     </tr>`;
   }).join('');
   const tf=document.getElementById('act-log-foot');
-  if(tf){const tot=rows.reduce((s,r)=>s+(r.amount||0),0);tf.innerHTML=`<tr class="tfoot-row"><td colspan="9">Total — ${rows.length} entries</td><td class="tn tr green">${fmt(tot)}</td><td colspan="3"></td></tr>`;}
+  if(tf){const tot=rows.reduce((s,r)=>s+actualAmount(r),0);tf.innerHTML=`<tr class="tfoot-row"><td colspan="9">Total — ${rows.length} entries</td><td class="tn tr green">${fmt(tot)}</td><td colspan="3"></td></tr>`;}
 }
 
 // ══════════════════════════════════
@@ -11620,7 +11640,7 @@ function renderDaySheet(){
   // Sheet reflects entries made through either system, not just one.
   const ia=DB.inlineActuals||{};
   const inlineActTot=estRows.reduce((s,r)=>s+((ia[r.id]||{}).actAmt||0),0);
-  const actTot=actRows.reduce((s,r)=>s+(r.amount||0),0)+inlineActTot;
+  const actTot=actRows.reduce((s,r)=>s+actualAmount(r),0)+inlineActTot;
   const payTot=payRows.filter(p=>p.status==='Paid'||p.status==='Partial').reduce((s,p)=>s+(p.amount||0),0);
   const variance=actTot-estTot;
   const statsEl=document.getElementById('de-day-stats');
@@ -11649,14 +11669,16 @@ function renderDaySheet(){
   const aTb=document.getElementById('de-act-body');
   if(aTb)aTb.innerHTML=actRows.map(r=>{
     const e=allItems().find(x=>liKey(x)===r.liKey);const v=DB.vendors.find(x=>x.id===r.vendorId);
-    const hire=isHireItem(e);
+    const hire=e?isHireItem(e):false;
+    const amt=actualAmount(r);
     const plan=estRows.filter(x=>x.liKey===r.liKey).reduce((s,x)=>s+(x.amount||0),0);
-    const var2=r.amount-plan;
+    const var2=amt-plan;
+    const displayName=e?.item||actualDisplayName(r)||'—';
     return`<tr>
-      <td class="semi">${e?.item||r.liKey}</td><td><span class="tag tb xs2">${e?.cat||'—'}</span></td>
+      <td class="semi">${displayName}</td><td><span class="tag tb xs2">${e?.cat||r.cat||'—'}</span></td>
       <td class="dim xs2">${v?.name||'—'}</td>
-      <td class="tn tr gold">${hire?'—':r.cs}</td><td class="tn tr">${r.count}</td>
-      <td class="tn tr green semi">${fmt(r.amount)}</td>
+      <td class="tn tr gold">${hire?'—':(r.cs??'—')}</td><td class="tn tr">${r.count??r.rooms??'—'}</td>
+      <td class="tn tr green semi">${fmt(amt)}</td>
       <td class="tn tr ${plan>0?(var2>0?'red':'green'):'dim'}">${plan>0?(var2>0?'+':'')+fmt(var2):'—'}</td>
       <td class="dim xs2">${r.notes||'—'}</td></tr>`;
   }).join('')||'<tr><td colspan="8" class="te">No actuals for this date</td></tr>';
@@ -13160,17 +13182,20 @@ function renderDayWise(schF){
     const estRows=DB.estimates.filter(e=>e.date===date&&(!sf||dateToSchedule(e.date)?.id===sf));
     const actRows=DB.actuals.filter(a=>a.date===date&&(!sf||dateToSchedule(a.date)?.id===sf));
     const estTot=estRows.reduce((s,r)=>s+(r.amount||0),0);
-    const actTot=actRows.reduce((s,r)=>s+(r.amount||0),0);
+    const actTot=actRows.reduce((s,r)=>s+actualAmount(r),0);
     const variance=actTot-estTot;
     const dayId='dw_'+date.replace(/-/g,'');
-    // Collect all line item keys appearing on this date
-    const allKeys=[...new Set([...estRows.map(r=>r.liKey),...actRows.map(r=>r.liKey)])];
+    // Collect all line item keys appearing on this date — hotel-sourced actuals
+    // have no liKey at all (different source entirely), so they're excluded
+    // from this specific liKey-grouped table rather than corrupting it with an
+    // undefined row; they still count correctly in the day's actTot above.
+    const allKeys=[...new Set([...estRows.map(r=>r.liKey),...actRows.map(r=>r.liKey).filter(Boolean)])];
     const rowsHtml=allKeys.map(k=>{
       const e=allItems().find(x=>liKey(x)===k);
       const er=estRows.filter(r=>r.liKey===k);
       const ar=actRows.filter(r=>r.liKey===k);
       const eTot=er.reduce((s,r)=>s+(r.amount||0),0);
-      const aTot=ar.reduce((s,r)=>s+(r.amount||0),0);
+      const aTot=ar.reduce((s,r)=>s+actualAmount(r),0);
       const hire=isHireItem(e);
       const v2=aTot-eTot;
       return`<tr>
