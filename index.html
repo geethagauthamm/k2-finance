@@ -3324,6 +3324,7 @@ function inboxDecide(id,decision){
 
 function inboxMarkPaid(id,action){
   const e=findEntry(id);if(!e)return;
+  if(action!=='hold'&&blockIfPayeeMissing(e.vendor))return;
   const comment=(document.getElementById('inbox-comment-'+id)?.value||'').trim();
   const now=new Date();
   if(action==='hold'){
@@ -3426,6 +3427,7 @@ function showApprovalStamp(id){
 function saveAccountsStatus(){
   var e=findEntry(EID);if(!e)return;
   var ps=document.getElementById('m2-pay-status').value;
+  if(ps==='pay-paid'&&blockIfPayeeMissing(e.vendor))return;
   e.payStatus=ps;
   e.payUTR=ps==='pay-paid'?document.getElementById('m2-utr').value.trim():(ps==='pay-partial'?document.getElementById('m2-p-utr').value.trim():'');
   e.payDate=ps==='pay-paid'?document.getElementById('m2-paydate').value:(ps==='pay-partial'?document.getElementById('m2-p-paydate').value:'');
@@ -3783,6 +3785,7 @@ function saveHistEntryStatus(id){
   if(acc&&acc.value!==(e.accStatus||'acc-pending')){changes.push('Accounts: '+accLabel(e.accStatus||'acc-pending')+' → '+accLabel(acc.value));e.accStatus=acc.value;}
   if(pay){
     var newPay=pay.value;
+    if(newPay==='pay-paid'&&blockIfPayeeMissing(e.vendor)){pay.value=e.payStatus||'pay-awaiting';return;}
     if(newPay!==(e.payStatus||'pay-awaiting')){changes.push('Payment: '+payLabel(e.payStatus||'pay-awaiting')+' → '+payLabel(newPay));}
     e.payStatus=newPay;
     if(newPay==='pay-paid'||newPay==='pay-partial'){
@@ -4203,6 +4206,7 @@ function saveHistEdit(){
   var prod=document.getElementById('hedit-prod').value;
   var acc=document.getElementById('hedit-acc').value;
   var pay=document.getElementById('hedit-pay').value;
+  if(pay==='pay-paid'&&e.payStatus!=='pay-paid'&&blockIfPayeeMissing(e.vendor))return;
   if(prod!==(e.producerStatus||'pending')){changes.push('Producer: '+pLabel(e.producerStatus)+' → '+pLabel(prod));e.producerStatus=prod;}
   if(acc!==(e.accStatus||'acc-pending')){changes.push('Accounts: '+accLabel(e.accStatus)+' → '+accLabel(acc));e.accStatus=acc;}
   if(pay!==(e.payStatus||'pay-awaiting')){changes.push('Payment: '+payLabel(e.payStatus)+' → '+payLabel(pay));e.payStatus=pay;}
@@ -5583,13 +5587,27 @@ function toast(msg,type='ok'){
   setTimeout(()=>el.remove(),3200);
 }
 
-// Keeps a Bill's own status in sync with its linked Payment Tracker entry.
-// Bills and Payment Tracker entries can represent the exact same real-world
-// payment (linked via entry.billId) but track their status independently —
-// marking a Payment Tracker entry 'Paid' previously never touched the linked
-// Bill, so the Bill could sit showing 'Approved' forever even after the money
-// was actually paid. Call this right after any change to a paytracker entry's
-// payStatus.
+// Every payment must have a "root" record — the payee must already exist in
+// Artists & Contracts or Vendors before a payment to them can be marked Paid.
+// Without this, large payments can get marked paid with nothing else in the
+// app ever formally recording who they were for, leaving no proper trail.
+function vendorRecordExists(name){
+  const nm=(name||'').toLowerCase().trim();
+  if(!nm)return false;
+  if((DB._arArtists||[]).some(a=>(a.name||'').toLowerCase().trim()===nm))return true;
+  if((DB.vendors||[]).some(v=>(v.name||'').toLowerCase().trim()===nm))return true;
+  return false;
+}
+// Returns true if the payment should be BLOCKED (payee not on record yet).
+// Shows a clear modal explaining why and offering a direct path to fix it.
+function blockIfPayeeMissing(name){
+  if(vendorRecordExists(name))return false;
+  const nm=(name||'').trim()||'(blank name)';
+  k2Confirm('⚠ Cannot mark this Paid yet.\n\n"'+nm+'" isn\'t in Artists & Contracts or Vendors yet — every payment needs to be linked to a record there first.\n\nAdd them there, then come back and mark this Paid.',
+    [{label:'OK, I\'ll add them first',value:'ok',primary:true}]);
+  return true;
+}
+
 function syncBillFromPaytrackerEntry(e){
   if(!e||!e.billId)return;
   const b=(DB.bills||[]).find(x=>x.id===e.billId);
@@ -12342,9 +12360,33 @@ function renderFinancePhases(){
   function arPaidFor(artistName){
     const nm=(artistName||'').toLowerCase().trim();
     const artist=(DB._arArtists||[]).find(a=>(a.name||'').toLowerCase().trim()===nm);
-    if(!artist)return 0;
-    const adv=DB._arAdv&&DB._arAdv[artist.id]||{};
-    return (parseFloat(adv.adv1)||0)+(parseFloat(adv.adv2)||0);
+    let advPaid=0;
+    if(artist){
+      const adv=DB._arAdv&&DB._arAdv[artist.id]||{};
+      advPaid=(parseFloat(adv.adv1)||0)+(parseFloat(adv.adv2)||0);
+    }
+    // Also pick up any Payment Tracker entries paid to this exact name — this is
+    // how most real ATL payments actually get recorded, not through the separate
+    // advance fields above. Without this, a fully-paid artist can still show as
+    // unpaid on their own row even though the phase-wide total already counts it.
+    let ptPaid=0;
+    Object.values(DB.paytracker||{}).filter(day=>day&&typeof day==="object"&&!Array.isArray(day)).forEach(day=>{
+      (day.entries||[]).forEach(e=>{
+        if((e.vendor||'').toLowerCase().trim()!==nm)return;
+        if(e.payStatus==='pay-paid')ptPaid+=parseFloat(e.payAmt||e.amt||0);
+      });
+    });
+    // And any Bills paid to this exact name that AREN'T already counted via a
+    // linked Payment Tracker entry (avoids double-counting the same payment).
+    let billPaid=0;
+    (DB.bills||[]).forEach(b=>{
+      if((b.vendor||'').toLowerCase().trim()!==nm)return;
+      if(b.status!=='paid')return;
+      const linkedToCountedPT=Object.values(DB.paytracker||{}).some(day=>day&&typeof day==='object'&&!Array.isArray(day)&&(day.entries||[]).some(e=>e.billId===b.id&&e.payStatus==='pay-paid'));
+      if(linkedToCountedPT)return; // already counted above via its Payment Tracker entry
+      billPaid+=b.total||0;
+    });
+    return advPaid+ptPaid+billPaid;
   }
   const PRE_IDS=['pre-general','pre-recce','pre-script','pre-casting','pre-design','pre-costume'];
   const POST_IDS=['post-editing','post-vfx','post-color','post-sound','post-score','post-dubbing','post-subtitles','post-dcp'];
@@ -17711,6 +17753,7 @@ let _bpmBillId=null;
 function openMarkBillPaidModal(id){
   const bill=(DB.bills||[]).find(b=>b.id===id);
   if(!bill)return;
+  if(blockIfPayeeMissing(bill.vendor))return;
   _bpmBillId=id;
   document.getElementById('bill-paid-modal-title').textContent='Mark as Paid — '+(bill.vendor||'Vendor');
   document.getElementById('bpm-date').value=new Date().toISOString().slice(0,10);
@@ -17721,6 +17764,7 @@ function confirmMarkBillPaid(){
   const id=_bpmBillId;
   const bill=(DB.bills||[]).find(b=>b.id===id);
   if(!bill)return;
+  if(blockIfPayeeMissing(bill.vendor)){document.getElementById('bill-paid-modal').style.display='none';return;}
   const payDate=document.getElementById('bpm-date').value||new Date().toISOString().slice(0,10);
   const utr=document.getElementById('bpm-utr').value.trim();
   bill.status='paid';
