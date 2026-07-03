@@ -2862,16 +2862,24 @@ function autoPhase(e){
 
 function autoTagAllATL(silent){
   // Back-fill all existing paytracker entries that have Remuneration/Artists cat but no phase
-  var tagged=0;
+  var tagged=0,skipped=0,skippedNames=[];
   getDays().forEach(function(k){
     (S[k].entries||[]).forEach(function(e){
       if(!e.productionPhase && ATL_CATS.indexOf(e.cat)>=0){
+        var nm=(e.vendor||'').toLowerCase().trim();
+        var isArtist=(DB._arArtists||[]).some(function(a){return(a.name||'').toLowerCase().trim()===nm;});
+        if(!isArtist){skipped++;if(e.vendor&&skippedNames.indexOf(e.vendor)<0)skippedNames.push(e.vendor);return;}
         e.productionPhase='ATL / Talent';
         tagged++;
       }
     });
   });
-  if(tagged>0){sv();renderEntries();renderHistory();renderPhaseSummary();if(!silent)toast('Auto-tagged '+tagged+' ATL / Talent entries');}
+  if(tagged>0){sv();renderEntries();renderHistory();renderPhaseSummary();}
+  if(!silent){
+    var msg=tagged>0?'Auto-tagged '+tagged+' ATL / Talent entries':'';
+    if(skipped>0)msg+=(msg?' — ':'')+skipped+' skipped (not in Artists & Contracts yet): '+skippedNames.slice(0,5).join(', ')+(skippedNames.length>5?', +'+(skippedNames.length-5)+' more':'');
+    if(msg)toast(msg,skipped>0?'err':'ok');
+  }
   return tagged;
 }
 // Dynamic phase options — replaces static 'Shoot' with per-schedule entries
@@ -3090,6 +3098,11 @@ function addEntry(){
   var schedId=document.getElementById('in-schedid')?.value||'';
   var billId=document.getElementById('in-billid')?.value||'';
   if(!vendor||isNaN(amt)||amt<0){alert('Enter vendor name and amount.');return;}
+  if(schedId&&typeof blockIfNotDeclaredArtist==='function'&&blockIfNotDeclaredArtist(vendor,schedId))return;
+  // autoPhase() below auto-tags ATL based on category alone (Remuneration, Artists,
+  // etc.) even with no schedId chosen — this used to completely bypass the
+  // declared-artist check since it never touches schedId. Catch it here too.
+  if(!schedId&&typeof ATL_CATS!=='undefined'&&ATL_CATS.indexOf(cat)>=0&&typeof blockIfNotDeclaredArtist==='function'&&blockIfNotDeclaredArtist(vendor,'atl-artist'))return;
   if(!billId){alert('A bill must be linked before adding a payment.\n\nSelect an existing approved bill, or click "+ New Topsheet" to create one now.');return;}
 
   // Duplicate guard: same vendor + same amount (+ same category) already exists somewhere,
@@ -5741,6 +5754,18 @@ function renameVendorEverywhere(oldName,newName){
   });
   return count;
 }
+function addUnmatchedAsArtist(name,btn){
+  if(!DB._arArtists)DB._arArtists=[];
+  const nm=(name||'').toLowerCase().trim();
+  const already=DB._arArtists.some(a=>(a.name||'').toLowerCase().trim()===nm);
+  if(already){toast('Already in Artists & Contracts');return;}
+  DB._arArtists.push({id:uid(),name:name,pkg:0});
+  saveDB();
+  toast('✓ Added "'+name+'" to Artists & Contracts — their payments are now linked');
+  if(typeof renderFinancePhases==='function')renderFinancePhases();
+  const row=btn.closest('div[style*="border-bottom:1px solid #1e293b"]');
+  if(row)row.remove();
+}
 function showUnmatchedATLEntries(){
   const ATL_IDS=['atl-artist','atl-director','atl-dop','atl-writer','atl-music','atl-playback'];
   const artistNames=new Set((DB._arArtists||[]).map(a=>(a.name||'').toLowerCase().trim()));
@@ -5767,19 +5792,33 @@ function showUnmatchedATLEntries(){
     if(artistNames.has(nm))return;
     found.push({vendor:b.vendor||'(blank)',amount:b.total||0,date:b.billDate||b.shootDate||'',source:'Bills',paid:b.status==='paid'});
   });
+  // Group by unique name so there's one clear action per person, not per payment
+  const byName={};
+  found.forEach(f=>{
+    if(!byName[f.vendor])byName[f.vendor]={vendor:f.vendor,total:0,count:0,items:[]};
+    byName[f.vendor].total+=f.amount;
+    byName[f.vendor].count++;
+    byName[f.vendor].items.push(f);
+  });
+  const grouped=Object.values(byName);
   const bg=document.createElement('div');
   bg.className='modal-bg open';
   bg.style.zIndex='9500';
   const box=document.createElement('div');
-  box.style.cssText='max-width:600px;width:95%;max-height:80vh;overflow-y:auto;background:#0f172a;border:1px solid #1e293b;border-radius:12px;padding:20px 22px';
-  const rows=found.length?found.map(f=>`
-    <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid #1e293b">
-      <div><strong style="color:#e8eaf0">${esc(f.vendor)}</strong><div style="font-size:10px;color:#7a849a">${esc(f.source)} · ${fmtD(f.date)}${f.paid?' · Paid':''}</div></div>
-      <div style="color:#ef4444;font-weight:700;font-family:'JetBrains Mono',monospace">₹${fm(f.amount)}</div>
+  box.style.cssText='max-width:640px;width:95%;max-height:80vh;overflow-y:auto;background:#0f172a;border:1px solid #1e293b;border-radius:12px;padding:20px 22px';
+  const rows=grouped.length?grouped.map((g,gi)=>`
+    <div style="padding:10px 0;border-bottom:1px solid #1e293b">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:10px">
+        <div><strong style="color:#e8eaf0">${esc(g.vendor)}</strong><div style="font-size:10px;color:#7a849a">${g.count} payment${g.count>1?'s':''}${g.vendor==='(blank)'?' · no name on file, can\'t auto-add — fix the entry directly':''}</div></div>
+        <div style="display:flex;align-items:center;gap:10px">
+          <div style="color:#ef4444;font-weight:700;font-family:'JetBrains Mono',monospace">₹${fm(g.total)}</div>
+          ${g.vendor!=='(blank)'?`<button class="btn bg xs" onclick="addUnmatchedAsArtist('${esc(g.vendor).replace(/'/g,"\\'")}',this)">+ Add to Artists</button>`:''}
+        </div>
+      </div>
     </div>`).join('')
     : '<div style="padding:16px;text-align:center;color:#7a849a">Nothing found right now — the gap may have come from rounding, or resolve itself after a refresh.</div>';
   box.innerHTML='<div class="flex aic jb mb10"><div class="semi" style="font-size:15px;color:#e8eaf0">⚠ Unmatched ATL Entries</div><button class="btn bs xs" id="uae-close">✕</button></div>'
-    +'<div class="xs2" style="color:#b0bacf;margin-bottom:14px">These are tagged ATL but their name doesn\'t exactly match anyone in Artists & Contracts. Either this person needs to be added there, or one of these names has a typo — check against your artist list, then fix it via the entry itself or the Name Mismatch Checker.</div>'
+    +'<div class="xs2" style="color:#b0bacf;margin-bottom:14px">These are tagged ATL but their name doesn\'t exactly match anyone in Artists & Contracts. Click "+ Add to Artists" to create a basic record with this exact name — their existing payments will link up and show on the Dashboard immediately. You can fill in their contract package amount afterward in Artists & Contracts.</div>'
     +'<div>'+rows+'</div>';
   bg.appendChild(box);
   document.body.appendChild(bg);
