@@ -12289,6 +12289,30 @@ function phaseFinanceTotalsBTL(){
   });
   return{agreed:base.agreed+extraAgreed,paid:base.paid+extraPaid};
 }
+// Same fallback as phaseFinanceTotalsBTL() above, but scoped to ONE schedule's
+// own date range — this is what keeps each individual Schedule row consistent
+// with the BTL/Shoot parent total. Without this, the parent counted untagged
+// in-range payments that no individual schedule ever showed, so the schedules
+// could never add up to the parent they belong to.
+function phaseFinanceTotalsForSchedule(sched){
+  const base=phaseFinanceTotals(id=>id===sched.id);
+  if(!sched.startDate||!sched.endDate)return base;
+  let extraAgreed=0,extraPaid=0;
+  Object.entries(DB.paytracker||{}).forEach(([dayKey,day])=>{
+    if(!day||typeof day!=="object"||Array.isArray(day))return;
+    (day.entries||[]).forEach(e=>{
+      if(e.schedId)return; // already explicitly tagged — counted by base, skip here
+      if((e.cat||'').toLowerCase()==='remuneration')return; // belongs to ATL fallback instead
+      const d=e.invDate||dayKey;
+      if(d<sched.startDate||d>sched.endDate)return;
+      const a=parseFloat(e.amt||0);
+      const appAmt=parseFloat(e.producerApprovedAmt||e.accApprovedAmt||e.amt||0);
+      extraAgreed+=(['approved','partial'].includes(e.producerStatus))?appAmt:a;
+      extraPaid+=e.payStatus==='pay-paid'?parseFloat(e.payAmt||e.amt||0):0;
+    });
+  });
+  return{agreed:base.agreed+extraAgreed,paid:base.paid+extraPaid};
+}
 
 /**
  * Every assignable "phase or schedule" a Pay Tracker entry / Bill can be tagged
@@ -12440,7 +12464,7 @@ function renderFinancePhases(){
   }
 
   const btlSchedules=(DB.schedules||[]).map(s=>{
-    const sData=phaseFinanceTotals(id=>id===s.id);
+    const sData=phaseFinanceTotalsForSchedule(s);
     const pcAmt=pettyCashForSched(s);
     return{...s,agreed:sData.agreed,paid:sData.paid+pcAmt};
   });
@@ -16051,8 +16075,9 @@ function renderSchedSummary(){
   // that schedule — the vendor-row breakdown below is for detail/drill-down, but the
   // top-line figures are authoritative from the shared function, not re-derived here.
   let grandTotal=grandTotalFromRows,grandPaid=grandPaidFromRows;
-  if(schedId&&typeof phaseFinanceTotals==='function'){
-    const authoritative=phaseFinanceTotals(id=>id===schedId);
+  if(schedId&&typeof phaseFinanceTotalsForSchedule==='function'){
+    const schedObj=(DB.schedules||[]).find(s=>s.id===schedId);
+    const authoritative=schedObj?phaseFinanceTotalsForSchedule(schedObj):phaseFinanceTotals(id=>id===schedId);
     grandTotal=Math.round(authoritative.agreed*100)/100;
     grandPaid=Math.round(authoritative.paid*100)/100;
   }
