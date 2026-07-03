@@ -13834,12 +13834,13 @@ function mergeInCloudAdditions(cloud){
       });
     });
   }
-  // actAdhoc / _arAdv: keyed by date/id -> object, shallow-merge missing keys
-  ['actAdhoc','_arAdv'].forEach(f=>{
-    if(!cloud[f]||typeof cloud[f]!=='object'||Array.isArray(cloud[f]))return;
-    if(!DB[f]||typeof DB[f]!=='object')DB[f]={};
-    Object.keys(cloud[f]).forEach(k=>{if(!(k in DB[f]))DB[f][k]=cloud[f][k];});
-  });
+  // actAdhoc / _arAdv are user-EDITABLE dictionaries (advances, ad-hoc line items) —
+  // unlike append-only lists such as bills/flights, deleting a key here is a
+  // legitimate, intentional action. Blindly restoring anything "missing locally
+  // but present in cloud" made deletions impossible to make stick, since the very
+  // next save would fetch the still-stale cloud copy and resurrect it. So these
+  // two fields are deliberately NOT merged this way — a save simply takes
+  // whatever the local value currently is, same as most other single-value fields.
 }
 
 async function _saveToSupabase(){
