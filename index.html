@@ -16015,11 +16015,20 @@ function renderSchedSummary(){
   // what the Dashboard's Production Finance panel shows for the same schedule
   // (which already includes these bill-less entries). Each entry gets its own
   // row too, same reasoning as bills above — no silent consolidation.
+  //
+  // This also includes the same date-range fallback used by
+  // phaseFinanceTotalsForSchedule() — untagged entries (no schedId) that aren't
+  // Remuneration and whose date falls within this schedule's own dates. Without
+  // this, the report's total (which does include that fallback money) would
+  // never match the sum of the vendor rows shown below it.
   const billedIds=new Set((DB.bills||[]).map(b=>b.id));
+  const schedObjForRows=(DB.schedules||[]).find(s=>s.id===schedId);
   if(schedId){
     Object.values(DB.paytracker||{}).filter(day=>day&&typeof day==="object"&&!Array.isArray(day)).forEach(day=>{
       (day.entries||[]).forEach(e=>{
-        if(e.schedId!==schedId)return;
+        const isExplicit=e.schedId===schedId;
+        const isFallback=!e.schedId&&(e.cat||'').toLowerCase()!=='remuneration'&&schedObjForRows?.startDate&&schedObjForRows?.endDate&&(e.invDate||'')>=schedObjForRows.startDate&&(e.invDate||'')<=schedObjForRows.endDate;
+        if(!isExplicit&&!isFallback)return;
         if(e.billId&&billedIds.has(e.billId))return; // already represented by its bill above
         const key='pt:'+e.id;
         byVendor[key]={vendor:e.vendor||'Unknown',bills:[],dates:new Set(),total:0,paid:0,dept:e.cat||'',sub:'',hasLegacyBill:false,legacyBillId:null,fromPayTracker:true};
