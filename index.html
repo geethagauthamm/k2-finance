@@ -5759,10 +5759,15 @@ function addUnmatchedAsArtist(name,btn){
   const nm=(name||'').toLowerCase().trim();
   const already=DB._arArtists.some(a=>(a.name||'').toLowerCase().trim()===nm);
   if(already){toast('Already in Artists & Contracts');return;}
-  DB._arArtists.push({id:uid(),name:name,pkg:0});
+  DB._arArtists.push({
+    id:typeof arUid==='function'?arUid():uid(),name:name,
+    char:'',cat:'Primary',ptype:'Package Fixed',
+    pkg:0,gdays:0,xday:0,pday:0,agent:'',notes:'Auto-added from Unmatched ATL Entries — fill in package amount'
+  });
   saveDB();
-  toast('✓ Added "'+name+'" to Artists & Contracts — their payments are now linked');
+  toast('✓ Added "'+name+'" to Artists & Contracts — their payments are now linked, fill in package amount next');
   if(typeof renderFinancePhases==='function')renderFinancePhases();
+  if(typeof arRenderRoster==='function')arRenderRoster();
   const row=btn.closest('div[style*="border-bottom:1px solid #1e293b"]');
   if(row)row.remove();
 }
@@ -13229,6 +13234,23 @@ function init(){
   // Self-heal: fix any paytracker day whose .entries got corrupted into a non-array
   // (this previously crashed renderDash/renderInbox/renderVendorPayHistory entirely)
   if(sanitizePaytracker())saveDB();
+  // Self-heal: repair any artist records missing category/payment-type fields
+  // (an earlier version of the ATL quick-add tool created incomplete records,
+  // which rendered as literal "undefined" in the Artists & Contracts table).
+  if(DB._arArtists&&DB._arArtists.length){
+    let arFixed=false;
+    DB._arArtists.forEach(a=>{
+      if(a.cat===undefined){a.cat='Primary';arFixed=true;}
+      if(a.ptype===undefined){a.ptype='Package Fixed';arFixed=true;}
+      if(a.char===undefined){a.char='';arFixed=true;}
+      if(a.agent===undefined){a.agent='';arFixed=true;}
+      if(a.pkg===undefined){a.pkg=0;arFixed=true;}
+      if(a.gdays===undefined){a.gdays=0;arFixed=true;}
+      if(a.xday===undefined){a.xday=0;arFixed=true;}
+      if(a.pday===undefined){a.pday=0;arFixed=true;}
+    });
+    if(arFixed)saveDB();
+  }
   // Auto-snapshot every 5 minutes
   if(!window._autoSnapshotTimer){
     window._autoSnapshotTimer=setInterval(autoSnapshot,5*60*1000);
