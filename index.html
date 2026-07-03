@@ -5759,11 +5759,15 @@ function addUnmatchedAsArtist(name,btn){
   const nm=(name||'').toLowerCase().trim();
   const already=DB._arArtists.some(a=>(a.name||'').toLowerCase().trim()===nm);
   if(already){toast('Already in Artists & Contracts');return;}
+  const newId='ar_'+uid(); // distinctly prefixed to avoid any collision with legacy/orphaned _arAdv keys
   DB._arArtists.push({
-    id:typeof arUid==='function'?arUid():uid(),name:name,
+    id:newId,name:name,
     char:'',cat:'Primary',ptype:'Package Fixed',
     pkg:0,gdays:0,xday:0,pday:0,agent:'',notes:'Auto-added from Unmatched ATL Entries — fill in package amount'
   });
+  // Belt-and-suspenders: explicitly ensure no stray advance data exists under
+  // this new id before it's ever used, in case of any leftover orphaned record.
+  if(DB._arAdv&&DB._arAdv[newId])delete DB._arAdv[newId];
   saveDB();
   toast('✓ Added "'+name+'" to Artists & Contracts — their payments are now linked, fill in package amount next');
   if(typeof renderFinancePhases==='function')renderFinancePhases();
