@@ -3324,6 +3324,7 @@ function inboxMarkPaid(id,action){
     if(!e.comments)e.comments=[];
     e.comments.push({date:now.toLocaleDateString('en-IN'),text:'Payment: Paid'+(utr?' | UTR: '+utr:'')+(comment?' ('+comment+')':''),status:e.producerStatus});
   }
+  syncBillFromPaytrackerEntry(e);
   sv();
   const card=document.getElementById('inbox-card-'+id);
   if(card){card.style.opacity='0.3';card.style.transition='opacity 0.3s';}
@@ -3780,8 +3781,10 @@ function saveHistEntryStatus(id){
   if(!e.comments)e.comments=[];
   if(changes.length){e.comments.push({date:new Date().toLocaleDateString('en-IN'),text:changes.join(' | '),status:e.producerStatus});}
   if(comment&&comment.value.trim()){e.comments.push({date:new Date().toLocaleDateString('en-IN'),text:comment.value.trim()});comment.value='';}
+  syncBillFromPaytrackerEntry(e);
   sv();renderHistory();renderPending();renderPhaseSummary();
   if(typeof renderDash==='function')renderDash();
+  if(typeof renderBills==='function')renderBills();
   toast(changes.length?'Status updated — dashboard refreshed':'Comment added');
 }
 
@@ -4200,10 +4203,12 @@ function saveHistEdit(){
     if(!e.comments)e.comments=[];
     e.comments.push({date:new Date().toLocaleDateString('en-IN'),text:'[Edit] '+changes.join(' | '),status:e.producerStatus});
   }
+  syncBillFromPaytrackerEntry(e);
   sv();
   // Re-render everywhere it shows, including dashboard
   renderHistory();renderPending();renderPhaseSummary();
   if(typeof renderDash==='function')renderDash();
+  if(typeof renderBills==='function')renderBills();
   closeHistEdit();
   toast(changes.length?'Entry updated — dashboard refreshed':'No changes detected');
 }
@@ -5563,6 +5568,28 @@ function toast(msg,type='ok'){
   const t=document.getElementById('toast');
   const el=document.createElement('div');el.className='ti '+type;el.textContent=msg;t.appendChild(el);
   setTimeout(()=>el.remove(),3200);
+}
+
+// Keeps a Bill's own status in sync with its linked Payment Tracker entry.
+// Bills and Payment Tracker entries can represent the exact same real-world
+// payment (linked via entry.billId) but track their status independently —
+// marking a Payment Tracker entry 'Paid' previously never touched the linked
+// Bill, so the Bill could sit showing 'Approved' forever even after the money
+// was actually paid. Call this right after any change to a paytracker entry's
+// payStatus.
+function syncBillFromPaytrackerEntry(e){
+  if(!e||!e.billId)return;
+  const b=(DB.bills||[]).find(x=>x.id===e.billId);
+  if(!b)return;
+  if(e.payStatus==='pay-paid'&&b.status!=='paid'){
+    b.status='paid';
+    b.paidAt=e.payDate?new Date(e.payDate).toISOString():new Date().toISOString();
+  }else if(e.payStatus!=='pay-paid'&&b.status==='paid'){
+    // Payment was reverted from Paid — un-mark the bill too, so it doesn't
+    // silently claim to be paid when the linked payment no longer is.
+    b.status='approved';
+    b.paidAt=null;
+  }
 }
 
 // Custom confirm dialog — replaces native confirm()/window.confirm for flows that may
@@ -17826,7 +17853,9 @@ function viewBill(id){
     <td style="padding:6px 8px;border:1px solid var(--bd);text-align:right;font-family:monospace;font-weight:700;color:${isPaid?'#22c55e':'var(--gn)'}">${fmt(item.amount||0)}</td>
   </tr>`).join('');
   const PHASE_CODES_FOR_SELECT=['ATL','PRE','POST','MKT','ADMIN'];
-  const currentPhaseValue=b.schedId?(PHASE_CODES_FOR_SELECT.includes(b.schedId)?b.schedId:'SCHED:'+b.schedId):'';
+  const LEGACY_ATL_IDS=['atl-artist','atl-director','atl-dop','atl-writer','atl-music','atl-playback'];
+  const normalizedSchedId=LEGACY_ATL_IDS.includes(b.schedId)?'ATL':b.schedId;
+  const currentPhaseValue=normalizedSchedId?(PHASE_CODES_FOR_SELECT.includes(normalizedSchedId)?normalizedSchedId:'SCHED:'+normalizedSchedId):'';
   const schedOptions=getPhaseOptionsHtml(currentPhaseValue);
   document.getElementById('bill-modal-body').innerHTML=`
     <div style="position:relative">
@@ -18400,8 +18429,10 @@ function renderBills(){
   // created through several different flows (scan approval, batch entry, topsheets),
   // not a single simple add-form like the other lists.
   const PHASE_CODES=['ATL','PRE','POST','MKT','ADMIN'];
+  const LEGACY_ATL_IDS=['atl-artist','atl-director','atl-dop','atl-writer','atl-music','atl-playback'];
   const groups=groupByPhase(bills,b=>{
     if(!b.schedId)return '';
+    if(LEGACY_ATL_IDS.includes(b.schedId))return 'ATL';
     if(PHASE_CODES.includes(b.schedId)||b.schedId.startsWith('SCHED:'))return b.schedId; // new-style value
     return 'SCHED:'+b.schedId; // legacy bill — raw schedule id with no prefix
   });
