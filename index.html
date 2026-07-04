@@ -16789,10 +16789,10 @@ function openFlexTopsheet(){
   document.getElementById('fx-range-to').value='';
   const dl=document.getElementById('fx-vendor-list');
   if(dl)dl.innerHTML=(DB.vendors||[]).map(v=>`<option value="${v.name}">`).join('');
-  const deptSel=document.getElementById('fx-dept');
-  if(deptSel){
+  const deptList=document.getElementById('fx-dept-list');
+  if(deptList){
     const cats=[...new Set(allItems().map(e=>e.cat))].sort();
-    deptSel.innerHTML='<option value="">— Select category —</option>'+cats.map(c=>`<option value="${c.replace(/"/g,'&quot;')}">${c}</option>`).join('');
+    deptList.innerHTML=cats.map(c=>`<option value="${c.replace(/"/g,'&quot;')}">`).join('');
   }
   const schSel=document.getElementById('fx-sched');
   if(schSel){
@@ -16857,11 +16857,12 @@ function fxEditBill(billId){
   const dl=document.getElementById('fx-vendor-list');
   if(dl)dl.innerHTML=(DB.vendors||[]).map(v=>`<option value="${v.name}">`).join('');
   const deptSel=document.getElementById('fx-dept');
-  if(deptSel){
+  const deptList2=document.getElementById('fx-dept-list');
+  if(deptList2){
     const cats=[...new Set(allItems().map(e=>e.cat))].sort();
-    deptSel.innerHTML='<option value="">— Select category —</option>'+cats.map(c=>`<option value="${c.replace(/"/g,'&quot;')}">${c}</option>`).join('');
-    deptSel.value=b.department||'';
+    deptList2.innerHTML=cats.map(c=>`<option value="${c.replace(/"/g,'&quot;')}">`).join('');
   }
+  if(deptSel)deptSel.value=b.department||'';
   const schSel=document.getElementById('fx-sched');
   if(schSel){
     schSel.innerHTML='<option value="">— No schedule —</option>'+(DB.schedules||[]).map(s=>`<option value="${s.id}">${s.name}</option>`).join('');
@@ -19899,9 +19900,8 @@ function arRenderPayables(){
       <div class="field"><label>Bill No.</label><input id="fx-billno" placeholder="Optional"></div>
       <div class="field"><label>Bill Date</label><input type="date" id="fx-billdate"></div>
       <div class="field"><label>Department</label>
-        <select id="fx-dept" onchange="fxDeptChanged()">
-          <option value="">— Select category —</option>
-        </select>
+        <input list="fx-dept-list" id="fx-dept" placeholder="Select or type a new category…" onchange="fxDeptChanged()">
+        <datalist id="fx-dept-list"></datalist>
       </div>
       <div class="field"><label>Division / Group Name <span class="xs3 dim">(e.g. Lightmen, DMX Operators, Riggers — or for Food Expenses: Mess, Special Food, Production Expenses)</span></label>
         <input type="text" id="fx-subdept" placeholder="e.g. Lightmen" style="width:100%;box-sizing:border-box" oninput="fxUpdateExtrasVisibility()">
