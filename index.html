@@ -355,6 +355,10 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-siz
 .field input,.field select,.field textarea{width:100%;font-size:13px;padding:6px 9px;background:#1e293b;border:1px solid #334155;border-radius:7px;color:#e2e8f0;outline:none}
 .field input:focus,.field select:focus,.field textarea:focus{border-color:#3b82f6}
 .field select option{background:#1e293b}
+.field{position:relative}
+.field input.field-locked{background:#0f172a;color:#94a3b8;cursor:default;padding-right:28px}
+.field-edit-btn{position:absolute;right:6px;top:26px;background:none;border:none;color:#60a5fa;cursor:pointer;font-size:13px;padding:2px;line-height:1}
+.field-edit-btn:hover{color:#93c5fd}
 .static{font-size:14px;font-weight:600;color:#f1f5f9;padding:5px 0}
 .add-row{display:grid;grid-template-columns:1.4fr 1fr 1.2fr 1fr 1fr 1fr 1fr auto;gap:8px;align-items:end}
 /* ── SEARCH ── */
@@ -3089,6 +3093,53 @@ function findPossibleDuplicateEntries(vendor,amt,cat,excludeId){
   return out;
 }
 
+// ── LOCK-ON-ENTER ─────────────────────────────────────────────────────────
+// Pressing Enter in a text/number field "commits" it — makes it read-only
+// and shows a small ✎ icon to re-open it for editing. This only reliably
+// works on STATIC forms (like Add Entry forms) — fields inside tables that
+// get rebuilt via innerHTML on every render would just lose this state on
+// the next redraw, so those aren't wired up this way.
+function initLockOnEnter(containerSelector){
+  var container=document.querySelector(containerSelector);
+  if(!container)return;
+  container.querySelectorAll('input[type="text"], input[type="number"], input:not([type])').forEach(function(el){
+    if(el.dataset.lockInit)return; // avoid double-binding if called more than once
+    el.dataset.lockInit='1';
+    el.addEventListener('keydown',function(e){
+      if(e.key==='Enter'){
+        e.preventDefault();
+        if(el.value.trim()!=='')lockField(el);
+      }
+    });
+  });
+}
+function lockField(el){
+  el.readOnly=true;
+  el.classList.add('field-locked');
+  var next=el.nextElementSibling;
+  if(!next||!next.classList||!next.classList.contains('field-edit-btn')){
+    var btn=document.createElement('button');
+    btn.type='button';
+    btn.className='field-edit-btn';
+    btn.title='Edit this field';
+    btn.textContent='✎';
+    btn.onclick=function(ev){ev.preventDefault();ev.stopPropagation();unlockField(el);};
+    el.insertAdjacentElement('afterend',btn);
+  }
+}
+function unlockField(el){
+  el.readOnly=false;
+  el.classList.remove('field-locked');
+  el.focus();
+  var next=el.nextElementSibling;
+  if(next&&next.classList&&next.classList.contains('field-edit-btn'))next.remove();
+}
+function unlockAllIn(containerSelector){
+  var container=document.querySelector(containerSelector);
+  if(!container)return;
+  container.querySelectorAll('input.field-locked').forEach(function(el){unlockField(el);});
+}
+
 function openPTPasteImport(){
   document.getElementById('pt-paste-input').value='';
   document.getElementById('pt-paste-preview').innerHTML='';
@@ -3223,6 +3274,7 @@ function addEntry(){
   S[A].entries.push(newEntry);
   sv();
   ['in-vendor','in-inv','in-desc','in-amt','in-invdate','in-duedate','in-sub'].forEach(function(id){document.getElementById(id).value='';});
+  unlockAllIn('#add-card');
   document.getElementById('in-billid').value='';
   renderEntries();renderTabs();fillDropdowns();toast('Entry added — linked to bill');
 }
@@ -6094,7 +6146,7 @@ function _renderPageCore(p){
   else if(p==='daysheet')renderDaySheet();
   else if(p==='pending')renderPQ();
   else if(p==='actors')renderActors();
-  else if(p==='payments'){initPayments();payShowView('today');}
+  else if(p==='payments'){initPayments();payShowView('today');initLockOnEnter('#add-card');}
   else if(p==='salaries'){renderSalaryEntries();}
   else if(p==='admin-charges'){renderAdminCharges();}
   else if(p==='hotels'){renderHotels();}
