@@ -15728,8 +15728,12 @@ function tsbSave(){
       const lineDays=l.count||1;
       const perDayAmt=Math.round(((effAmt+allow)/lineDays)*100)/100;
 
-      // Check if this category/sub exists in that day's estimates
-      const existsInEstimates=(DB.estimates||[]).some(e=>e.date===d&&e.cat===l.cat&&(e.sub===l.sub||!l.sub));
+      // Check if this exact category + sub + item (role) exists in that day's
+      // estimates — matching only on category/sub was wrong, since roles like
+      // Lightmen Head, 1st Assistant, and 2nd Assistant all share the same
+      // category+sub but are genuinely different line items with their own
+      // separate estimate rows.
+      const existsInEstimates=(DB.estimates||[]).some(e=>e.date===d&&e.cat===l.cat&&(e.sub===l.sub||!l.sub)&&e.liKey===(l.cat+'|'+(l.sub||'')+'|'+l.item));
       if(!existsInEstimates){
         undeclaredFlags.push({date:d,item:l.item,cat:l.cat});
       }
@@ -15761,7 +15765,7 @@ function tsbSave(){
           const isDay=l.rateType==='Per Day'||l.rateType==='Per Head';
           const dayRate=isDay?l.rate:isCS?l.rate*l.cs:l.rate;
           if(dayRate<=0)return;
-          const existsInEstimates=(DB.estimates||[]).some(e=>e.date===d&&e.cat===l.cat);
+          const existsInEstimates=(DB.estimates||[]).some(e=>e.date===d&&e.cat===l.cat&&(e.sub===l.sub||!l.sub)&&e.liKey===(l.cat+'|'+(l.sub||'')+'|'+l.item));
           if(!existsInEstimates)undeclaredFlags.push({date:d,item:l.item+' — '+ex.label,cat:l.cat});
           DB.actAdhoc[d].push({id:uid(),cat:l.cat,
             item:`${vendor} — ${l.item} — ${ex.label}`,
@@ -17518,12 +17522,17 @@ function fxSave(){
     const breakdown=_fxRoles.filter(r=>(row.roleData[r.id]?.count||0)>0)
       .map(r=>{const rd=row.roleData[r.id];return `${r.label} ${rd.count}×${fmt(rd.rate)}`;}).join(', ');
     const remarksParts=[row.deviationNote,row.otherChargesNote,row.remarks].filter(Boolean);
-    // Check estimates by category only — per Excel structure, vendor names don't need to match
-    const existsInEstimates=(DB.estimates||[]).some(e=>e.date===d&&e.cat===dept);
+    // Check each active role (Head, 1st Asst, etc.) against its own specific
+    // Rate Card line item — not just "does anything in this category exist".
+    // Roles without a configured liKey can't be checked precisely, so they're
+    // not counted as missing (unknown, not "not in estimates").
+    const activeRoles=_fxRoles.filter(r=>(row.roleData[r.id]?.count||0)>0);
+    const missingRoles=activeRoles.filter(r=>r.liKey&&!(DB.estimates||[]).some(e=>e.date===d&&e.liKey===r.liKey));
+    const existsInEstimates=missingRoles.length===0;
     DB.actAdhoc[d].push({id:uid(),cat:dept,
       item:`${vendor}${row.splitTag?' — '+row.splitTag:''} (${breakdown||'no roles'})`,
       actCS:row.cs||0,count:1,actAmt:rowTotal,
-      notes:`Flexible topsheet — Bill #${billNo||''} · ${row.dayType}${remarksParts.length?' · '+remarksParts.join(' · '):''}`,
+      notes:`Flexible topsheet — Bill #${billNo||''} · ${row.dayType}${remarksParts.length?' · '+remarksParts.join(' · '):''}${missingRoles.length?' · Missing from Estimates: '+missingRoles.map(r=>r.label).join(', '):''}`,
       billId,_fromBill:true,_perBillReceived:true,_notInEstimates:!existsInEstimates});
   });
 
@@ -17599,11 +17608,13 @@ function fxUpdateBill(){
     const breakdown=_fxRoles.filter(r=>(row.roleData[r.id]?.count||0)>0)
       .map(r=>{const rd=row.roleData[r.id];return `${r.label} ${rd.count}×${fmt(rd.rate)}`;}).join(', ');
     const remarksParts=[row.deviationNote,row.otherChargesNote,row.remarks].filter(Boolean);
-    const existsInEstimates=(DB.estimates||[]).some(e=>e.date===d&&e.cat===dept);
+    const activeRoles=_fxRoles.filter(r=>(row.roleData[r.id]?.count||0)>0);
+    const missingRoles=activeRoles.filter(r=>r.liKey&&!(DB.estimates||[]).some(e=>e.date===d&&e.liKey===r.liKey));
+    const existsInEstimates=missingRoles.length===0;
     DB.actAdhoc[d].push({id:uid(),cat:dept,
       item:`${vendor}${row.splitTag?' — '+row.splitTag:''} (${breakdown||'no roles'})`,
       actCS:row.cs||0,count:1,actAmt:rowTotal,
-      notes:`Flexible topsheet (edited) — Bill #${billNo||''} · ${row.dayType}${remarksParts.length?' · '+remarksParts.join(' · '):''}`,
+      notes:`Flexible topsheet (edited) — Bill #${billNo||''} · ${row.dayType}${remarksParts.length?' · '+remarksParts.join(' · '):''}${missingRoles.length?' · Missing from Estimates: '+missingRoles.map(r=>r.label).join(', '):''}`,
       billId,_fromBill:true,_perBillReceived:true,_notInEstimates:!existsInEstimates});
   });
 
