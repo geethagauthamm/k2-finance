@@ -2207,7 +2207,7 @@ body.auditor-mode #save-btn { display:none !important; }
 
   <!-- ADD ENTRY -->
   <div class="card np" id="add-card">
-    <div class="ct">Add payment entry</div>
+    <div class="ct flex jb aic">Add payment entry <button class="btn bs xs" onclick="openPTPasteImport()">📋 Paste from Excel</button></div>
     <div class="add-row">
       <div class="field"><label>Vendor / payee</label><input id="in-vendor" placeholder="Name"></div>
       <div class="field"><label>Invoice no.</label><input id="in-inv" placeholder="INV-001"></div>
@@ -3089,6 +3089,94 @@ function findPossibleDuplicateEntries(vendor,amt,cat,excludeId){
   return out;
 }
 
+function openPTPasteImport(){
+  document.getElementById('pt-paste-input').value='';
+  document.getElementById('pt-paste-preview').innerHTML='';
+  document.getElementById('pt-paste-count').textContent='';
+  document.getElementById('pt-paste-confirm').style.display='none';
+  document.getElementById('pt-paste-modal').style.display='flex';
+}
+function closePTPasteImport(){document.getElementById('pt-paste-modal').style.display='none';}
+// Accepts DD/MM/YYYY, DD-MM-YYYY, or YYYY-MM-DD and returns YYYY-MM-DD, or null if unparseable.
+function parseFlexDate(s){
+  s=(s||'').trim();
+  if(!s)return null;
+  if(/^\d{4}-\d{2}-\d{2}$/.test(s))return s;
+  var m=s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);
+  if(m){
+    var dd=m[1].padStart(2,'0'),mm=m[2].padStart(2,'0'),yyyy=m[3];
+    return yyyy+'-'+mm+'-'+dd;
+  }
+  return null;
+}
+var _ptPasteRows=[];
+function parsePTPaste(){
+  var raw=document.getElementById('pt-paste-input').value;
+  var lines=raw.split(/\r?\n/).map(function(l){return l.trim();}).filter(Boolean);
+  var CAT_LIST=['Reimbursements','Battas','Advance against Requisition','Hire','Manpower','Wages','Food','Utilities','Purchases','Materials','Contractual Amount','Remuneration','Salary','Costumes','Make Up','Prosthetic','Art','Equipment rental','Location fees','Crew payments','Transport & logistics','Catering','Post production','Miscellaneous'];
+  _ptPasteRows=[];
+  lines.forEach(function(line,i){
+    var cols=line.split('\t');
+    if(cols.length<8&&i===0){return;} // likely a header row with too few tab-separated cells, skip silently
+    var date=parseFlexDate(cols[0]);
+    var vendor=(cols[1]||'').trim();
+    var cat=(cols[2]||'').trim();
+    var sub=(cols[3]||'').trim();
+    var desc=(cols[4]||'').trim();
+    var invDate=parseFlexDate(cols[5])||'';
+    var dueDate=parseFlexDate(cols[6])||'';
+    var amt=parseFloat((cols[7]||'').replace(/[₹,]/g,''));
+    var paidFlag=(cols[8]||'').trim().toLowerCase();
+    var isPaid=paidFlag==='y'||paidFlag==='yes'||paidFlag==='paid';
+    var utr=(cols[9]||'').trim();
+    var payDate=parseFlexDate(cols[10])||date;
+    var rowErrors=[];
+    if(!date)rowErrors.push('bad/missing date');
+    if(!vendor)rowErrors.push('missing vendor');
+    if(isNaN(amt)||amt<=0)rowErrors.push('bad/missing amount');
+    var catKnown=CAT_LIST.some(function(c){return c.toLowerCase()===cat.toLowerCase();});
+    _ptPasteRows.push({date:date,vendor:vendor,cat:cat,catKnown:catKnown,sub:sub,desc:desc,invDate:invDate,dueDate:dueDate,amt:amt,isPaid:isPaid,utr:utr,payDate:payDate,errors:rowErrors});
+  });
+  var validCount=_ptPasteRows.filter(function(r){return r.errors.length===0;}).length;
+  document.getElementById('pt-paste-count').textContent=_ptPasteRows.length+' row(s) parsed — '+validCount+' ready to import';
+  document.getElementById('pt-paste-preview').innerHTML='<div class="tw" style="max-height:340px;overflow-y:auto"><table><thead><tr><th>Date</th><th>Vendor</th><th>Category</th><th>Sub</th><th>Amount</th><th>Paid?</th><th>Issue</th></tr></thead><tbody>'+
+    _ptPasteRows.map(function(r){
+      var bad=r.errors.length>0;
+      return'<tr style="'+(bad?'background:rgba(239,68,68,.07)':'')+'">'+
+        '<td class="xs2">'+(r.date||'—')+'</td>'+
+        '<td class="xs2 semi">'+(r.vendor||'—')+'</td>'+
+        '<td class="xs2">'+(r.cat||'—')+(r.cat&&!r.catKnown?' <span style="color:#ef4444" title="Not an exact match to an existing category — will still import as typed">⚠</span>':'')+'</td>'+
+        '<td class="xs2">'+(r.sub||'—')+'</td>'+
+        '<td class="tn tr">'+(isNaN(r.amt)?'—':fmt(r.amt))+'</td>'+
+        '<td class="xs2">'+(r.isPaid?'✓ Paid':'—')+'</td>'+
+        '<td class="xs3" style="color:#ef4444">'+(r.errors.join(', ')||'')+'</td>'+
+      '</tr>';
+    }).join('')+'</tbody></table></div>';
+  document.getElementById('pt-paste-confirm').style.display=validCount?'':'none';
+}
+function confirmPTPasteImport(){
+  var valid=_ptPasteRows.filter(function(r){return r.errors.length===0;});
+  if(!valid.length)return;
+  var count=0;
+  valid.forEach(function(r){
+    if(!DB.paytracker[r.date])DB.paytracker[r.date]={entries:[]};
+    if(!DB.paytracker[r.date].entries)DB.paytracker[r.date].entries=[];
+    var entry={id:uid()+'_'+Date.now(),vendor:r.vendor,inv:'',cat:r.cat,sub:r.sub,desc:r.desc,
+      invDate:r.invDate,dueDate:r.dueDate,amt:r.amt,schedId:'',billId:'',
+      producerStatus:r.isPaid?'approved':'pending',producerComment:'',producerApprovedAmt:null,
+      accStatus:r.isPaid?'acc-approved':'acc-pending',accComment:'',accApprovedAmt:null,
+      payStatus:r.isPaid?'pay-paid':'pay-awaiting',payUTR:r.utr,payDate:r.isPaid?r.payDate:'',payAmt:r.isPaid?r.amt:null,
+      payUnpaidReason:'',payPartialReason:'',payHoldReason:'',paySettledReason:'',payComment:'',
+      comments:[{date:fmtD(new Date().toISOString().slice(0,10)),text:'Imported from Excel paste'+(r.isPaid?' — marked Paid':''),status:r.isPaid?'approved':'pending'}]};
+    autoPhase(entry);
+    DB.paytracker[r.date].entries.push(entry);
+    count++;
+  });
+  saveDB();
+  closePTPasteImport();
+  renderEntries();renderTabs();fillDropdowns();
+  toast('✓ Imported '+count+' payment(s) from Excel');
+}
 function addEntry(){
   var vendor=document.getElementById('in-vendor').value.trim();
   var inv=document.getElementById('in-inv').value.trim();
@@ -4200,6 +4288,8 @@ function openHistEdit(id){
   _heditId=id;
   // Core fields
   document.getElementById('hedit-vendor').value=e.vendor||'';
+  document.getElementById('hedit-cat').value=e.cat||'';
+  document.getElementById('hedit-sub').value=e.sub||'';
   document.getElementById('hedit-inv').value=e.inv||'';
   document.getElementById('hedit-amt').value=e.amt||'';
   document.getElementById('hedit-desc').value=e.desc||'';
@@ -4269,6 +4359,10 @@ function saveHistEdit(){
   if(newVendor&&newVendor!==e.vendor){changes.push('Vendor updated');e.vendor=newVendor;}
   var newInv=document.getElementById('hedit-inv').value.trim();
   if(newInv!==e.inv){e.inv=newInv;}
+  var newCat=document.getElementById('hedit-cat').value;
+  if(newCat!==(e.cat||'')){changes.push('Category: '+(e.cat||'—')+' → '+(newCat||'—'));e.cat=newCat;}
+  var newSub=document.getElementById('hedit-sub').value.trim();
+  if(newSub!==(e.sub||'')){changes.push('Sub-Category: '+(e.sub||'—')+' → '+(newSub||'—'));e.sub=newSub;}
   var newAmt=parseFloat(document.getElementById('hedit-amt').value)||0;
   if(newAmt&&newAmt!==Number(e.amt)){changes.push('Amount: ₹'+fm(e.amt)+' → ₹'+fm(newAmt));e.amt=newAmt;}
   var newDesc=document.getElementById('hedit-desc').value.trim();
@@ -19599,6 +19693,9 @@ function arRenderPayables(){
     </div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">
       <div class="fld" style="grid-column:1/-1"><label>Vendor / Party</label><input id="hedit-vendor" placeholder="Vendor name"></div>
+      <div class="fld"><label>Category</label><select id="hedit-cat" style="background:#1e293b;border:1px solid #334155;border-radius:6px;color:#e2e8f0;font-size:12px;padding:6px 8px;outline:none;width:100%"><option value="">— None —</option><option value="Reimbursements">Reimbursements</option><option value="Battas">Battas</option><option value="Advance against Requisition">Advance against Requisition</option><option value="Hire">Hire</option><option value="Manpower">Manpower</option><option value="Wages">Wages</option><option value="Food">Food</option><option value="Utilities">Utilities</option><option value="Purchases">Purchases</option><option value="Materials">Materials</option><option value="Contractual Amount">Contractual Amount</option><option value="Remuneration">Remuneration</option><option value="Salary">Salary</option><option value="Costumes">Costumes</option><option value="Make Up">Make Up</option><option value="Prosthetic">Prosthetic</option><option value="Art">Art</option><option value="Equipment rental">Equipment rental</option><option value="Location fees">Location fees</option><option value="Crew payments">Crew payments</option><option value="Transport &amp; logistics">Transport &amp; logistics</option><option value="Catering">Catering</option><option value="Post production">Post production</option><option value="Miscellaneous">Miscellaneous</option></select></div>
+      <div class="fld"><label>Sub-Category</label><input id="hedit-sub" placeholder="e.g. Battas, Setup, Hire..." style="background:#1e293b;border:1px solid #334155;border-radius:6px;color:#e2e8f0;font-size:12px;padding:6px 8px;outline:none;width:100%"></div>
+      <div class="fld"><label>Sub-Category</label><input id="hedit-sub" placeholder="e.g. Battas, Setup, Hire..."></div>
       <div class="fld"><label>Invoice No.</label><input id="hedit-inv" placeholder="Invoice #"></div>
       <div class="fld"><label>Amount (₹)</label><input id="hedit-amt" type="number" placeholder="0"></div>
       <div class="fld" style="grid-column:1/-1"><label>Description</label><input id="hedit-desc" placeholder="Description / narration"></div>
@@ -19705,6 +19802,22 @@ function arRenderPayables(){
       <div class="fld" style="min-width:180px;flex:2"><label>Notes / Deal Terms</label><input type="text" id="aredit-notes" placeholder="Deal terms…"></div>
     </div>
     <div class="flex jc gap8"><button class="btn bs" onclick="arCloseEdit()">Cancel</button><button class="btn bg" onclick="arSaveEditModal()">Save Changes</button></div>
+  </div>
+</div>
+
+<!-- PAYMENT TRACKER PASTE-FROM-EXCEL MODAL -->
+<div class="modal-bg" id="pt-paste-modal" style="display:none">
+  <div class="modal" style="width:min(96vw,980px);max-height:88vh;overflow-y:auto">
+    <h3>📋 Paste Payments from Excel</h3>
+    <div class="xs2 dim" style="margin-bottom:10px">
+      Copy rows from Excel and paste below. Expected column order (tab-separated, matching a normal Excel copy):<br>
+      <strong>Date · Vendor · Category · Sub-Category · Description · Invoice Date · Due Date · Amount · Paid? (Y/N) · UTR · Pay Date</strong><br>
+      Dates can be in DD/MM/YYYY, DD-MM-YYYY, or YYYY-MM-DD. Category should match one of the existing dropdown options — if it doesn't, it's still imported but flagged for you to check. Sub-Category, UTR, and Pay Date are optional — leave the cell blank if not applicable.
+    </div>
+    <textarea id="pt-paste-input" rows="6" style="width:100%;font-family:'JetBrains Mono',monospace;font-size:11px;padding:8px;border-radius:6px;border:1px solid var(--bd2);background:var(--sf)" placeholder="Paste tab-separated rows here..."></textarea>
+    <div class="flex gap8" style="margin:10px 0"><button class="btn bg sm" onclick="parsePTPaste()">Preview</button><span class="xs3 dim" id="pt-paste-count"></span></div>
+    <div id="pt-paste-preview"></div>
+    <div class="flex jc gap8" style="margin-top:14px"><button class="btn bs" onclick="closePTPasteImport()">Cancel</button><button class="btn bg" id="pt-paste-confirm" style="display:none" onclick="confirmPTPasteImport()">Import All</button></div>
   </div>
 </div>
 
