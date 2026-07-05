@@ -9269,6 +9269,8 @@ function openActorLogTopsheet(){
   });
   document.getElementById('alog-tsb-names').innerHTML=[...names].sort().map(n=>`<option value="${n.replace(/"/g,'&quot;')}">`).join('');
   document.getElementById('alog-tsb-depts').innerHTML=[...depts].sort().map(d=>`<option value="${d.replace(/"/g,'&quot;')}">`).join('');
+  const schedSel=document.getElementById('alog-tsb-sched');
+  schedSel.innerHTML='<option value="">— No schedule —</option>'+(DB.schedules||[]).map(s=>`<option value="${s.id}">${s.name}</option>`).join('');
   document.getElementById('alog-tsb-name').value='';
   document.getElementById('alog-tsb-from').value='';
   document.getElementById('alog-tsb-to').value='';
@@ -9324,24 +9326,30 @@ function confirmActorLogTopsheet(){
   if(!_alogTsbMatches.length)return;
   const name=document.getElementById('alog-tsb-name').value.trim();
   const dept=(document.getElementById('alog-tsb-dept').value||'').trim()||'Miscellaneous';
+  const schedId=document.getElementById('alog-tsb-sched')?.value||'';
   const total=_alogTsbMatches.reduce((s,m)=>s+(m.amount||0),0);
-  const lastDate=_alogTsbMatches[_alogTsbMatches.length-1].date;
-  const breakdown=_alogTsbMatches.map(m=>fmtD(m.date)+': ₹'+fm(m.amount||0)+(m.notes?' ('+m.notes+')':'')).join('; ');
-  if(!DB.paytracker[lastDate])DB.paytracker[lastDate]={entries:[]};
-  if(!DB.paytracker[lastDate].entries)DB.paytracker[lastDate].entries=[];
-  const entry={id:uid()+'_'+Date.now(),vendor:name,inv:'',cat:dept,sub:'',
-    desc:'Generated from Actors Day Log ('+_alogTsbMatches.length+' day'+(_alogTsbMatches.length>1?'s':'')+'): '+breakdown,
-    invDate:lastDate,dueDate:'',amt:total,schedId:'',billId:'',
-    producerStatus:'pending',producerComment:'',producerApprovedAmt:null,
-    accStatus:'acc-pending',accComment:'',accApprovedAmt:null,
-    payStatus:'pay-awaiting',payUTR:'',payDate:'',payAmt:null,
-    payUnpaidReason:'',payPartialReason:'',payHoldReason:'',paySettledReason:'',payComment:'',
-    comments:[{date:fmtD(new Date().toISOString().slice(0,10)),text:'Generated from Actors Day Log',status:'pending'}]};
-  autoPhase(entry);
-  DB.paytracker[lastDate].entries.push(entry);
+  const dates=_alogTsbMatches.map(m=>m.date);
+  const items=_alogTsbMatches.map(m=>({
+    description:name+(m.notes?' — '+m.notes:''),dept,sub:'',
+    qty:m.count||1,rate:m.rate||0,rateType:m.payType||'Per Day',cs:m.cs||0,fixedAllow:0,
+    amount:m.amount||0,_date:m.date,_breakdown:(m.payType||'')+' × '+(m.count||1),_dayType:'',_remarks:m.notes||''
+  }));
+  const bill={
+    id:uid(),uploadedAt:new Date().toISOString(),
+    vendor:name,billNo:'',billDate:new Date().toISOString().slice(0,10),schedId,
+    shootDate:dates[0],shootDateFrom:dates.length>1?dates[0]:null,shootDateTo:dates.length>1?dates[dates.length-1]:null,
+    department:dept,subdept:'',items,subtotal:total,gst:0,total,
+    status:'pending',approvedAt:null,paidAt:null,
+    imageData:null,imageType:null,
+    notes:'Generated from Actors Day Log ('+_alogTsbMatches.length+' day'+(_alogTsbMatches.length>1?'s':'')+')',
+    manpower:null
+  };
+  if(!DB.bills)DB.bills=[];
+  DB.bills.push(bill);
   saveDB();
   closeActorLogTopsheet();
-  toast('✓ Payment entry created for '+name+' — ₹'+fm(total)+' — go to Payments to review and mark paid');
+  if(typeof renderBills==='function')renderBills();
+  toast('✓ Bill created for '+name+' — ₹'+fm(total)+' — find it in Bills Archive to review and approve');
 }
 
 function addManualActorLog(){
@@ -19977,6 +19985,9 @@ function arRenderPayables(){
     <div class="fld" style="margin-bottom:12px"><label>Department / Category (for this payment)</label>
       <input list="alog-tsb-depts" id="alog-tsb-dept" placeholder="e.g. Artist Staff">
       <datalist id="alog-tsb-depts"></datalist>
+    </div>
+    <div class="fld" style="margin-bottom:12px"><label>Schedule</label>
+      <select id="alog-tsb-sched"><option value="">— No schedule —</option></select>
     </div>
     <div id="alog-tsb-preview"></div>
     <div class="flex jc gap8" style="margin-top:14px">
