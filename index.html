@@ -1228,6 +1228,7 @@ body.auditor-mode #save-btn { display:none !important; }
       <input type="date" id="act-day-pick" onchange="actSetDay(this.value)" class="btn bs sm" style="margin-left:8px">
       <button class="btn bs sm no-print" onclick="exportActorsExcel()">⬇ Excel</button>
       <button class="btn bg sm no-print" onclick="toggleAttendanceTracker()" id="alog-tracker-btn">📅 Attendance Tracker</button>
+      <button class="btn bg sm no-print" onclick="openActorLogTopsheet()">🧾 Generate Topsheet</button>
       <button class="btn bs sm no-print" onclick="printPage()" style="margin-left:auto">&#9113; Print</button>
     </div>
     <div class="card no-print" id="attendance-tracker-card" style="display:none"></div>
@@ -9256,6 +9257,92 @@ function actCalc(){
 // DB.actorStaff = { actorId: [{id, role, count, rate, notes}] }
 // ══════════════════════════════════════════
 
+
+function openActorLogTopsheet(){
+  const names=new Set();
+  const depts=new Set();
+  Object.values(DB.actorLog||{}).forEach(entries=>{
+    (entries||[]).forEach(e=>{
+      if(e.name)names.add(e.name);
+      if(e.category)depts.add(e.category);
+    });
+  });
+  document.getElementById('alog-tsb-names').innerHTML=[...names].sort().map(n=>`<option value="${n.replace(/"/g,'&quot;')}">`).join('');
+  document.getElementById('alog-tsb-depts').innerHTML=[...depts].sort().map(d=>`<option value="${d.replace(/"/g,'&quot;')}">`).join('');
+  document.getElementById('alog-tsb-name').value='';
+  document.getElementById('alog-tsb-from').value='';
+  document.getElementById('alog-tsb-to').value='';
+  document.getElementById('alog-tsb-dept').value='';
+  document.getElementById('alog-tsb-preview').innerHTML='';
+  document.getElementById('alog-tsb-confirm').style.display='none';
+  document.getElementById('alog-tsb-modal').style.display='flex';
+}
+function closeActorLogTopsheet(){document.getElementById('alog-tsb-modal').style.display='none';}
+var _alogTsbMatches=[];
+function alogTsbPreview(){
+  const name=(document.getElementById('alog-tsb-name').value||'').trim().toLowerCase();
+  const from=document.getElementById('alog-tsb-from').value;
+  const to=document.getElementById('alog-tsb-to').value;
+  const preview=document.getElementById('alog-tsb-preview');
+  const confirmBtn=document.getElementById('alog-tsb-confirm');
+  if(!name){preview.innerHTML='';confirmBtn.style.display='none';return;}
+  _alogTsbMatches=[];
+  Object.entries(DB.actorLog||{}).forEach(([date,entries])=>{
+    if(from&&date<from)return;
+    if(to&&date>to)return;
+    (entries||[]).forEach(e=>{
+      if((e.name||'').trim().toLowerCase()===name)_alogTsbMatches.push({date,...e});
+    });
+  });
+  _alogTsbMatches.sort((a,b)=>a.date.localeCompare(b.date));
+  if(!_alogTsbMatches.length){
+    preview.innerHTML='<div class="te" style="padding:10px 0">No entries found for this name in that range</div>';
+    confirmBtn.style.display='none';
+    return;
+  }
+  // Suggest a department if not already typed, based on the most common category logged
+  const deptField=document.getElementById('alog-tsb-dept');
+  if(!deptField.value.trim()){
+    const counts={};
+    _alogTsbMatches.forEach(m=>{counts[m.category]=(counts[m.category]||0)+1;});
+    const top=Object.entries(counts).sort((a,b)=>b[1]-a[1])[0];
+    if(top)deptField.value=top[0];
+  }
+  const total=_alogTsbMatches.reduce((s,m)=>s+(m.amount||0),0);
+  preview.innerHTML='<div class="flex jb aic mb8" style="border-top:1px solid var(--bd);padding-top:10px">'+
+    '<span class="ps-hdl">Total</span><span class="ps-nh" style="color:var(--gn)">₹'+fm(total)+'</span></div>'+
+    '<div style="max-height:260px;overflow-y:auto">'+_alogTsbMatches.map(m=>
+      '<div class="flex jb aic" style="padding:5px 0;border-bottom:1px solid var(--bd)">'+
+        '<span class="xs2">'+fmtD(m.date)+'</span>'+
+        '<span class="xs3 dim">'+(m.payType||'')+(m.notes?' · '+esc(m.notes):'')+'</span>'+
+        '<span class="ps-ns">₹'+fm(m.amount||0)+'</span>'+
+      '</div>'
+    ).join('')+'</div>';
+  confirmBtn.style.display='';
+}
+function confirmActorLogTopsheet(){
+  if(!_alogTsbMatches.length)return;
+  const name=document.getElementById('alog-tsb-name').value.trim();
+  const dept=(document.getElementById('alog-tsb-dept').value||'').trim()||'Miscellaneous';
+  const total=_alogTsbMatches.reduce((s,m)=>s+(m.amount||0),0);
+  const lastDate=_alogTsbMatches[_alogTsbMatches.length-1].date;
+  const breakdown=_alogTsbMatches.map(m=>fmtD(m.date)+': ₹'+fm(m.amount||0)+(m.notes?' ('+m.notes+')':'')).join('; ');
+  if(!DB.paytracker[lastDate])DB.paytracker[lastDate]={entries:[]};
+  if(!DB.paytracker[lastDate].entries)DB.paytracker[lastDate].entries=[];
+  const entry={id:uid()+'_'+Date.now(),vendor:name,inv:'',cat:dept,sub:'',
+    desc:'Generated from Actors Day Log ('+_alogTsbMatches.length+' day'+(_alogTsbMatches.length>1?'s':'')+'): '+breakdown,
+    invDate:lastDate,dueDate:'',amt:total,schedId:'',billId:'',
+    producerStatus:'pending',producerComment:'',producerApprovedAmt:null,
+    accStatus:'acc-pending',accComment:'',accApprovedAmt:null,
+    payStatus:'pay-awaiting',payUTR:'',payDate:'',payAmt:null,
+    payUnpaidReason:'',payPartialReason:'',payHoldReason:'',paySettledReason:'',payComment:'',
+    comments:[{date:fmtD(new Date().toISOString().slice(0,10)),text:'Generated from Actors Day Log',status:'pending'}]};
+  autoPhase(entry);
+  DB.paytracker[lastDate].entries.push(entry);
+  saveDB();
+  closeActorLogTopsheet();
+  toast('✓ Payment entry created for '+name+' — ₹'+fm(total)+' — go to Payments to review and mark paid');
+}
 
 function addManualActorLog(){
   const name=(document.getElementById('alog-name')?.value||'').trim();
@@ -19871,6 +19958,31 @@ function arRenderPayables(){
     <div class="flex gap8" style="margin:10px 0"><button class="btn bg sm" onclick="parsePTPaste()">Preview</button><span class="xs3 dim" id="pt-paste-count"></span></div>
     <div id="pt-paste-preview"></div>
     <div class="flex jc gap8" style="margin-top:14px"><button class="btn bs" onclick="closePTPasteImport()">Cancel</button><button class="btn bg" id="pt-paste-confirm" style="display:none" onclick="confirmPTPasteImport()">Import All</button></div>
+  </div>
+</div>
+
+<!-- ACTOR LOG -> TOPSHEET GENERATOR -->
+<div class="modal-bg" id="alog-tsb-modal" style="display:none">
+  <div class="modal" style="width:min(94vw,640px);max-height:88vh;overflow-y:auto">
+    <h3>🧾 Generate Topsheet from Actors Day Log</h3>
+    <div class="xs2 dim" style="margin-bottom:12px">Pick a person and date range — every entry already logged for them under that name gets pulled together into one payment, with the full day-by-day breakdown kept in the notes.</div>
+    <div style="display:flex;flex-wrap:wrap;gap:10px;margin-bottom:10px">
+      <div class="fld" style="flex:2;min-width:180px"><label>Person</label>
+        <input list="alog-tsb-names" id="alog-tsb-name" placeholder="Type or pick a name…" oninput="alogTsbPreview()">
+        <datalist id="alog-tsb-names"></datalist>
+      </div>
+      <div class="fld" style="flex:1;min-width:130px"><label>From</label><input type="date" id="alog-tsb-from" onchange="alogTsbPreview()"></div>
+      <div class="fld" style="flex:1;min-width:130px"><label>To</label><input type="date" id="alog-tsb-to" onchange="alogTsbPreview()"></div>
+    </div>
+    <div class="fld" style="margin-bottom:12px"><label>Department / Category (for this payment)</label>
+      <input list="alog-tsb-depts" id="alog-tsb-dept" placeholder="e.g. Artist Staff">
+      <datalist id="alog-tsb-depts"></datalist>
+    </div>
+    <div id="alog-tsb-preview"></div>
+    <div class="flex jc gap8" style="margin-top:14px">
+      <button class="btn bs" onclick="closeActorLogTopsheet()">Cancel</button>
+      <button class="btn bg" id="alog-tsb-confirm" style="display:none" onclick="confirmActorLogTopsheet()">Create Payment Entry</button>
+    </div>
   </div>
 </div>
 
