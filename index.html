@@ -5908,6 +5908,9 @@ function collectAllPayeeNames(){
   Object.values(DB.paytracker||{}).filter(d=>d&&typeof d==='object'&&!Array.isArray(d)).forEach(day=>{
     (day.entries||[]).forEach(e=>add(e.vendor,'Payment Tracker'));
   });
+  Object.values(DB.actorLog||{}).forEach(entries=>{
+    (entries||[]).forEach(e=>add(e.name,'Actors Day Log'));
+  });
   return[...names.values()];
 }
 function findNameMismatches(){
@@ -5932,6 +5935,9 @@ function renameVendorEverywhere(oldName,newName){
   (DB.bills||[]).forEach(b=>{if((b.vendor||'').toLowerCase().trim()===oldKey){b.vendor=newName;count++;}});
   Object.values(DB.paytracker||{}).filter(d=>d&&typeof d==='object'&&!Array.isArray(d)).forEach(day=>{
     (day.entries||[]).forEach(e=>{if((e.vendor||'').toLowerCase().trim()===oldKey){e.vendor=newName;count++;}});
+  });
+  Object.values(DB.actorLog||{}).forEach(entries=>{
+    (entries||[]).forEach(e=>{if((e.name||'').toLowerCase().trim()===oldKey){e.name=newName;count++;}});
   });
   return count;
 }
@@ -6333,7 +6339,7 @@ let estCurrentDay = tod();
 function startNewDay(){
   const allDates=[...new Set([...DB.estimates.map(e=>e.date),...Object.keys(DB.dayHeaders||{})])].filter(Boolean).sort();
   let newDate;
-  if(allDates.length){const last=allDates[allDates.length-1];const dt=new Date(last+'T00:00:00');dt.setDate(dt.getDate()+1);newDate=dt.toISOString().slice(0,10);}
+  if(allDates.length){const last=allDates[allDates.length-1];const dt=new Date(last+'T00:00:00');dt.setDate(dt.getDate()+1);newDate=dt.getFullYear()+'-'+String(dt.getMonth()+1).padStart(2,'0')+'-'+String(dt.getDate()).padStart(2,'0');}
   else newDate=tod();
   const picked=prompt('New shoot day date (YYYY-MM-DD):',newDate);
   if(!picked)return;
@@ -9329,7 +9335,13 @@ function alogTsbPreview(){
   const allDates=[];
   let d=new Date(from+'T00:00:00');
   const end=new Date(to+'T00:00:00');
-  while(d<=end){allDates.push(d.toISOString().slice(0,10));d.setDate(d.getDate()+1);}
+  while(d<=end){
+    // Use local date parts directly — d.toISOString() converts to UTC, which
+    // for timezones ahead of UTC (like India, UTC+5:30) shifts every date back
+    // by one day, silently dropping the last day of the range from the list.
+    allDates.push(d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'));
+    d.setDate(d.getDate()+1);
+  }
   const byDate={};
   _alogTsbMatches.forEach(m=>{(byDate[m.date]=byDate[m.date]||[]).push(m);});
   const zeroDays=_alogTsbMatches.filter(m=>!(m.amount>0));
@@ -15216,7 +15228,7 @@ function renderSubmitActuals(){
     if(!h.checkIn||!h.checkOut)return;
     let d=new Date(h.checkIn+'T00:00:00');
     const end=new Date(h.checkOut+'T00:00:00');
-    while(d<end){allDates.add(d.toISOString().slice(0,10));d.setDate(d.getDate()+1);}
+    while(d<end){allDates.add(d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'));d.setDate(d.getDate()+1);}
   });
   (DB.flights||[]).forEach(f=>f.date&&allDates.add(f.date));
 
