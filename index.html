@@ -4343,6 +4343,11 @@ function openHistEdit(id){
   document.getElementById('hedit-vendor').value=e.vendor||'';
   document.getElementById('hedit-cat').value=e.cat||'';
   document.getElementById('hedit-sub').value=e.sub||'';
+  var schedSelEl=document.getElementById('hedit-sched');
+  if(schedSelEl){
+    schedSelEl.innerHTML='<option value="">— No schedule —</option>'+(DB.schedules||[]).map(function(s){return'<option value="'+s.id+'">'+s.name+'</option>';}).join('');
+    schedSelEl.value=e.schedId||'';
+  }
   document.getElementById('hedit-inv').value=e.inv||'';
   document.getElementById('hedit-amt').value=e.amt||'';
   document.getElementById('hedit-desc').value=e.desc||'';
@@ -4416,6 +4421,14 @@ function saveHistEdit(){
   if(newCat!==(e.cat||'')){changes.push('Category: '+(e.cat||'—')+' → '+(newCat||'—'));e.cat=newCat;}
   var newSub=document.getElementById('hedit-sub').value.trim();
   if(newSub!==(e.sub||'')){changes.push('Sub-Category: '+(e.sub||'—')+' → '+(newSub||'—'));e.sub=newSub;}
+  var newSchedId=document.getElementById('hedit-sched')?.value||'';
+  if(newSchedId!==(e.schedId||'')){
+    if(newSchedId&&typeof blockIfNotDeclaredArtist==='function'&&blockIfNotDeclaredArtist(newVendor||e.vendor,newSchedId))return;
+    var schedName=newSchedId?((DB.schedules||[]).find(function(s){return s.id===newSchedId;})||{}).name||newSchedId:'— No schedule —';
+    var oldSchedName=e.schedId?((DB.schedules||[]).find(function(s){return s.id===e.schedId;})||{}).name||e.schedId:'— No schedule —';
+    changes.push('Schedule: '+oldSchedName+' → '+schedName);
+    e.schedId=newSchedId;
+  }
   var newAmt=parseFloat(document.getElementById('hedit-amt').value)||0;
   if(newAmt&&newAmt!==Number(e.amt)){changes.push('Amount: ₹'+fm(e.amt)+' → ₹'+fm(newAmt));e.amt=newAmt;}
   var newDesc=document.getElementById('hedit-desc').value.trim();
@@ -9288,60 +9301,136 @@ function alogTsbPreview(){
   const preview=document.getElementById('alog-tsb-preview');
   const confirmBtn=document.getElementById('alog-tsb-confirm');
   if(!name){preview.innerHTML='';confirmBtn.style.display='none';return;}
+  if(!from||!to){
+    preview.innerHTML='<div class="te" style="padding:10px 0">Pick both a From and To date to see every day in the range, including ones with no logged entry yet.</div>';
+    confirmBtn.style.display='none';
+    return;
+  }
   _alogTsbMatches=[];
   Object.entries(DB.actorLog||{}).forEach(([date,entries])=>{
-    if(from&&date<from)return;
-    if(to&&date>to)return;
+    if(date<from||date>to)return;
     (entries||[]).forEach(e=>{
       if((e.name||'').trim().toLowerCase()===name)_alogTsbMatches.push({date,...e});
     });
   });
   _alogTsbMatches.sort((a,b)=>a.date.localeCompare(b.date));
-  if(!_alogTsbMatches.length){
-    preview.innerHTML='<div class="te" style="padding:10px 0">No entries found for this name in that range</div>';
-    confirmBtn.style.display='none';
-    return;
-  }
   // Suggest a department if not already typed, based on the most common category logged
-  const deptField=document.getElementById('alog-tsb-dept');
-  if(!deptField.value.trim()){
-    const counts={};
-    _alogTsbMatches.forEach(m=>{counts[m.category]=(counts[m.category]||0)+1;});
-    const top=Object.entries(counts).sort((a,b)=>b[1]-a[1])[0];
-    if(top)deptField.value=top[0];
+  if(_alogTsbMatches.length){
+    const deptField=document.getElementById('alog-tsb-dept');
+    if(!deptField.value.trim()){
+      const counts={};
+      _alogTsbMatches.forEach(m=>{counts[m.category]=(counts[m.category]||0)+1;});
+      const top=Object.entries(counts).sort((a,b)=>b[1]-a[1])[0];
+      if(top)deptField.value=top[0];
+    }
   }
-  const total=_alogTsbMatches.reduce((s,m)=>s+(m.amount||0),0);
-  preview.innerHTML='<div class="flex jb aic mb8" style="border-top:1px solid var(--bd);padding-top:10px">'+
-    '<span class="ps-hdl">Total</span><span class="ps-nh" style="color:var(--gn)">₹'+fm(total)+'</span></div>'+
-    '<div style="max-height:260px;overflow-y:auto">'+_alogTsbMatches.map(m=>
-      '<div class="flex jb aic" style="padding:5px 0;border-bottom:1px solid var(--bd)">'+
-        '<span class="xs2">'+fmtD(m.date)+'</span>'+
-        '<span class="xs3 dim">'+(m.payType||'')+(m.notes?' · '+esc(m.notes):'')+'</span>'+
-        '<span class="ps-ns">₹'+fm(m.amount||0)+'</span>'+
-      '</div>'
-    ).join('')+'</div>';
+  // Build every date in the range, not just ones with a logged entry — gap days
+  // get an editable input instead of being silently skipped.
+  const allDates=[];
+  let d=new Date(from+'T00:00:00');
+  const end=new Date(to+'T00:00:00');
+  while(d<=end){allDates.push(d.toISOString().slice(0,10));d.setDate(d.getDate()+1);}
+  const byDate={};
+  _alogTsbMatches.forEach(m=>{(byDate[m.date]=byDate[m.date]||[]).push(m);});
+  const zeroDays=_alogTsbMatches.filter(m=>!(m.amount>0));
+  const gapDates=allDates.filter(dt=>!byDate[dt]);
+  const existingBills=(DB.bills||[]).filter(b=>{
+    if((b.vendor||'').trim().toLowerCase()!==name)return false;
+    const bFrom=b.shootDateFrom||b.shootDate;
+    const bTo=b.shootDateTo||b.shootDate;
+    if(!bFrom)return false;
+    return bFrom<=to&&bTo>=from;
+  });
+  // Check the typed name against actual Vendors/Artists records — bank/account
+  // details on the printed bill are looked up by matching this name exactly,
+  // so a mismatch here (even a small one) means the topsheet prints with no
+  // payee bank details at all.
+  const knownNames=[...(DB.vendors||[]).map(v=>v.name),...(DB._arArtists||[]).map(a=>a.name)];
+  const exactMatch=knownNames.some(n=>n.toLowerCase().trim()===name);
+  let nameWarning='';
+  if(!exactMatch&&typeof _levenshtein==='function'){
+    const suggestion=knownNames.map(n=>({n,d:_levenshtein(n.toLowerCase().trim(),name)})).sort((a,b)=>a.d-b.d)[0];
+    nameWarning='<div style="background:rgba(239,68,68,.1);border:1px solid #ef4444;border-radius:8px;padding:10px 12px;margin-bottom:10px">'+
+      '<strong style="color:#ef4444">⚠ "'+esc(document.getElementById('alog-tsb-name').value.trim())+'" doesn\'t exactly match anyone in Vendors or Artists & Contracts</strong>'+
+      '<div class="xs3" style="margin-top:4px">Bank/account details on the printed bill are looked up by exact name match — this will print with no payee details filled in.'+
+      (suggestion&&suggestion.d<=3?' Did you mean <strong>"'+esc(suggestion.n)+'"</strong>?':'')+'</div>'+
+    '</div>';
+  }
+  let warnings=nameWarning;
+  if(existingBills.length){
+    warnings+='<div style="background:rgba(239,68,68,.1);border:1px solid #ef4444;border-radius:8px;padding:10px 12px;margin-bottom:10px">'+
+      '<strong style="color:#ef4444">⚠ '+existingBills.length+' existing bill(s) already cover this person in an overlapping date range</strong>'+
+      '<div style="margin-top:4px">'+existingBills.map(b=>'<div class="xs3">'+fmtD(b.shootDateFrom||b.shootDate)+' – '+fmtD(b.shootDateTo||b.shootDate)+' · ₹'+fm(b.total||0)+' · status: '+(b.status||'—')+'</div>').join('')+'</div>'+
+      '<div class="xs3" style="margin-top:4px">Check these before creating this one — you may be about to double-pay.</div>'+
+    '</div>';
+  }
+  if(zeroDays.length){
+    warnings+='<div style="background:rgba(251,191,36,.12);border:1px solid #f59e0b;border-radius:8px;padding:8px 12px;margin-bottom:10px">'+
+      '<strong style="color:#f59e0b">⚠ '+zeroDays.length+' logged day(s) show ₹0</strong> — usually means a rate was never filled in for that day in Actors Day Log.'+
+    '</div>';
+  }
+  if(gapDates.length){
+    warnings+='<div style="background:rgba(96,165,250,.1);border:1px solid #60a5fa;border-radius:8px;padding:8px 12px;margin-bottom:10px">'+
+      '<strong style="color:#60a5fa">ℹ '+gapDates.length+' day(s) in this range have no Actors Day Log entry at all</strong> — fill in a rate below for any that should be paid, or leave blank to skip them.'+
+    '</div>';
+  }
+  const rowsHtml=allDates.map(dt=>{
+    const entries=byDate[dt];
+    if(entries){
+      return entries.map(m=>
+        '<div class="flex jb aic" style="padding:5px 0;border-bottom:1px solid var(--bd)'+(!(m.amount>0)?';background:rgba(251,191,36,.08)':'')+'">'+
+          '<span class="xs2">'+fmtD(dt)+'</span>'+
+          '<span class="xs3 dim">'+(m.payType||'')+(m.notes?' · '+esc(m.notes):'')+'</span>'+
+          '<span class="ps-ns" style="'+(!(m.amount>0)?'color:#f59e0b':'')+'">'+(m.amount>0?'₹'+fm(m.amount):'⚠ ₹0')+'</span>'+
+        '</div>'
+      ).join('');
+    }
+    return '<div class="flex jb aic" style="padding:5px 0;border-bottom:1px solid var(--bd);background:rgba(96,165,250,.06)">'+
+      '<span class="xs2 dim">'+fmtD(dt)+' — not logged</span>'+
+      '<input type="number" class="alog-gap-input" data-date="'+dt+'" placeholder="0" style="width:110px;font-size:12px;padding:3px 6px;border-radius:5px;border:1px solid var(--bd2);background:var(--sf);text-align:right" oninput="alogTsbRecalcTotal()">'+
+    '</div>';
+  }).join('');
+  preview.innerHTML=warnings+'<div class="flex jb aic mb8" style="border-top:1px solid var(--bd);padding-top:10px">'+
+    '<span class="ps-hdl">Total</span><span class="ps-nh" id="alog-tsb-total" style="color:var(--gn)">₹0</span></div>'+
+    '<div style="max-height:320px;overflow-y:auto" id="alog-tsb-rows">'+rowsHtml+'</div>';
+  alogTsbRecalcTotal();
   confirmBtn.style.display='';
 }
+function alogTsbRecalcTotal(){
+  const logged=_alogTsbMatches.reduce((s,m)=>s+(m.amount||0),0);
+  const gaps=[...document.querySelectorAll('.alog-gap-input')].reduce((s,el)=>s+(parseFloat(el.value)||0),0);
+  const totalEl=document.getElementById('alog-tsb-total');
+  if(totalEl)totalEl.textContent='₹'+fm(logged+gaps);
+}
 function confirmActorLogTopsheet(){
-  if(!_alogTsbMatches.length)return;
   const name=document.getElementById('alog-tsb-name').value.trim();
   const dept=(document.getElementById('alog-tsb-dept').value||'').trim()||'Miscellaneous';
   const schedId=document.getElementById('alog-tsb-sched')?.value||'';
-  const total=_alogTsbMatches.reduce((s,m)=>s+(m.amount||0),0);
-  const dates=_alogTsbMatches.map(m=>m.date);
-  const items=_alogTsbMatches.map(m=>({
+  const gapItems=[...document.querySelectorAll('.alog-gap-input')]
+    .filter(el=>parseFloat(el.value)>0)
+    .map(el=>({date:el.dataset.date,amount:parseFloat(el.value)}));
+  if(!_alogTsbMatches.length&&!gapItems.length){toast('Nothing to create — no logged entries or filled-in amounts','err');return;}
+  const total=_alogTsbMatches.reduce((s,m)=>s+(m.amount||0),0)+gapItems.reduce((s,g)=>s+g.amount,0);
+  const allDates=[..._alogTsbMatches.map(m=>m.date),...gapItems.map(g=>g.date)].sort();
+  const loggedItems=_alogTsbMatches.map(m=>({
     description:name+(m.notes?' — '+m.notes:''),dept,sub:'',
     qty:m.count||1,rate:m.rate||0,rateType:m.payType||'Per Day',cs:m.cs||0,fixedAllow:0,
     amount:m.amount||0,_date:m.date,_breakdown:(m.payType||'')+' × '+(m.count||1),_dayType:'',_remarks:m.notes||''
   }));
+  const gapLineItems=gapItems.map(g=>({
+    description:name+' — manually entered (no Actors Day Log entry)',dept,sub:'',
+    qty:1,rate:g.amount,rateType:'Per Day',cs:0,fixedAllow:0,
+    amount:g.amount,_date:g.date,_breakdown:'Manual entry',_dayType:'',_remarks:'Filled in — not from Actors Day Log'
+  }));
+  const items=[...loggedItems,...gapLineItems].sort((a,b)=>a._date.localeCompare(b._date));
   const bill={
     id:uid(),uploadedAt:new Date().toISOString(),
     vendor:name,billNo:'',billDate:new Date().toISOString().slice(0,10),schedId,
-    shootDate:dates[0],shootDateFrom:dates.length>1?dates[0]:null,shootDateTo:dates.length>1?dates[dates.length-1]:null,
+    shootDate:allDates[0],shootDateFrom:allDates.length>1?allDates[0]:null,shootDateTo:allDates.length>1?allDates[allDates.length-1]:null,
     department:dept,subdept:'',items,subtotal:total,gst:0,total,
     status:'pending',approvedAt:null,paidAt:null,
     imageData:null,imageType:null,
-    notes:'Generated from Actors Day Log ('+_alogTsbMatches.length+' day'+(_alogTsbMatches.length>1?'s':'')+')',
+    notes:'Generated from Actors Day Log ('+_alogTsbMatches.length+' logged day'+(_alogTsbMatches.length!==1?'s':'')+(gapItems.length?', '+gapItems.length+' manually filled in':'')+')',
     manpower:null
   };
   if(!DB.bills)DB.bills=[];
@@ -19843,7 +19932,7 @@ function arRenderPayables(){
       <div class="fld" style="grid-column:1/-1"><label>Vendor / Party</label><input id="hedit-vendor" placeholder="Vendor name"></div>
       <div class="fld"><label>Category</label><select id="hedit-cat" style="background:#1e293b;border:1px solid #334155;border-radius:6px;color:#e2e8f0;font-size:12px;padding:6px 8px;outline:none;width:100%"><option value="">— None —</option><option value="Reimbursements">Reimbursements</option><option value="Battas">Battas</option><option value="Advance against Requisition">Advance against Requisition</option><option value="Hire">Hire</option><option value="Manpower">Manpower</option><option value="Wages">Wages</option><option value="Food">Food</option><option value="Utilities">Utilities</option><option value="Purchases">Purchases</option><option value="Materials">Materials</option><option value="Contractual Amount">Contractual Amount</option><option value="Remuneration">Remuneration</option><option value="Salary">Salary</option><option value="Costumes">Costumes</option><option value="Make Up">Make Up</option><option value="Prosthetic">Prosthetic</option><option value="Art">Art</option><option value="Equipment rental">Equipment rental</option><option value="Location fees">Location fees</option><option value="Crew payments">Crew payments</option><option value="Transport &amp; logistics">Transport &amp; logistics</option><option value="Catering">Catering</option><option value="Post production">Post production</option><option value="Miscellaneous">Miscellaneous</option></select></div>
       <div class="fld"><label>Sub-Category</label><input id="hedit-sub" placeholder="e.g. Battas, Setup, Hire..." style="background:#1e293b;border:1px solid #334155;border-radius:6px;color:#e2e8f0;font-size:12px;padding:6px 8px;outline:none;width:100%"></div>
-      <div class="fld"><label>Sub-Category</label><input id="hedit-sub" placeholder="e.g. Battas, Setup, Hire..."></div>
+      <div class="fld"><label>Schedule</label><select id="hedit-sched" style="background:#1e293b;border:1px solid #334155;border-radius:6px;color:#e2e8f0;font-size:12px;padding:6px 8px;outline:none;width:100%"><option value="">— No schedule —</option></select></div>
       <div class="fld"><label>Invoice No.</label><input id="hedit-inv" placeholder="Invoice #"></div>
       <div class="fld"><label>Amount (₹)</label><input id="hedit-amt" type="number" placeholder="0"></div>
       <div class="fld" style="grid-column:1/-1"><label>Description</label><input id="hedit-desc" placeholder="Description / narration"></div>
