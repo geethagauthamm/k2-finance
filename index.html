@@ -18810,6 +18810,7 @@ function viewBill(id){
         ${b.paidUTR?`<div style="text-align:center;color:#ef4444;font-size:9px;font-weight:600;margin-top:1px">UTR: ${esc(b.paidUTR)}</div>`:''}
       </div>`:''}
       <div class="flex gap8 no-print" style="margin-top:4px">
+        ${(!isApproved&&!isPaid)?`<button class="btn bg" onclick="approveBill('${id}')" style="background:#22c55e">✓ Approve</button>`:''}
         ${isApproved?`<button class="btn bg" onclick="openMarkBillPaidModal('${id}')" style="background:#ef4444">💳 Mark as PAID</button>`:''}
         ${isPaid?`<span style="color:#22c55e;font-weight:700;font-size:13px">✓ Paid on ${new Date(b.paidAt).toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'})}${b.paidUTR?' · UTR: '+esc(b.paidUTR):''}</span>`:''}
         <button class="btn bs" onclick="printBillTopsheet('${id}')">🖨 Topsheet</button>
@@ -18817,6 +18818,16 @@ function viewBill(id){
       </div>
     </div>`;
   document.getElementById('bill-modal').style.display='';
+}
+function approveBill(id){
+  const b=(DB.bills||[]).find(x=>x.id===id);if(!b)return;
+  b.status='approved';
+  b.approvedAt=new Date().toISOString();
+  saveDB();
+  viewBill(id);
+  if(typeof renderBills==='function')renderBills();
+  if(typeof renderSchedSummary==='function'&&document.getElementById('ss-tbody'))renderSchedSummary();
+  toast('✓ Bill approved — will now show in Schedule Summary Report');
 }
 
 function updateBillSchedule(id,phase){
