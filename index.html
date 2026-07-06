@@ -14222,8 +14222,9 @@ function mergeInCloudAdditions(cloud){
   idArrayFields.forEach(f=>{
     if(!Array.isArray(cloud[f]))return;
     if(!Array.isArray(DB[f]))DB[f]=[];
+    const dead=(DB._tombstones&&DB._tombstones[f])||[];
     cloud[f].forEach(item=>{
-      if(item&&item.id&&!DB[f].find(x=>x.id===item.id))DB[f].push(item);
+      if(item&&item.id&&!dead.includes(item.id)&&!DB[f].find(x=>x.id===item.id))DB[f].push(item);
     });
   });
   // Vehicles: keyed by date, each an array of entries keyed by id
@@ -18922,15 +18923,20 @@ function printBillTopsheet(id){
     if(cs&&cs.dayType)return cs.dayType;
     return idx<rehDaysCount?'Rehearsal':'Shoot';
   }
-  function itemsApplyToDay(dt){
+  function itemsApplyToDay(dt,d){
     const isReh=dt==='Rehearsal';
     return items.filter(item=>{
+      // If this item has a specific date attached (e.g. bills generated from
+      // Actors Day Log, where each line is tied to one exact day or is a
+      // one-time misc charge), only show it on that exact date's row — not
+      // broadcast across every day in the range.
+      if(item._date)return item._date===d;
       // Prefer explicit flags (new bills); fall back to description text suffix (older bills)
       const isRehItem=item._isRehearsal||/ — Rehearsal$/.test(item.description||'');
       const isShootItem=item._isShoot||/ — Shoot$/.test(item.description||'');
       if(isRehItem)return isReh;
       if(isShootItem)return !isReh;
-      return true; // untagged items (e.g. extra-day rows) apply every day
+      return true; // untagged items with no specific date (e.g. extra-day rows) apply every day
     });
   }
 
@@ -18969,7 +18975,7 @@ function printBillTopsheet(id){
     bodyRows=dates.map((d,idx)=>{
       const cs=csGetForDate?csGetForDate(d):null;
       const dt=dayTypeFor(d,idx);
-      const dayItems=itemsApplyToDay(dt);
+      const dayItems=itemsApplyToDay(dt,d);
       let rowTotal=0,rowRemarks=[];
       const roleLines=dayItems.map(item=>{
         const perDayShare=Math.round(((item.amount||0)/(item.qty||1))*100)/100;
@@ -18992,7 +18998,7 @@ function printBillTopsheet(id){
     // ── PER DAY FORMAT — person/role as column header, dates as rows ──
     bodyRows=dates.map((d,idx)=>{
       const dt=dayTypeFor(d,idx);
-      const dayItems=itemsApplyToDay(dt);
+      const dayItems=itemsApplyToDay(dt,d);
       let rowTotal=0,rowRemarks=[];
       const personCells=uniquePeople.map(person=>{
         const item=dayItems.find(it=>baseName(it.description)===person);
@@ -19087,12 +19093,24 @@ function printBillTopsheet(id){
 
   openPrintOverlay('Bill Topsheet — '+(b.vendor||''), html);
 }
+// Records a deleted item's ID so the cloud-merge safety net (built to prevent
+// data loss from concurrent multi-device edits) doesn't mistake "genuinely
+// deleted" for "never synced yet" and silently resurrect it on the next save —
+// exactly what was happening to deleted Bills (and could happen to flights,
+// hotels, schedules, etc. — anything in mergeInCloudAdditions' idArrayFields list).
+function tombstone(field,id){
+  if(!id)return;
+  if(!DB._tombstones)DB._tombstones={};
+  if(!DB._tombstones[field])DB._tombstones[field]=[];
+  if(!DB._tombstones[field].includes(id))DB._tombstones[field].push(id);
+}
 function deleteBill(id){
   if(!confirm('Delete this bill? Actuals entries will also be removed.'))return;
   const b=(DB.bills||[]).find(x=>x.id===id);
   if(b?.shootDate&&DB.actAdhoc?.[b.shootDate])
     DB.actAdhoc[b.shootDate]=DB.actAdhoc[b.shootDate].filter(r=>r.billId!==id);
   DB.bills=(DB.bills||[]).filter(x=>x.id!==id);
+  tombstone('bills',id);
   saveDB();renderBills();updateBillsBadge();toast('Bill deleted');
 }
 
