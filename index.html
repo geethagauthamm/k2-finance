@@ -9353,7 +9353,7 @@ function alogTsbPreview(){
     nameWarning='<div style="background:rgba(239,68,68,.1);border:1px solid #ef4444;border-radius:8px;padding:10px 12px;margin-bottom:10px">'+
       '<strong style="color:#ef4444">⚠ "'+esc(document.getElementById('alog-tsb-name').value.trim())+'" doesn\'t exactly match anyone in Vendors or Artists & Contracts</strong>'+
       '<div class="xs3" style="margin-top:4px">Bank/account details on the printed bill are looked up by exact name match — this will print with no payee details filled in.'+
-      (suggestion&&suggestion.d<=3?' Did you mean <strong>"'+esc(suggestion.n)+'"</strong>?':'')+'</div>'+
+      (suggestion&&suggestion.d<=3?' Did you mean <strong class="alog-suggest-name" onclick="alogTsbUseSuggestion(\''+esc(suggestion.n).replace(/'/g,"\\'")+'\')" style="cursor:pointer;text-decoration:underline;color:#60a5fa">"'+esc(suggestion.n)+'"</strong>? Click to use it.':'')+'</div>'+
     '</div>';
   }
   let warnings=nameWarning;
@@ -9377,13 +9377,15 @@ function alogTsbPreview(){
   const rowsHtml=allDates.map(dt=>{
     const entries=byDate[dt];
     if(entries){
-      return entries.map(m=>
-        '<div class="flex jb aic" style="padding:5px 0;border-bottom:1px solid var(--bd)'+(!(m.amount>0)?';background:rgba(251,191,36,.08)':'')+'">'+
+      return entries.map(m=>{
+        const idx=_alogTsbMatches.indexOf(m);
+        return'<div class="flex jb aic" style="padding:5px 0;border-bottom:1px solid var(--bd)'+(!(m.amount>0)?';background:rgba(251,191,36,.08)':'')+'">'+
           '<span class="xs2">'+fmtD(dt)+'</span>'+
           '<span class="xs3 dim">'+(m.payType||'')+(m.notes?' · '+esc(m.notes):'')+'</span>'+
-          '<span class="ps-ns" style="'+(!(m.amount>0)?'color:#f59e0b':'')+'">'+(m.amount>0?'₹'+fm(m.amount):'⚠ ₹0')+'</span>'+
-        '</div>'
-      ).join('');
+          (!(m.amount>0)?'<span class="xs3" style="color:#f59e0b;margin-right:6px">⚠</span>':'')+
+          '<input type="number" class="alog-logged-input" data-idx="'+idx+'" value="'+(m.amount||0)+'" style="width:110px;font-size:12px;padding:3px 6px;border-radius:5px;border:1px solid var(--bd2);background:var(--sf);text-align:right;'+(!(m.amount>0)?'color:#f59e0b':'')+'" oninput="alogTsbRecalcTotal()">'+
+        '</div>';
+      }).join('');
     }
     return '<div class="flex jb aic" style="padding:5px 0;border-bottom:1px solid var(--bd);background:rgba(96,165,250,.06)">'+
       '<span class="xs2 dim">'+fmtD(dt)+' — not logged</span>'+
@@ -9396,8 +9398,12 @@ function alogTsbPreview(){
   alogTsbRecalcTotal();
   confirmBtn.style.display='';
 }
+function alogTsbUseSuggestion(name){
+  document.getElementById('alog-tsb-name').value=name;
+  alogTsbPreview();
+}
 function alogTsbRecalcTotal(){
-  const logged=_alogTsbMatches.reduce((s,m)=>s+(m.amount||0),0);
+  const logged=[...document.querySelectorAll('.alog-logged-input')].reduce((s,el)=>s+(parseFloat(el.value)||0),0);
   const gaps=[...document.querySelectorAll('.alog-gap-input')].reduce((s,el)=>s+(parseFloat(el.value)||0),0);
   const totalEl=document.getElementById('alog-tsb-total');
   if(totalEl)totalEl.textContent='₹'+fm(logged+gaps);
@@ -9409,14 +9415,24 @@ function confirmActorLogTopsheet(){
   const gapItems=[...document.querySelectorAll('.alog-gap-input')]
     .filter(el=>parseFloat(el.value)>0)
     .map(el=>({date:el.dataset.date,amount:parseFloat(el.value)}));
+  // Read the (possibly edited) amount for each logged entry directly from its
+  // input, rather than the original Actors Day Log value — lets a ₹0 day be
+  // corrected right here instead of requiring a separate trip to fix it there first.
+  const loggedAmounts={};
+  document.querySelectorAll('.alog-logged-input').forEach(el=>{loggedAmounts[el.dataset.idx]=parseFloat(el.value)||0;});
   if(!_alogTsbMatches.length&&!gapItems.length){toast('Nothing to create — no logged entries or filled-in amounts','err');return;}
-  const total=_alogTsbMatches.reduce((s,m)=>s+(m.amount||0),0)+gapItems.reduce((s,g)=>s+g.amount,0);
+  const total=_alogTsbMatches.reduce((s,m,i)=>s+(loggedAmounts[i]!=null?loggedAmounts[i]:(m.amount||0)),0)+gapItems.reduce((s,g)=>s+g.amount,0);
   const allDates=[..._alogTsbMatches.map(m=>m.date),...gapItems.map(g=>g.date)].sort();
-  const loggedItems=_alogTsbMatches.map(m=>({
-    description:name+(m.notes?' — '+m.notes:''),dept,sub:'',
-    qty:m.count||1,rate:m.rate||0,rateType:m.payType||'Per Day',cs:m.cs||0,fixedAllow:0,
-    amount:m.amount||0,_date:m.date,_breakdown:(m.payType||'')+' × '+(m.count||1),_dayType:'',_remarks:m.notes||''
-  }));
+  const loggedItems=_alogTsbMatches.map((m,i)=>{
+    const finalAmt=loggedAmounts[i]!=null?loggedAmounts[i]:(m.amount||0);
+    const wasOverridden=finalAmt!==(m.amount||0);
+    return{
+      description:name+(m.notes?' — '+m.notes:''),dept,sub:'',
+      qty:m.count||1,rate:m.rate||0,rateType:m.payType||'Per Day',cs:m.cs||0,fixedAllow:0,
+      amount:finalAmt,_date:m.date,_breakdown:(m.payType||'')+' × '+(m.count||1),_dayType:'',
+      _remarks:(m.notes||'')+(wasOverridden?' (amount corrected from ₹'+fm(m.amount||0)+' logged in Actors Day Log)':'')
+    };
+  });
   const gapLineItems=gapItems.map(g=>({
     description:name+' — manually entered (no Actors Day Log entry)',dept,sub:'',
     qty:1,rate:g.amount,rateType:'Per Day',cs:0,fixedAllow:0,
