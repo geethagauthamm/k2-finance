@@ -2216,7 +2216,7 @@ body.auditor-mode #save-btn { display:none !important; }
     <div class="add-row">
       <div class="field"><label>Vendor / payee</label><input id="in-vendor" placeholder="Name"></div>
       <div class="field"><label>Invoice no.</label><input id="in-inv" placeholder="INV-001"></div>
-      <div class="field"><label>Category</label><select id="in-cat"><option value="Reimbursements">Reimbursements</option><option value="Battas">Battas</option><option value="Advance against Requisition">Advance against Requisition</option><option value="Hire">Hire</option><option value="Manpower">Manpower</option><option value="Wages">Wages</option><option value="Food">Food</option><option value="Utilities">Utilities</option><option value="Purchases">Purchases</option><option value="Materials">Materials</option><option value="Contractual Amount">Contractual Amount</option><option value="Remuneration">Remuneration</option><option value="Salary">Salary</option><option value="Costumes">Costumes</option><option value="Make Up">Make Up</option><option value="Prosthetic">Prosthetic</option><option value="Art">Art</option><option value="Equipment rental">Equipment rental</option><option value="Location fees">Location fees</option><option value="Crew payments">Crew payments</option><option value="Transport &amp; logistics">Transport &amp; logistics</option><option value="Catering">Catering</option><option value="Post production">Post production</option><option value="Miscellaneous">Miscellaneous</option></select></div>
+      <div class="field"><label>Category</label><input list="in-cat-list" id="in-cat" placeholder="Select or type a new category…"><datalist id="in-cat-list"></datalist></div>
       <div class="field"><label>Sub-Category (optional)</label><input type="text" id="in-sub" placeholder="e.g. Battas, Setup, Hire..."></div>
       <div class="field"><label>Description</label><input id="in-desc" placeholder="Details"></div>
       <div class="field"><label>Invoice date</label><input type="date" id="in-invdate"></div>
@@ -3232,7 +3232,8 @@ function confirmPTPasteImport(){
 function addEntry(){
   var vendor=document.getElementById('in-vendor').value.trim();
   var inv=document.getElementById('in-inv').value.trim();
-  var cat=document.getElementById('in-cat').value;
+  var cat=document.getElementById('in-cat').value.trim();
+  if(!cat){toast('Pick or type a category first','err');return;}
   var sub=(document.getElementById('in-sub')?.value||'').trim();
   var desc=document.getElementById('in-desc').value.trim();
   var invDate=document.getElementById('in-invdate').value;
@@ -6229,6 +6230,13 @@ function fillDropdowns(){
     const allCats=[...new Set(allItems().map(e=>e.cat))];
     const cats=[...seedOrder.filter(c=>allCats.includes(c)),...allCats.filter(c=>!seedOrder.includes(c))];
     vCatList.innerHTML=cats.map(c=>`<option value="${c.replace(/"/g,'&quot;')}">`).join('');
+  }
+  const inCatList=document.getElementById('in-cat-list');
+  if(inCatList){
+    const standardCats=['Reimbursements','Battas','Advance against Requisition','Hire','Manpower','Wages','Food','Utilities','Purchases','Materials','Contractual Amount','Remuneration','Salary','Costumes','Make Up','Prosthetic','Art','Equipment rental','Location fees','Crew payments','Transport & logistics','Catering','Post production','Miscellaneous'];
+    const rateCardCats=[...new Set(allItems().map(e=>e.cat))];
+    const merged=[...standardCats,...rateCardCats.filter(c=>!standardCats.includes(c))];
+    inCatList.innerHTML=merged.map(c=>`<option value="${c.replace(/"/g,'&quot;')}">`).join('');
   }
   ['act-f-cat','sumf-cat','est-cat-f','est-cat-sel'].forEach(id=>{
     const el=document.getElementById(id);if(!el)return;
