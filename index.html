@@ -9295,6 +9295,7 @@ function openActorLogTopsheet(){
   document.getElementById('alog-tsb-to').value='';
   document.getElementById('alog-tsb-dept').value='';
   document.getElementById('alog-tsb-preview').innerHTML='';
+  document.getElementById('alog-tsb-misc-rows').innerHTML='';
   document.getElementById('alog-tsb-confirm').style.display='none';
   document.getElementById('alog-tsb-modal').style.display='flex';
 }
@@ -9414,11 +9415,26 @@ function alogTsbUseSuggestion(name){
   document.getElementById('alog-tsb-name').value=name;
   alogTsbPreview();
 }
+var _alogMiscCounter=0;
+function alogTsbAddMiscRow(){
+  _alogMiscCounter++;
+  const id='misc-'+_alogMiscCounter;
+  const container=document.getElementById('alog-tsb-misc-rows');
+  const row=document.createElement('div');
+  row.className='flex gap8 aic';
+  row.style.marginBottom='6px';
+  row.id=id;
+  row.innerHTML='<input type="text" class="alog-misc-desc" placeholder="e.g. Costume dry cleaning reimbursement" style="flex:2;font-size:12px;padding:5px 8px;border-radius:5px;border:1px solid var(--bd2);background:var(--sf)">'+
+    '<input type="number" class="alog-misc-amt" placeholder="0" style="width:110px;font-size:12px;padding:5px 8px;border-radius:5px;border:1px solid var(--bd2);background:var(--sf);text-align:right" oninput="alogTsbRecalcTotal()">'+
+    '<button class="btn br xs" onclick="document.getElementById(\''+id+'\').remove();alogTsbRecalcTotal()">✕</button>';
+  container.appendChild(row);
+}
 function alogTsbRecalcTotal(){
   const logged=[...document.querySelectorAll('.alog-logged-input')].reduce((s,el)=>s+(parseFloat(el.value)||0),0);
   const gaps=[...document.querySelectorAll('.alog-gap-input')].reduce((s,el)=>s+(parseFloat(el.value)||0),0);
+  const misc=[...document.querySelectorAll('.alog-misc-amt')].reduce((s,el)=>s+(parseFloat(el.value)||0),0);
   const totalEl=document.getElementById('alog-tsb-total');
-  if(totalEl)totalEl.textContent='₹'+fm(logged+gaps);
+  if(totalEl)totalEl.textContent='₹'+fm(logged+gaps+misc);
 }
 function confirmActorLogTopsheet(){
   const name=document.getElementById('alog-tsb-name').value.trim();
@@ -9432,8 +9448,11 @@ function confirmActorLogTopsheet(){
   // corrected right here instead of requiring a separate trip to fix it there first.
   const loggedAmounts={};
   document.querySelectorAll('.alog-logged-input').forEach(el=>{loggedAmounts[el.dataset.idx]=parseFloat(el.value)||0;});
-  if(!_alogTsbMatches.length&&!gapItems.length){toast('Nothing to create — no logged entries or filled-in amounts','err');return;}
-  const total=_alogTsbMatches.reduce((s,m,i)=>s+(loggedAmounts[i]!=null?loggedAmounts[i]:(m.amount||0)),0)+gapItems.reduce((s,g)=>s+g.amount,0);
+  const miscItems=[...document.querySelectorAll('#alog-tsb-misc-rows > div')]
+    .map(row=>({desc:(row.querySelector('.alog-misc-desc').value||'').trim(),amount:parseFloat(row.querySelector('.alog-misc-amt').value)||0}))
+    .filter(m=>m.amount>0);
+  if(!_alogTsbMatches.length&&!gapItems.length&&!miscItems.length){toast('Nothing to create — no logged entries, filled-in amounts, or misc charges','err');return;}
+  const total=_alogTsbMatches.reduce((s,m,i)=>s+(loggedAmounts[i]!=null?loggedAmounts[i]:(m.amount||0)),0)+gapItems.reduce((s,g)=>s+g.amount,0)+miscItems.reduce((s,x)=>s+x.amount,0);
   const allDates=[..._alogTsbMatches.map(m=>m.date),...gapItems.map(g=>g.date)].sort();
   const loggedItems=_alogTsbMatches.map((m,i)=>{
     const finalAmt=loggedAmounts[i]!=null?loggedAmounts[i]:(m.amount||0);
@@ -9450,7 +9469,12 @@ function confirmActorLogTopsheet(){
     qty:1,rate:g.amount,rateType:'Per Day',cs:0,fixedAllow:0,
     amount:g.amount,_date:g.date,_breakdown:'Manual entry',_dayType:'',_remarks:'Filled in — not from Actors Day Log'
   }));
-  const items=[...loggedItems,...gapLineItems].sort((a,b)=>a._date.localeCompare(b._date));
+  const miscLineItems=miscItems.map(x=>({
+    description:name+' — '+(x.desc||'Misc Charge'),dept,sub:'',
+    qty:1,rate:x.amount,rateType:'One-time',cs:0,fixedAllow:0,
+    amount:x.amount,_date:allDates[allDates.length-1]||new Date().toISOString().slice(0,10),_breakdown:'Misc charge',_dayType:'',_remarks:x.desc||''
+  }));
+  const items=[...loggedItems,...gapLineItems,...miscLineItems].sort((a,b)=>a._date.localeCompare(b._date));
   const bill={
     id:uid(),uploadedAt:new Date().toISOString(),
     vendor:name,billNo:'',billDate:new Date().toISOString().slice(0,10),schedId,
@@ -20107,6 +20131,10 @@ function arRenderPayables(){
       <select id="alog-tsb-sched"><option value="">— No schedule —</option></select>
     </div>
     <div id="alog-tsb-preview"></div>
+    <div style="border-top:1px solid var(--bd);margin-top:12px;padding-top:12px">
+      <div class="flex jb aic mb8"><span class="ps-hdl">Misc Charges (optional)</span><button class="btn bs xs" onclick="alogTsbAddMiscRow()">+ Add Charge</button></div>
+      <div id="alog-tsb-misc-rows"></div>
+    </div>
     <div class="flex jc gap8" style="margin-top:14px">
       <button class="btn bs" onclick="closeActorLogTopsheet()">Cancel</button>
       <button class="btn bg" id="alog-tsb-confirm" style="display:none" onclick="confirmActorLogTopsheet()">Create Payment Entry</button>
