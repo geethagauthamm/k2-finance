@@ -4739,7 +4739,7 @@ function checkPaymentReminders(){
       </div>
       <div class="fg g5 mb10">
         <div class="fld"><label>Name *</label><input type="text" id="v-name" placeholder="Full name"></div>
-        <div class="fld"><label>Category</label><select id="v-cat"><option value="">Select</option></select></div>
+        <div class="fld"><label>Category</label><input list="v-cat-list" id="v-cat" placeholder="Select or type a new category…"><datalist id="v-cat-list"></datalist></div>
         <div class="fld"><label>Link to Line Item</label><select id="v-li"><option value="">Select</option></select></div>
         <div class="fld"><label>Role</label><input type="text" id="v-role" placeholder="e.g. Head"></div>
         <div class="fld"><label>Payment Type</label><select id="v-pt"><option>Per Call Sheet</option><option>Per Day</option><option>Per Project</option><option>Salary</option><option>Contract</option></select></div>
@@ -6223,13 +6223,20 @@ function fillDropdowns(){
     });
     el.value=cur;
   });
-  ['v-cat','act-f-cat','sumf-cat','est-cat-f','est-cat-sel'].forEach(id=>{
+  const vCatList=document.getElementById('v-cat-list');
+  if(vCatList){
+    const seedOrder=[...new Set(SEED.map(e=>e.cat))];
+    const allCats=[...new Set(allItems().map(e=>e.cat))];
+    const cats=[...seedOrder.filter(c=>allCats.includes(c)),...allCats.filter(c=>!seedOrder.includes(c))];
+    vCatList.innerHTML=cats.map(c=>`<option value="${c.replace(/"/g,'&quot;')}">`).join('');
+  }
+  ['act-f-cat','sumf-cat','est-cat-f','est-cat-sel'].forEach(id=>{
     const el=document.getElementById(id);if(!el)return;
     const cur=el.value;
     const seedOrder=[...new Set(SEED.map(e=>e.cat))];
     const allCats=[...new Set(allItems().map(e=>e.cat))];
     const cats=[...seedOrder.filter(c=>allCats.includes(c)),...allCats.filter(c=>!seedOrder.includes(c))];
-    el.innerHTML='<option value="">'+(id==='v-cat'?'Select':'All Categories')+'</option>';
+    el.innerHTML='<option value="">All Categories</option>';
     cats.forEach(c=>{const o=document.createElement('option');o.value=c;o.textContent=c;el.appendChild(o);});
     el.value=cur;
   });
