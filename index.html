@@ -2216,7 +2216,7 @@ body.auditor-mode #save-btn { display:none !important; }
     <div class="add-row">
       <div class="field"><label>Vendor / payee</label><input id="in-vendor" placeholder="Name"></div>
       <div class="field"><label>Invoice no.</label><input id="in-inv" placeholder="INV-001"></div>
-      <div class="field"><label>Category</label><input list="in-cat-list" id="in-cat" placeholder="Select or type a new category…"><datalist id="in-cat-list"></datalist></div>
+      <div class="field"><label>Category</label><input list="in-cat-list" id="in-cat" autocomplete="off" placeholder="Select or type a new category…"><datalist id="in-cat-list"></datalist></div>
       <div class="field"><label>Sub-Category (optional)</label><input type="text" id="in-sub" placeholder="e.g. Battas, Setup, Hire..."></div>
       <div class="field"><label>Description</label><input id="in-desc" placeholder="Details"></div>
       <div class="field"><label>Invoice date</label><input type="date" id="in-invdate"></div>
@@ -3275,7 +3275,7 @@ function addEntry(){
   autoPhase(newEntry);
   S[A].entries.push(newEntry);
   sv();
-  ['in-vendor','in-inv','in-desc','in-amt','in-invdate','in-duedate','in-sub'].forEach(function(id){document.getElementById(id).value='';});
+  ['in-vendor','in-inv','in-desc','in-amt','in-invdate','in-duedate','in-sub','in-cat'].forEach(function(id){document.getElementById(id).value='';});
   unlockAllIn('#add-card');
   document.getElementById('in-billid').value='';
   renderEntries();renderTabs();fillDropdowns();toast('Entry added — linked to bill');
@@ -3745,7 +3745,7 @@ function sendBillToPayments(billId){
       var ii=document.getElementById('in-inv');if(ii)ii.value=bill.billNo||'';
       var di=document.getElementById('in-invdate');if(di)di.value=bill.billDate||'';
       var ai=document.getElementById('in-amt');if(ai)ai.value=bill.total||'';
-      var desc=document.getElementById('in-desc');if(desc)desc.value=(bill.items||[]).map(function(i){return i.description;}).join(', ').slice(0,80);
+      var desc=document.getElementById('in-desc');if(desc)desc.value=billCatSubSummary(bill).slice(0,80);
       var bi=document.getElementById('in-billid');if(bi)bi.value=billId;
       var dept=bill.department||bill.items?.[0]?.dept||'';
       var catMap={'Art Department':'Art','Vehicles':'Transport & logistics','Catering':'Catering',
@@ -17866,7 +17866,7 @@ function fxSave(){
     const breakdown=_fxRoles.filter(r=>(row.roleData[r.id]?.count||0)>0)
       .map(r=>{const rd=row.roleData[r.id];return `${r.label} ${rd.count}×${fmt(rd.rate)}${rd.allowance?' +₹'+fmt(rd.allowance)+' allow':''}`;}).join(', ');
     const remarksParts=[row.deviationNote,row.otherChargesNote,row.remarks].filter(Boolean);
-    return{description:`${vendor}${row.splitTag?' — '+row.splitTag:''}`,dept,sub:'',
+    return{description:`${vendor}${row.splitTag?' — '+row.splitTag:''}`,dept,sub:subdept,
       qty:1,rate:0,rateType:'Per Call Sheet',cs:row.cs,fixedAllow:0,
       amount:rowTotal,_date:row.date,_breakdown:breakdown,_dayType:row.dayType,_remarks:remarksParts.join(' · ')};
   });
@@ -17981,7 +17981,7 @@ function fxUpdateBill(){
     const breakdown=_fxRoles.filter(r=>(row.roleData[r.id]?.count||0)>0)
       .map(r=>{const rd=row.roleData[r.id];return `${r.label} ${rd.count}×${fmt(rd.rate)}${rd.allowance?' +₹'+fmt(rd.allowance)+' allow':''}`;}).join(', ');
     const remarksParts=[row.deviationNote,row.otherChargesNote,row.remarks].filter(Boolean);
-    return{description:`${vendor}${row.splitTag?' — '+row.splitTag:''}`,dept,sub:'',
+    return{description:`${vendor}${row.splitTag?' — '+row.splitTag:''}`,dept,sub:subdept,
       qty:1,rate:0,rateType:'Per Call Sheet',cs:row.cs,fixedAllow:0,
       amount:rowTotal,_date:row.date,_breakdown:breakdown,_dayType:row.dayType,_remarks:remarksParts.join(' · ')};
   });
@@ -18318,8 +18318,9 @@ function billShowManualWithImage(b, isImg, b64, mime){
               ${depts.map(d=>`<option>${d}</option>`).join('')}
             </select>
           </div>
+          <div class="field"><label>Sub-Category</label><input id="bm-sub" onchange="if(_billPending.items[0])_billPending.items[0].sub=this.value" placeholder="e.g. Battas, Hire, Remuneration" style="width:100%"></div>
           <div class="field"><label>Schedule * <span style="color:var(--rd)">required</span></label><select id="bm-sched" onchange="_billPending.schedId=this.value" style="width:100%">${schedOpts}</select></div>
-          <div class="field"><label>Amount (₹) *</label><input type="number" id="bm-total" onchange="const v=parseFloat(this.value)||0;_billPending.total=v;_billPending.subtotal=v;_billPending.items=[{description:document.getElementById('bm-desc').value||'Bill total',dept:_billPending.department||'Miscellaneous',qty:1,rate:v,amount:v}]" placeholder="0" style="width:100%"></div>
+          <div class="field"><label>Amount (₹) *</label><input type="number" id="bm-total" onchange="const v=parseFloat(this.value)||0;_billPending.total=v;_billPending.subtotal=v;_billPending.items=[{description:document.getElementById('bm-desc').value||'Bill total',dept:_billPending.department||'Miscellaneous',sub:document.getElementById('bm-sub').value||'',qty:1,rate:v,amount:v}]" placeholder="0" style="width:100%"></div>
           <div class="field"><label>GST (₹)</label><input type="number" id="bm-gst" onchange="const g=parseFloat(this.value)||0;_billPending.gst=g;_billPending.total=(_billPending.subtotal||0)+g" placeholder="0" style="width:100%"></div>
           <div class="field"><label>Description</label><input id="bm-desc" onchange="if(_billPending.items[0])_billPending.items[0].description=this.value" placeholder="What is this bill for?" style="width:100%"></div>
           <div class="field"><label>Notes</label><input id="bm-notes" onchange="_billPending.notes=this.value" placeholder="Any remarks" style="width:100%"></div>
@@ -18435,6 +18436,7 @@ function showBillPreview(b){
   const rows=(b.items||[]).map((item,i)=>`<tr>
     <td>${inp(item.description,`_billPending.items[${i}].description=this.value`)}</td>
     <td>${inp(item.dept||b.department,`_billPending.items[${i}].dept=this.value`,'110px')}</td>
+    <td>${inp(item.sub,`_billPending.items[${i}].sub=this.value`,'110px')}</td>
     <td>${inpN(item.qty,`_billPending.items[${i}].qty=parseFloat(this.value)||1`,'50px')}</td>
     <td>${inpN(item.rate,`_billPending.items[${i}].rate=parseFloat(this.value)||0`,'75px')}</td>
     <td>${inpN(item.amount,`_billPending.items[${i}].amount=parseFloat(this.value)||0`,'85px','var(--gn)')}</td>
@@ -18474,12 +18476,12 @@ function showBillPreview(b){
     </div>
     ${manpowerTopsheetHtml(b)}
     <div class="tw" style="margin-bottom:10px"><table>
-      <thead><tr><th>Description</th><th>Dept</th><th class="tr">Qty</th><th class="tr">Rate ₹</th><th class="tr">Amount ₹</th><th class="no-print"></th></tr></thead>
+      <thead><tr><th>Description</th><th>Dept</th><th>Sub-Category</th><th class="tr">Qty</th><th class="tr">Rate ₹</th><th class="tr">Amount ₹</th><th class="no-print"></th></tr></thead>
       <tbody>${rows}</tbody>
       <tfoot>
-        <tr><td colspan="4" class="tr xs2 dim">Subtotal</td><td class="tr mono">${fmt(b.subtotal||0)}</td><td class="no-print"></td></tr>
-        <tr><td colspan="4" class="tr xs2 dim">GST</td><td class="tr">${inpN(b.gst,'_billPending.gst=parseFloat(this.value)||0','80px')}</td><td class="no-print"></td></tr>
-        <tr><td colspan="4" class="tr semi">TOTAL</td><td class="tr mono semi" style="color:var(--gn)">${fmt(b.total||0)}</td><td class="no-print"></td></tr>
+        <tr><td colspan="5" class="tr xs2 dim">Subtotal</td><td class="tr mono">${fmt(b.subtotal||0)}</td><td class="no-print"></td></tr>
+        <tr><td colspan="5" class="tr xs2 dim">GST</td><td class="tr">${inpN(b.gst,'_billPending.gst=parseFloat(this.value)||0','80px')}</td><td class="no-print"></td></tr>
+        <tr><td colspan="5" class="tr semi">TOTAL</td><td class="tr mono semi" style="color:var(--gn)">${fmt(b.total||0)}</td><td class="no-print"></td></tr>
       </tfoot>
     </table></div>
     <div class="fld"><label>Notes</label>${inp(b.notes,'_billPending.notes=this.value')}</div>
@@ -18763,12 +18765,16 @@ function viewBill(id){
   const isPaid=b.status==='paid';
   const isApproved=b.status==='approved';
   document.getElementById('bill-modal-title').textContent=`${b.vendor} — ${fmtD(b.billDate||b.shootDate)}`;
-  const itemRows=(b.items||[]).map(item=>`<tr style="${isPaid?'background:rgba(34,197,94,.06)':''}">
-    <td style="padding:6px 8px;border:1px solid var(--bd);color:var(--tx)">${item.description}</td>
-    <td style="padding:6px 8px;border:1px solid var(--bd);color:var(--tx2);font-size:11px">${item.dept||'—'}</td>
-    <td style="padding:6px 8px;border:1px solid var(--bd);text-align:right;color:var(--tx2)">${item.qty||1}</td>
-    <td style="padding:6px 8px;border:1px solid var(--bd);text-align:right;font-family:monospace;color:var(--tx2)">${item.rate?fmt(item.rate):'—'}</td>
-    <td style="padding:6px 8px;border:1px solid var(--bd);text-align:right;font-family:monospace;font-weight:700;color:${isPaid?'#22c55e':'var(--gn)'}">${fmt(item.amount||0)}</td>
+  const editIn=(val,onch,w,align)=>`<input type="text" value="${(val==null?'':val).toString().replace(/"/g,'&quot;')}" onchange="${onch}" style="width:${w||'100%'};box-sizing:border-box;background:var(--sf);border:1px solid var(--bd2);border-radius:4px;padding:4px 6px;font-size:12px;color:var(--tx);${align?'text-align:'+align+';':''}">`;
+  const editN=(val,onch,w)=>`<input type="number" value="${val||''}" onchange="${onch}" style="width:${w||'75px'};box-sizing:border-box;background:var(--sf);border:1px solid var(--bd2);border-radius:4px;padding:4px 6px;font-size:12px;color:var(--tx);text-align:right">`;
+  const itemRows=(b.items||[]).map((item,i)=>`<tr style="${isPaid?'background:rgba(34,197,94,.06)':''}">
+    <td style="padding:4px;border:1px solid var(--bd)">${editIn(item.description,`updateBillItem('${id}',${i},'description',this.value)`)}</td>
+    <td style="padding:4px;border:1px solid var(--bd)">${editIn(item.dept,`updateBillItem('${id}',${i},'dept',this.value)`,'110px')}</td>
+    <td style="padding:4px;border:1px solid var(--bd)">${editIn(item.sub||b.subdept||'',`updateBillItem('${id}',${i},'sub',this.value)`,'110px')}</td>
+    <td style="padding:4px;border:1px solid var(--bd)">${editN(item.qty||1,`updateBillItem('${id}',${i},'qty',this.value)`,'55px')}</td>
+    <td style="padding:4px;border:1px solid var(--bd)">${editN(item.rate,`updateBillItem('${id}',${i},'rate',this.value)`,'80px')}</td>
+    <td style="padding:4px;border:1px solid var(--bd)">${editN(item.amount,`updateBillItem('${id}',${i},'amount',this.value)`,'85px')}</td>
+    <td class="no-print" style="padding:4px;border:1px solid var(--bd);text-align:center"><button onclick="removeBillItem('${id}',${i})" style="background:none;border:none;color:var(--rd);cursor:pointer;padding:2px 6px" title="Remove line item">✕</button></td>
   </tr>`).join('');
   const PHASE_CODES_FOR_SELECT=['ATL','PRE','POST','MKT','ADMIN'];
   const LEGACY_ATL_IDS=['atl-artist','atl-director','atl-dop','atl-writer','atl-music','atl-playback'];
@@ -18789,21 +18795,26 @@ function viewBill(id){
         <label style="font-size:11px;font-weight:700;white-space:nowrap;color:${b.schedId?'var(--tx2)':'#b91c1c'}">${b.schedId?'Phase:':'⚠ Phase not set:'}</label>
         <select id="bill-sched-select" onchange="updateBillSchedule('${id}',this.value)" style="flex:1;font-size:12px;padding:4px 8px;border-radius:4px;border:1px solid var(--bd2);background:var(--sf)">${schedOptions}</select>
       </div>
-      <table style="width:100%;border-collapse:collapse;font-size:12px;margin-bottom:12px">
+      <div class="xs2 dim no-print" style="margin-bottom:6px">✏️ Category and Sub-Category are editable per line item — click into a cell to fix or fill them in.</div>
+      <table style="width:100%;border-collapse:collapse;font-size:12px;margin-bottom:8px">
         <thead><tr style="background:var(--sf2)">
           <th style="padding:6px 8px;border:1px solid var(--bd);text-align:left">Description</th>
-          <th style="padding:6px 8px;border:1px solid var(--bd)">Dept</th>
+          <th style="padding:6px 8px;border:1px solid var(--bd)">Category</th>
+          <th style="padding:6px 8px;border:1px solid var(--bd)">Sub-Category</th>
           <th style="padding:6px 8px;border:1px solid var(--bd);text-align:right">Qty</th>
           <th style="padding:6px 8px;border:1px solid var(--bd);text-align:right">Rate</th>
           <th style="padding:6px 8px;border:1px solid var(--bd);text-align:right;color:${isPaid?'#22c55e':'var(--gn)'}">Amount</th>
+          <th class="no-print" style="padding:6px 8px;border:1px solid var(--bd)"></th>
         </tr></thead>
         <tbody>${itemRows}</tbody>
         <tfoot>
-          ${b.gst?`<tr><td colspan="4" style="padding:5px 8px;border:1px solid var(--bd);text-align:right;font-size:11px;color:var(--tx3)">GST</td><td style="padding:5px 8px;border:1px solid var(--bd);text-align:right;font-family:monospace">${fmt(b.gst)}</td></tr>`:''}
-          <tr style="background:var(--sf2)"><td colspan="4" style="padding:7px 8px;border:1px solid var(--bd);text-align:right;font-weight:700">TOTAL</td>
-            <td style="padding:7px 8px;border:1px solid var(--bd);text-align:right;font-family:monospace;font-weight:700;color:${isPaid?'#22c55e':'var(--gn)'}">${fmt(b.total)}</td></tr>
+          ${b.gst?`<tr><td colspan="5" style="padding:5px 8px;border:1px solid var(--bd);text-align:right;font-size:11px;color:var(--tx3)">GST</td><td style="padding:5px 8px;border:1px solid var(--bd);text-align:right;font-family:monospace">${fmt(b.gst)}</td><td class="no-print" style="border:1px solid var(--bd)"></td></tr>`:''}
+          <tr style="background:var(--sf2)"><td colspan="5" style="padding:7px 8px;border:1px solid var(--bd);text-align:right;font-weight:700">TOTAL</td>
+            <td style="padding:7px 8px;border:1px solid var(--bd);text-align:right;font-family:monospace;font-weight:700;color:${isPaid?'#22c55e':'var(--gn)'}">${fmt(b.total)}</td>
+            <td class="no-print" style="border:1px solid var(--bd)"></td></tr>
         </tfoot>
       </table>
+      <button class="btn bs xs no-print" onclick="addBillItem('${id}')" style="margin-bottom:12px">+ Add Line Item</button>
       <div style="margin-bottom:12px;display:flex;align-items:flex-start;gap:8px">
         <div style="flex:1">
           <label style="font-size:11px;font-weight:700;color:var(--tx2);display:block;margin-bottom:4px">Description / Notes</label>
@@ -18826,6 +18837,43 @@ function viewBill(id){
       </div>
     </div>`;
   document.getElementById('bill-modal').style.display='';
+}
+// Update a single field on a bill's line item (Description, Category/dept,
+// Sub-Category/sub, Qty, Rate, or Amount), recompute the bill's subtotal +
+// total from the items, and re-render. Bound to the editable inputs in the
+// View Bill modal.
+function updateBillItem(billId,idx,field,value){
+  const b=(DB.bills||[]).find(x=>x.id===billId);if(!b)return;
+  const items=b.items||(b.items=[]);
+  const item=items[idx];if(!item)return;
+  if(field==='qty'||field==='rate'||field==='amount'){
+    item[field]=parseFloat(value)||0;
+  } else {
+    item[field]=value;
+  }
+  b.subtotal=items.reduce((s,i)=>s+(i.amount||0),0);
+  b.total=b.subtotal+(b.gst||0);
+  saveDB();
+  viewBill(billId);
+  if(typeof renderBills==='function')renderBills();
+}
+function addBillItem(billId){
+  const b=(DB.bills||[]).find(x=>x.id===billId);if(!b)return;
+  if(!b.items)b.items=[];
+  b.items.push({description:'',dept:b.department||'',sub:'',qty:1,rate:0,amount:0});
+  saveDB();
+  viewBill(billId);
+}
+function removeBillItem(billId,idx){
+  const b=(DB.bills||[]).find(x=>x.id===billId);if(!b)return;
+  if(!b.items||!b.items.length)return;
+  if(b.items.length===1){toast('A bill needs at least one line item','err');return;}
+  b.items.splice(idx,1);
+  b.subtotal=b.items.reduce((s,i)=>s+(i.amount||0),0);
+  b.total=b.subtotal+(b.gst||0);
+  saveDB();
+  viewBill(billId);
+  if(typeof renderBills==='function')renderBills();
 }
 function approveBill(id){
   const b=(DB.bills||[]).find(x=>x.id===id);if(!b)return;
@@ -19309,6 +19357,40 @@ function generateFlexTopsheetHtml(b){
     </div>`;
 }
 
+// Build a clean, deduped Category summary and Sub-category summary for a
+// bill's line items, instead of showing the raw (often vendor-repeating)
+// item.description text. Used in the Bills Archive table and when a bill
+// is pushed to Payments.
+function billCategorySummary(bill){
+  const items=(bill&&bill.items)||[];
+  const seen=new Set();
+  const parts=[];
+  (items.length?items:[{}]).forEach(i=>{
+    const cat=(i.dept||bill.department||'').trim();
+    if(cat&&!seen.has(cat)){seen.add(cat);parts.push(cat);}
+  });
+  return parts.join(', ')||'—';
+}
+function billSubCategorySummary(bill){
+  const items=(bill&&bill.items)||[];
+  const seen=new Set();
+  const parts=[];
+  items.forEach(i=>{
+    const sub=(i.sub||bill.subdept||'').trim();
+    if(sub&&!seen.has(sub)){seen.add(sub);parts.push(sub);}
+  });
+  if(!parts.length&&bill&&bill.subdept)return bill.subdept;
+  return parts.join(', ')||'—';
+}
+// Combined "Category › Sub-category" text, kept for places (e.g. the
+// Payments pre-fill) that want both in a single description field.
+function billCatSubSummary(bill){
+  const cat=billCategorySummary(bill);
+  const sub=billSubCategorySummary(bill);
+  if(sub==='—')return cat;
+  return `${cat} › ${sub}`;
+}
+
 function renderBills(){
   const filter=document.getElementById('bills-filter')?.value||'';
   let bills=[...(DB.bills||[])].sort((a,b)=>b.uploadedAt.localeCompare(a.uploadedAt));
@@ -19353,8 +19435,8 @@ function renderBills(){
     return`<tr style="${isPaid?'background:rgba(34,197,94,.04)':''}">
       <td class="xs2">${fmtD(b.billDate||b.shootDate)}</td>
       <td class="semi">${b.vendor||'—'}</td>
-      <td class="xs2 dim" style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${(b.items||[]).map(i=>i.description).join(', ').slice(0,60)||'—'}</td>
-      <td class="xs2">${b.department||b.items?.[0]?.dept||'—'}</td>
+      <td class="xs2 dim" style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${billCategorySummary(b).replace(/"/g,'&quot;')}">${billCategorySummary(b)}</td>
+      <td class="xs2" style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${billSubCategorySummary(b).replace(/"/g,'&quot;')}">${billSubCategorySummary(b)}</td>
       <td class="tr mono xs2">${b.subtotal?fmt(b.subtotal):'—'}</td>
       <td class="tr mono xs2 dim">${b.gst?fmt(b.gst):'—'}</td>
       <td class="tr mono semi" style="color:${isPaid?'#22c55e':'var(--gn)'}">${fmt(b.total)}</td>
@@ -19405,7 +19487,7 @@ function renderBills(){
         <div style="overflow-x:auto">
         <table style="width:100%;table-layout:auto;font-size:11px">
           <thead><tr>
-            <th style="white-space:nowrap">Date</th><th>Vendor</th><th>Description</th><th>Department</th>
+            <th style="white-space:nowrap">Date</th><th>Vendor</th><th>Category</th><th>Sub-Category</th>
             <th class="tr" style="white-space:nowrap">Amount ₹</th><th class="tr" style="white-space:nowrap">GST ₹</th><th class="tr" style="white-space:nowrap;color:var(--gn)">Total ₹</th>
             <th>Status</th><th style="white-space:nowrap">Shoot Date</th>
             <th style="white-space:nowrap;width:80px">📎 Scans</th>
