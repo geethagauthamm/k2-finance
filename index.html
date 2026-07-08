@@ -743,6 +743,7 @@ body.auditor-mode #save-btn { display:none !important; }
     <div class="ng">Reports</div>
     <div class="ni" data-page="dpr" onclick="go('dpr')"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="1" width="12" height="14" rx="1.5"/><path d="M5 5h6M5 8h6M5 11h4"/></svg>DPR</div>
     <div class="ni" data-page="summary" onclick="go('summary')"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 12h2M6 8h2M10 4h2M4 12v-3M8 8v-3M12 4v-3"/><path d="M1 14h14"/></svg>Summary</div>
+    <div class="ni" data-page="budgets" onclick="go('budgets')"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="1" y="2" width="14" height="12" rx="1.5"/><path d="M1 6h14"/><path d="M4 9.5h3M4 12h5"/></svg>Budgets</div>
     <div class="ng">Setup</div>
     <div class="ni" data-page="project" onclick="go('project')"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M8 1l2 5h5l-4 3 1.5 5L8 11l-4.5 3L5 9 1 6h5z"/></svg>Project Setup</div>
     <div class="ni" data-page="vendors" onclick="go('vendors')"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="6" cy="5" r="3"/><path d="M1 14c0-2.761 2.239-5 5-5"/><circle cx="12" cy="10" r="3"/></svg>Vendors</div>
@@ -4619,6 +4620,23 @@ function checkPaymentReminders(){
     </div>
   </div>
 
+  <div class="page" id="page-budgets">
+    <div class="print-header"><h1>Budgets &amp; Projections</h1><p class="print-sub"></p></div>
+    <div class="flex gap8 mb12 wrap no-print" style="align-items:center">
+      <div class="fld" style="min-width:160px"><label>Total Planned Shoot Days</label><input type="number" id="bud-planned-days" onchange="updatePlannedDays(this.value)" style="width:100%"></div>
+      <div class="xs2 dim" style="margin-top:16px">Used for the projected-final-total column below. Leave 0 to skip projections.</div>
+      <button class="btn bs sm" style="margin-left:auto;margin-top:16px" onclick="printPage()">&#9113; Print</button>
+    </div>
+    <div class="sg g5 mb12" id="bud-stats"></div>
+    <div class="card"><div class="ct">Budget vs Actual by Category</div>
+      <div class="xs2 dim no-print" style="margin-bottom:8px">✏️ Click into the Budget column to set or edit a category's allocation — it saves automatically.</div>
+      <div class="tw"><table>
+        <thead><tr><th>Category</th><th class="tr">Budget (&#8377;)</th><th class="tr">Actual to Date</th><th class="tr">Remaining</th><th class="tr">% Used</th><th class="tr">Projected Final</th><th>Status</th></tr></thead>
+        <tbody id="bud-body"></tbody><tfoot id="bud-foot"></tfoot>
+      </table></div>
+    </div>
+  </div>
+
   <!-- ADMIN CHARGES -->
   <div class="page" id="page-admin-charges">
     <div class="ph-bar no-print"><div id="ph-title-admin" class="ph-title">Admin &amp; Legal Charges</div></div>
@@ -6112,7 +6130,7 @@ function k2Confirm(message,choices){
 // ══════════════════════════════════
 // NAVIGATION
 // ══════════════════════════════════
-const PTITLES={dash:'Dashboard',pettycash:'Petty Cash Register',estimates:'Estimates — Day Plan',vehicles:'Vehicles Log',ratecard:'Rate Card','actor-contracts':'Artists & Contracts',actuals:'Actuals',daysheet:'Day Sheet',payments:'Daily Payments',pending:'Pending Queue',actors:'Actor Payments',summary:'Summary',topsheet:'Topsheet',project:'Project Setup',vendors:'Vendors',schedules:'Schedules','submit-actuals':'Submit Actuals',bills:'Bills Archive',callsheets:'Call Sheets','sched-summary':'Schedule Summary Report','admin-charges':'Admin & Legal Charges','salaries':'Monthly Salaries',notifications:'Notifications',inbox:'Inbox'};
+const PTITLES={dash:'Dashboard',pettycash:'Petty Cash Register',estimates:'Estimates — Day Plan',vehicles:'Vehicles Log',ratecard:'Rate Card','actor-contracts':'Artists & Contracts',actuals:'Actuals',daysheet:'Day Sheet',payments:'Daily Payments',pending:'Pending Queue',actors:'Actor Payments',summary:'Summary',budgets:'Budgets & Projections',topsheet:'Topsheet',project:'Project Setup',vendors:'Vendors',schedules:'Schedules','submit-actuals':'Submit Actuals',bills:'Bills Archive',callsheets:'Call Sheets','sched-summary':'Schedule Summary Report','admin-charges':'Admin & Legal Charges','salaries':'Monthly Salaries',notifications:'Notifications',inbox:'Inbox'};
 const SUBTAG={Hire:'<span class="tag to">Hire</span>',Battas:'<span class="tag tb">Battas</span>',Remuneration:'<span class="tag tp">Rem.</span>','Daily Battas':'<span class="tag tc">Daily</span>',Expenses:'<span class="tag ts">Exp.</span>'};
 const STAG3={Paid:'<span class="tag tgn">Paid</span>',Partial:'<span class="tag tg">Partial</span>',Hold:'<span class="tag to">Hold</span>',Rejected:'<span class="tag tr2">Rejected</span>',Scheduled:'<span class="tag tp">Scheduled</span>'};
 const DAY_CAT_TAGS={'Shoot Day':'tg','Set Work':'tb','Rehearsal':'tp','Pre Lighting':'tc','Post Work':'to','Recce':'tgn','Off Day':'ts','Outdoor':'tr2'};
@@ -6175,6 +6193,7 @@ function _renderPageCore(p){
   else if(p==='actorlog'){const _d=[...new Set([...Object.keys(DB.actorLog||{}),...Object.keys(DB.dayHeaders||{})])].filter(Boolean).sort();actSetDay(_d.length?_d[_d.length-1]:tod());}
   else if(p==='dpr'){_dprView='edit';_dprTab='header';dprSetDay(dprCurrentDay||tod());document.getElementById('dpr-edit-view').style.display='';document.getElementById('dpr-print-view').style.display='none';dprRenderTab();setTimeout(function(){if(typeof renderDprSubmissionLog==='function')renderDprSubmissionLog();},100);}
   else if(p==='summary')renderSummary();
+  else if(p==='budgets')renderBudgets();
   else if(p==='topsheet')renderTopsheet();
   else if(p==='project')renderProject();
   else if(p==='vendors')renderVendors();
@@ -12440,6 +12459,89 @@ function renderSummary(){
 }
 
 // ══════════════════════════════════
+// BUDGETS & PROJECTIONS
+// ══════════════════════════════════
+// Elapsed shoot days = number of distinct dates that have any estimate,
+// actual, or actAdhoc entry logged so far. Used as the basis for burn-rate
+// projections against the total planned shoot days (set on this page).
+function budElapsedDays(){
+  const dates=new Set();
+  (DB.estimates||[]).forEach(e=>{if(e.date)dates.add(e.date);});
+  (DB.actAdhoc?Object.keys(DB.actAdhoc):[]).forEach(d=>{if((DB.actAdhoc[d]||[]).length)dates.add(d);});
+  return dates.size;
+}
+function updatePlannedDays(v){
+  DB.project.plannedDays=parseInt(v)||0;
+  saveDB();
+  renderBudgets();
+}
+function updateBudget(cat,v){
+  if(!DB.budgets)DB.budgets={};
+  const n=parseFloat(v)||0;
+  if(n<=0)delete DB.budgets[cat];else DB.budgets[cat]=n;
+  saveDB();
+  renderBudgets();
+}
+function renderBudgets(){
+  const pdEl=document.getElementById('bud-planned-days');
+  if(pdEl)pdEl.value=DB.project.plannedDays||'';
+  const items=allItems();
+  const _so=[...new Set(SEED.map(e=>e.cat))];
+  const cats=[...new Set(items.map(e=>e.cat))].sort((a,b)=>{const ai=_so.indexOf(a);const bi=_so.indexOf(b);return(ai<0?999:ai)-(bi<0?999:bi);});
+  const elapsed=budElapsedDays();
+  const planned=DB.project.plannedDays||0;
+  const remainingDays=planned>elapsed?planned-elapsed:0;
+  const tb=document.getElementById('bud-body');const tf=document.getElementById('bud-foot');if(!tb)return;
+  let html='';let gBudget=0,gAct=0,gProj=0;let anyBudgetSet=false;
+  cats.forEach(cat=>{
+    const catItems=items.filter(e=>e.cat===cat);
+    const act=catItems.reduce((s,x)=>s+getActual(liKey(x)),0);
+    if(act<=0&&!(DB.budgets&&DB.budgets[cat]))return; // skip categories with no activity and no budget set
+    const budget=(DB.budgets&&DB.budgets[cat])||0;
+    if(budget>0)anyBudgetSet=true;
+    const remaining=budget-act;
+    const pctUsed=budget>0?(act/budget*100):null;
+    const projFinal=(remainingDays>0&&elapsed>0)?act+(act/elapsed)*remainingDays:act;
+    gBudget+=budget;gAct+=act;gProj+=projFinal;
+    const overBudget=budget>0&&act>budget;
+    const overProjected=budget>0&&projFinal>budget&&!overBudget;
+    const statusTag=budget<=0?'<span class="tag ts xs2">No budget set</span>'
+      :overBudget?'<span class="tag tr xs2">Over budget</span>'
+      :overProjected?'<span class="tag to xs2">Trending over</span>'
+      :'<span class="tag tgn xs2">On track</span>';
+    html+=`<tr>
+      <td><span class="tag tb xs2">${cat}</span></td>
+      <td class="tr"><input type="number" value="${budget||''}" placeholder="0" onchange="updateBudget('${cat.replace(/'/g,"\\'")}',this.value)" style="width:110px;text-align:right;background:var(--sf2);border:1px solid var(--bd2);border-radius:4px;padding:4px 6px;font-size:12px;color:var(--tx)"></td>
+      <td class="tn tr orange">${fmt(act)}</td>
+      <td class="tn tr ${budget>0?(remaining<0?'red':'green'):'dim'}">${budget>0?fmt(remaining):'—'}</td>
+      <td class="tn tr ${pctUsed!=null&&pctUsed>100?'red':pctUsed!=null&&pctUsed>85?'orange':''}">${pctUsed!=null?Math.round(pctUsed)+'%':'—'}</td>
+      <td class="tn tr ${budget>0&&projFinal>budget?'red':''}">${elapsed>0?fmt(Math.round(projFinal)):'—'}</td>
+      <td>${statusTag}</td>
+    </tr>`;
+  });
+  tb.innerHTML=html||'<tr><td colspan="7" class="te">No categories with activity yet — log estimates, actuals, or bills first</td></tr>';
+  if(tf)tf.innerHTML=`<tr class="tfoot-row">
+    <td style="padding:9px 8px;font-size:10px;color:var(--tx3);text-transform:uppercase;letter-spacing:1px">Grand Total</td>
+    <td class="tn tr">${anyBudgetSet?fmt(gBudget):'—'}</td>
+    <td class="tn tr orange">${fmt(gAct)}</td>
+    <td class="tn tr ${gBudget>0?(gBudget-gAct<0?'red':'green'):''}">${gBudget>0?fmt(gBudget-gAct):'—'}</td>
+    <td class="tn tr">${gBudget>0?Math.round(gAct/gBudget*100)+'%':'—'}</td>
+    <td class="tn tr">${elapsed>0?fmt(Math.round(gProj)):'—'}</td>
+    <td></td>
+  </tr>`;
+  const sEl=document.getElementById('bud-stats');
+  if(sEl){
+    const dayNote=planned>0?`${elapsed} of ${planned} shoot days logged`:'Set total planned days above to enable projections';
+    sEl.innerHTML=`
+      <div class="stat"><div class="sl">Total Budget</div><div class="sv blue">${anyBudgetSet?fmt(gBudget):'—'}</div><div class="ss">across ${cats.filter(c=>DB.budgets&&DB.budgets[c]).length} categories</div></div>
+      <div class="stat"><div class="sl">Actual to Date</div><div class="sv orange">${fmt(gAct)}</div></div>
+      <div class="stat"><div class="sl">Remaining</div><div class="sv ${gBudget>0&&gBudget-gAct<0?'red':'green'}">${gBudget>0?fmt(gBudget-gAct):'—'}</div></div>
+      <div class="stat"><div class="sl">Projected Final</div><div class="sv ${gBudget>0&&gProj>gBudget?'red':''}">${elapsed>0?fmt(Math.round(gProj)):'—'}</div></div>
+      <div class="stat"><div class="sl">Shoot Days</div><div class="sv">${elapsed}${planned>0?'/'+planned:''}</div><div class="ss">${dayNote}</div></div>`;
+  }
+}
+
+// ══════════════════════════════════
 // TOPSHEET
 // ══════════════════════════════════
 function renderTopsheet(){
@@ -14484,13 +14586,13 @@ const DEFAULT_USERS=[
 // Pages each role can access — admin gets everything
 const ROLE_ACCESS={
   admin:      null,
-  producer:   ['inbox','estimates','actuals','payments','bills','sched-summary','summary','hotels','flights','vehicles','notifications'],
+  producer:   ['inbox','estimates','actuals','payments','bills','sched-summary','summary','budgets','hotels','flights','vehicles','notifications'],
   transport:  ['vehicles'],
   hospitality:['hotels','flights'],
   cashier:    ['pettycash','petty'],
   accounts:   ['payments','bills','sched-summary','vendors','inbox'],
   coordinator:['actuals','daysheet','callsheets','actorlog','dpr','submit-actuals'],
-  auditor:    ['dash','estimates','actuals','bills','payments','vendors','sched-summary','summary','dpr','hotels','flights','vehicles','pettycash','petty','salaries','actorlog','actor-contracts','notifications','inbox']
+  auditor:    ['dash','estimates','actuals','bills','payments','vendors','sched-summary','summary','budgets','dpr','hotels','flights','vehicles','pettycash','petty','salaries','actorlog','actor-contracts','notifications','inbox']
 };
 
 function getUsers(){
@@ -17278,6 +17380,7 @@ function fxRemoveRole(id){
 function fxRolePayTypeChanged(roleId,val){
   const role=_fxRoles.find(r=>r.id===roleId);if(!role)return;
   role.payType=val;
+  fxRenderRoles();
   fxRenderTable();
 }
 
@@ -17326,10 +17429,24 @@ function fxRenderRoles(){
   const con=document.getElementById('fx-roles-list');if(!con)return;
   const dept=document.getElementById('fx-dept')?.value||'';
   const items=dept?allItems().filter(e=>e.cat===dept):allItems();
-  con.innerHTML=`<div style="display:flex;flex-direction:column;gap:8px">${_fxRoles.map(r=>{
+  // Flag roles that look like equipment/hire but are set to Per CS — hire cost
+  // shouldn't scale with call-sheet length, only Count × Rate (Per Day) should.
+  const HIRE_HINT=/hire|rent|equipment|rostrum|generator|camera|lens|crane|dolly|gimbal|ronin|truss|tent|caravan|van|vehicle/i;
+  const looksLikeHire=r=>HIRE_HINT.test(r.label||'');
+  const flaggedRoles=_fxRoles.filter(r=>looksLikeHire(r)&&(r.payType||'Per CS')==='Per CS');
+  const warningBanner=flaggedRoles.length?`<div class="no-print" style="display:flex;align-items:flex-start;gap:8px;margin-bottom:8px;padding:8px 10px;background:rgba(239,68,68,.08);border:1px solid rgba(239,68,68,.3);border-radius:6px">
+    <span style="font-size:14px;line-height:1">⚠️</span>
+    <div style="font-size:11px;color:#b91c1c;line-height:1.4">
+      <strong>${flaggedRoles.length} line item${flaggedRoles.length>1?'s look':' looks'} like equipment hire but ${flaggedRoles.length>1?'are':'is'} set to <u>Per CS</u></strong> — that multiplies the hire cost by call-sheet length (CS), so a longer shift makes the hire more expensive even though you hired the same quantity.
+      For equipment/hire quantities, use <strong>Per Day</strong> instead so it's Count × Rate only.
+      <div style="margin-top:3px">Affected: ${flaggedRoles.map(r=>'<strong>'+r.label.replace(/</g,'&lt;')+'</strong>').join(', ')}</div>
+    </div>
+  </div>`:'';
+  con.innerHTML=warningBanner+`<div style="display:flex;flex-direction:column;gap:8px">${_fxRoles.map(r=>{
     const rateItem=r.liKey?allItems().find(e=>liKey(e)===r.liKey):null;
     const allowItem=r.allowLiKey?allItems().find(e=>liKey(e)===r.allowLiKey):null;
-    return`<div style="display:grid;grid-template-columns:160px 1fr 1fr 110px auto;gap:8px;align-items:center;background:var(--sf3);padding:6px 10px;border-radius:6px">
+    const flagged=looksLikeHire(r)&&(r.payType||'Per CS')==='Per CS';
+    return`<div style="display:grid;grid-template-columns:160px 1fr 1fr 110px auto;gap:8px;align-items:center;background:var(--sf3);padding:6px 10px;border-radius:6px;${flagged?'border:1px solid rgba(239,68,68,.5)':''}">
       <div class="flex aic gap4">
         <input type="text" value="${r.label.replace(/"/g,'&quot;')}" onchange="fxRoleLabelChanged('${r.id}',this.value)" title="Click to rename — e.g. Electrician, Driver, Operator, Rostrum, Black Cloth, Lights" style="font-size:12px;font-weight:700;width:100%;background:var(--sf2);border:1px solid var(--bd2);border-radius:4px;padding:3px 6px;color:var(--tx)">
         <button onclick="fxRemoveRole('${r.id}')" title="Remove" style="background:none;border:none;cursor:pointer;color:var(--rd);font-size:10px;padding:0;flex-shrink:0">✕</button>
@@ -17355,7 +17472,7 @@ function fxRenderRoles(){
           <option value="Package"${r.payType==='Package'?' selected':''}>Package (flat)</option>
         </select>
       </div>
-      <span class="xs3" style="color:${r.liKey?'var(--gn)':'var(--tx3)'};white-space:nowrap">${r.liKey?'✓ linked':'manual'}</span>
+      <span class="xs3" style="color:${r.liKey?'var(--gn)':'var(--tx3)'};white-space:nowrap">${flagged?'⚠️ check rate type':(r.liKey?'✓ linked':'manual')}</span>
     </div>`;
   }).join('')}</div>`;
 }
