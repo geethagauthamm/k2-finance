@@ -2587,7 +2587,7 @@ var PROD_APPROVED=['approved','partial'];
 var ACC_APPROVED=['acc-approved','acc-partial'];
 var PENDING_PROD=['hold','rejected'];
 var PENDING_ACC=['acc-hold','acc-rejected'];
-var DEFAULT_CATS=['Reimbursements','Battas','Advance against Requisition','Hire','Manpower','Wages','Food','Utilities','Purchases','Materials','Contractual Amount','Remuneration','Salary','Costumes','Make Up','Prosthetic','Art','Equipment rental','Location fees','Crew payments','Transport & logistics','Catering','Post production','Miscellaneous'];
+var DEFAULT_CATS=['Reimbursements','Battas','Advance against Requisition','Hire','Manpower','Wages','Food','Utilities','Purchases','Materials','Contractual Amount','Remuneration','Salary','Actors/Artists','Artist Staff','Costumes','Make Up','Prosthetic','Art','Equipment rental','Location fees','Crew payments','Transport & logistics','Vehicles','Trains','Buses','Flights','Hotels','Catering','Post production','Miscellaneous'];
 
 function td(){return new Date().toISOString().split('T')[0]}
 function fd(d){if(!d)return'—';var p=d.split('-');return p[2]+'/'+p[1]+'/'+p[0]}
@@ -2610,6 +2610,16 @@ function toast(msg){var t=document.getElementById('toast');t.textContent=msg;t.c
 
 // ── CATEGORIES ──
 function getCats(){if(!S._cats)S._cats=DEFAULT_CATS.slice();return S._cats;}
+// Merge any newly-added DEFAULT_CATS entries into an already-saved category
+// list. getCats() only seeds from DEFAULT_CATS the very first time S._cats
+// is created — for a project that already has a saved category list, adding
+// a category to DEFAULT_CATS alone wouldn't show up without this.
+function migrateCats(){
+  if(!S._cats)return false;
+  let changed=false;
+  DEFAULT_CATS.forEach(c=>{if(S._cats.indexOf(c)<0){S._cats.push(c);changed=true;}});
+  return changed;
+}
 function buildCatSelects(){
   var cats=getCats();
   ['in-cat','f-cat'].forEach(function(id){
@@ -3166,7 +3176,7 @@ var _ptPasteRows=[];
 function parsePTPaste(){
   var raw=document.getElementById('pt-paste-input').value;
   var lines=raw.split(/\r?\n/).map(function(l){return l.trim();}).filter(Boolean);
-  var CAT_LIST=['Reimbursements','Battas','Advance against Requisition','Hire','Manpower','Wages','Food','Utilities','Purchases','Materials','Contractual Amount','Remuneration','Salary','Costumes','Make Up','Prosthetic','Art','Equipment rental','Location fees','Crew payments','Transport & logistics','Catering','Post production','Miscellaneous'];
+  var CAT_LIST=['Reimbursements','Battas','Advance against Requisition','Hire','Manpower','Wages','Food','Utilities','Purchases','Materials','Contractual Amount','Remuneration','Salary','Actors/Artists','Artist Staff','Costumes','Make Up','Prosthetic','Art','Equipment rental','Location fees','Crew payments','Transport & logistics','Vehicles','Trains','Buses','Flights','Hotels','Catering','Post production','Miscellaneous'];
   _ptPasteRows=[];
   lines.forEach(function(line,i){
     var cols=line.split('\t');
@@ -4327,7 +4337,7 @@ function exportCSV(){
 
 // ── PAYMENT INIT ──
 function initPayments(){
-  ld();buildCatSelects();buildTableHeader();rebuildPhaseDropdown();
+  ld();if(migrateCats())sv();buildCatSelects();buildTableHeader();rebuildPhaseDropdown();
   var k=tod();ensureDay(k);A=k;renderTabs();switchDay(k);updatePendingBadge();
   // Auto-tag any Remuneration/Artists entries that aren't yet phase-tagged
   autoTagAllATL(true);
@@ -5474,9 +5484,13 @@ function getTotalPaid(){
   const fromLegacyPayments=(DB.payments||[]).filter(p=>p.status==='Paid'||p.status==='Partial').reduce((s,p)=>s+(p.amount||0),0);
   const fromBills=(DB.bills||[]).filter(b=>b.status==='paid').reduce((s,b)=>s+(b.total||0),0);
   const fromPartialBills=(DB.bills||[]).filter(b=>b.status!=='paid'&&b.partialPaidAmt).reduce((s,b)=>s+(b.partialPaidAmt||0),0);
+  // A paytracker entry with a linked bill (e.billId) has its paid amount
+  // already counted via fromBills once that bill's status flips to 'paid'
+  // (see syncBillFromPaytrackerEntry, which sets both at the same moment).
+  // Counting it again here double-counts the exact same payment — skip it.
   const fromPaytracker=Object.values(DB.paytracker||{}).reduce((s,day)=>{
     if(!day||typeof day!=='object'||Array.isArray(day))return s;
-    (day.entries||[]).forEach(e=>{ if(e.payStatus==='pay-paid') s+=parseFloat(e.payAmt||e.amt||0); });
+    (day.entries||[]).forEach(e=>{ if(e.payStatus==='pay-paid'&&!e.billId) s+=parseFloat(e.payAmt||e.amt||0); });
     return s;
   },0);
   return Math.round((fromLegacyPayments+fromBills+fromPartialBills+fromPaytracker)*100)/100;
@@ -6274,7 +6288,7 @@ function fillDropdowns(){
   }
   const inCatList=document.getElementById('in-cat-list');
   if(inCatList){
-    const standardCats=['Reimbursements','Battas','Advance against Requisition','Hire','Manpower','Wages','Food','Utilities','Purchases','Materials','Contractual Amount','Remuneration','Salary','Costumes','Make Up','Prosthetic','Art','Equipment rental','Location fees','Crew payments','Transport & logistics','Catering','Post production','Miscellaneous'];
+    const standardCats=['Reimbursements','Battas','Advance against Requisition','Hire','Manpower','Wages','Food','Utilities','Purchases','Materials','Contractual Amount','Remuneration','Salary','Actors/Artists','Artist Staff','Costumes','Make Up','Prosthetic','Art','Equipment rental','Location fees','Crew payments','Transport & logistics','Vehicles','Trains','Buses','Flights','Hotels','Catering','Post production','Miscellaneous'];
     const rateCardCats=[...new Set(allItems().map(e=>e.cat))];
     const merged=[...standardCats,...rateCardCats.filter(c=>!standardCats.includes(c))];
     inCatList.innerHTML=merged.map(c=>`<option value="${c.replace(/"/g,'&quot;')}">`).join('');
