@@ -4622,16 +4622,38 @@ function checkPaymentReminders(){
 
   <div class="page" id="page-budgets">
     <div class="print-header"><h1>Budgets &amp; Projections</h1><p class="print-sub"></p></div>
-    <div class="flex gap8 mb12 wrap no-print" style="align-items:center">
-      <div class="fld" style="min-width:160px"><label>Total Planned Shoot Days</label><input type="number" id="bud-planned-days" onchange="updatePlannedDays(this.value)" style="width:100%"></div>
-      <div class="xs2 dim" style="margin-top:16px">Used for the projected-final-total column below. Leave 0 to skip projections.</div>
-      <button class="btn bs sm" style="margin-left:auto;margin-top:16px" onclick="printPage()">&#9113; Print</button>
+    <div class="flex gap8 mb12 wrap no-print" style="align-items:flex-end;justify-content:space-between">
+      <div class="flex gap8 wrap" style="align-items:flex-end">
+        <div class="fld" style="min-width:160px"><label>Total Planned Shoot Days</label><input type="number" id="bud-planned-days" onchange="updatePlannedDays(this.value)" style="width:100%"></div>
+        <div class="xs2 dim" style="padding-bottom:8px">Used for the Projected Final column below. Leave 0 to skip projections.</div>
+      </div>
+      <button class="btn bs sm" onclick="printPage()">&#9113; Print</button>
     </div>
-    <div class="sg g5 mb12" id="bud-stats"></div>
-    <div class="card"><div class="ct">Budget vs Actual by Category</div>
-      <div class="xs2 dim no-print" style="margin-bottom:8px">✏️ Click into the Budget column to set or edit a category's allocation — it saves automatically.</div>
+
+    <div class="card mb12"><div class="ct">Budget Rollup</div>
       <div class="tw"><table>
-        <thead><tr><th>Category</th><th class="tr">Budget (&#8377;)</th><th class="tr">Actual to Date</th><th class="tr">Remaining</th><th class="tr">% Used</th><th class="tr">Projected Final</th><th>Status</th></tr></thead>
+        <thead><tr><th>Section</th><th class="tr">Amount (&#8377;)</th><th class="tr">% of Final Budget</th></tr></thead>
+        <tbody id="bud-rollup-body"></tbody>
+      </table></div>
+    </div>
+
+    <div class="sg g4 mb12" id="bud-stats"></div>
+
+    <div class="card"><div class="ct">Full Detailed Breakdown</div>
+      <div class="xs2 dim no-print" style="margin-bottom:8px">✏️ Every field is editable. Rate/Qty/Formula auto-fill the Budget Total — you can still overwrite the Total directly afterward. Actual to Date matches on Department + Line Item text against Bills, plus an optional Rate Card link for day-plan actuals.</div>
+      <div class="flex gap8 mb8 no-print">
+        <select id="bud-add-section" style="font-size:12px;padding:4px 8px;border-radius:4px;border:1px solid var(--bd2);background:var(--sf)">
+          <option>ATL</option><option>BTL - Production</option><option>Post</option><option>Base Budget Alignment / Reserve</option><option>Contingency</option>
+        </select>
+        <button class="btn bg sm" onclick="addBudgetLine(document.getElementById('bud-add-section').value)">+ Add Line Item</button>
+      </div>
+      <div class="tw"><table>
+        <thead><tr>
+          <th>Section</th><th>Department</th><th>Line Item</th><th>Basis / Notes</th>
+          <th class="tr">Rate &#8377;</th><th class="tr">Qty</th><th>Formula</th><th class="tr">CS/Days/Mo</th>
+          <th class="tr">Budget Total &#8377;</th><th>&#128279; Rate Card</th>
+          <th class="tr">Actual to Date</th><th class="tr">Remaining</th><th>Status</th><th class="no-print"></th>
+        </tr></thead>
         <tbody id="bud-body"></tbody><tfoot id="bud-foot"></tfoot>
       </table></div>
     </div>
@@ -12475,68 +12497,190 @@ function updatePlannedDays(v){
   saveDB();
   renderBudgets();
 }
-function updateBudget(cat,v){
-  if(!DB.budgets)DB.budgets={};
-  const n=parseFloat(v)||0;
-  if(n<=0)delete DB.budgets[cat];else DB.budgets[cat]=n;
+const BUDGET_SECTIONS=['ATL','BTL - Production','Post','Base Budget Alignment / Reserve','Contingency'];
+const BUDGET_FORMULAS={
+  rate:{label:'Flat Rate',calc:(rate,qty,units)=>rate},
+  rate_qty:{label:'Rate × Qty',calc:(rate,qty,units)=>rate*qty},
+  rate_qty_cs:{label:'Rate × Qty × CS',calc:(rate,qty,units)=>rate*qty*units},
+  rate_qty_days:{label:'Rate × Qty × Days',calc:(rate,qty,units)=>rate*qty*units},
+  rate_qty_months:{label:'Rate × Qty × Months',calc:(rate,qty,units)=>rate*qty*units}
+};
+function bdlComputeTotal(line){
+  const f=BUDGET_FORMULAS[line.formula]||BUDGET_FORMULAS.rate_qty;
+  const rate=parseFloat(line.rate)||0,qty=parseFloat(line.qty)||0,units=parseFloat(line.unitsCount)||0;
+  return Math.round(f.calc(rate,qty,units)*100)/100;
+}
+function addBudgetLine(section){
+  if(!DB.budgetLines)DB.budgetLines=[];
+  DB.budgetLines.push({id:'bl'+Date.now()+Math.random().toString(36).slice(2,6),section:section||'ATL',department:'',lineItem:'',basis:'',rate:0,qty:1,formula:'rate_qty',unitsCount:1,total:0,liKey:''});
   saveDB();
   renderBudgets();
+}
+function removeBudgetLine(id){
+  if(!confirm('Remove this budget line item?'))return;
+  DB.budgetLines=(DB.budgetLines||[]).filter(l=>l.id!==id);
+  saveDB();
+  renderBudgets();
+}
+function updateBudgetLine(id,field,value){
+  const line=(DB.budgetLines||[]).find(l=>l.id===id);if(!line)return;
+  if(field==='rate'||field==='qty'||field==='unitsCount'||field==='total'){
+    line[field]=parseFloat(value)||0;
+  } else {
+    line[field]=value;
+  }
+  // Rate/Qty/Formula/Units recompute the suggested Total. Editing Total
+  // itself is a direct override and doesn't get clobbered until the person
+  // changes one of the calculator inputs again — same pattern as bill items.
+  if(field==='rate'||field==='qty'||field==='unitsCount'||field==='formula'){
+    line.total=bdlComputeTotal(line);
+  }
+  saveDB();
+  renderBudgets();
+}
+// Actual spend for a single budget line item: an optional Rate Card link
+// (day-plan Actuals, same mechanism as Flexible Topsheet role linking) PLUS
+// any Bill line items whose Category + Sub-Category text match this budget
+// line's Department + Line Item. This is line-item-level matching — rename
+// the Department/Line Item to re-target which bills count toward it.
+function budgetLineActual(line){
+  let act=0;
+  if(line.liKey)act+=getActual(line.liKey);
+  const matchDept=(line.department||'').trim();
+  const matchSub=(line.lineItem||'').trim();
+  if(matchDept){
+    (DB.bills||[]).forEach(b=>{
+      if(b.status==='draft')return;
+      (b.items&&b.items.length?b.items:[{amount:b.total,dept:b.department,sub:b.subdept}]).forEach(i=>{
+        const idept=(i.dept||b.department||'').trim();
+        const isub=(i.sub||b.subdept||'').trim();
+        if(idept===matchDept&&(!matchSub||isub===matchSub))act+=(i.amount||0);
+      });
+    });
+  }
+  return act;
+}
+// Bill spend that no budget line item's Department+Line Item match claims —
+// so money never silently disappears from the picture. A bill only counts
+// as "claimed" if some line's Department matches (Sub-Category match is
+// only required when that line's Line Item name is non-empty).
+function uncategorizedBudgetBillSpend(){
+  const lines=DB.budgetLines||[];
+  let sum=0;
+  (DB.bills||[]).forEach(b=>{
+    if(b.status==='draft')return;
+    (b.items&&b.items.length?b.items:[{amount:b.total,dept:b.department,sub:b.subdept}]).forEach(i=>{
+      const idept=(i.dept||b.department||'').trim();
+      const isub=(i.sub||b.subdept||'').trim();
+      const matched=lines.some(l=>{
+        const ld=(l.department||'').trim(),ls=(l.lineItem||'').trim();
+        return ld&&ld===idept&&(!ls||ls===isub);
+      });
+      if(!matched)sum+=(i.amount||0);
+    });
+  });
+  return sum;
 }
 function renderBudgets(){
   const pdEl=document.getElementById('bud-planned-days');
   if(pdEl)pdEl.value=DB.project.plannedDays||'';
-  const items=allItems();
-  const _so=[...new Set(SEED.map(e=>e.cat))];
-  const cats=[...new Set(items.map(e=>e.cat))].sort((a,b)=>{const ai=_so.indexOf(a);const bi=_so.indexOf(b);return(ai<0?999:ai)-(bi<0?999:bi);});
+  if(!DB.budgetLines)DB.budgetLines=[];
+  const lines=DB.budgetLines;
   const elapsed=budElapsedDays();
   const planned=DB.project.plannedDays||0;
   const remainingDays=planned>elapsed?planned-elapsed:0;
+
+  // ---- Rollup by section ----
+  const sectionTotal=sec=>lines.filter(l=>l.section===sec).reduce((s,l)=>s+(parseFloat(l.total)||0),0);
+  const gATL=sectionTotal('ATL'),gBTL=sectionTotal('BTL - Production'),gPost=sectionTotal('Post'),
+        gReserve=sectionTotal('Base Budget Alignment / Reserve'),gCont=sectionTotal('Contingency');
+  const baseBefore=gATL+gBTL+gPost+gReserve;
+  const finalTotal=baseBefore+gCont;
+  const rb=document.getElementById('bud-rollup-body');
+  if(rb){
+    const pct=v=>finalTotal>0?(v/finalTotal*100).toFixed(1)+'%':'—';
+    rb.innerHTML=`
+      <tr><td>ATL</td><td class="tn tr">${fmt(gATL)}</td><td class="tn tr">${pct(gATL)}</td></tr>
+      <tr><td>BTL - Production</td><td class="tn tr">${fmt(gBTL)}</td><td class="tn tr">${pct(gBTL)}</td></tr>
+      <tr><td>Post</td><td class="tn tr">${fmt(gPost)}</td><td class="tn tr">${pct(gPost)}</td></tr>
+      <tr><td>Base Budget Alignment / Reserve</td><td class="tn tr">${fmt(gReserve)}</td><td class="tn tr">${pct(gReserve)}</td></tr>
+      <tr style="background:var(--sf2);font-weight:700"><td>Base Budget Before Contingency</td><td class="tn tr">${fmt(baseBefore)}</td><td class="tn tr">${pct(baseBefore)}</td></tr>
+      <tr><td>Contingency</td><td class="tn tr">${fmt(gCont)}</td><td class="tn tr">${pct(gCont)}</td></tr>
+      <tr style="background:var(--sf2);font-weight:700;color:var(--gn)"><td>FINAL PROJECT TOTAL</td><td class="tn tr">${fmt(finalTotal)}</td><td class="tn tr">100%</td></tr>`;
+  }
+
+  // ---- Line item table, grouped by section then department ----
   const tb=document.getElementById('bud-body');const tf=document.getElementById('bud-foot');if(!tb)return;
-  let html='';let gBudget=0,gAct=0,gProj=0;let anyBudgetSet=false;
-  cats.forEach(cat=>{
-    const catItems=items.filter(e=>e.cat===cat);
-    const act=catItems.reduce((s,x)=>s+getActual(liKey(x)),0);
-    if(act<=0&&!(DB.budgets&&DB.budgets[cat]))return; // skip categories with no activity and no budget set
-    const budget=(DB.budgets&&DB.budgets[cat])||0;
-    if(budget>0)anyBudgetSet=true;
-    const remaining=budget-act;
-    const pctUsed=budget>0?(act/budget*100):null;
-    const projFinal=(remainingDays>0&&elapsed>0)?act+(act/elapsed)*remainingDays:act;
-    gBudget+=budget;gAct+=act;gProj+=projFinal;
-    const overBudget=budget>0&&act>budget;
-    const overProjected=budget>0&&projFinal>budget&&!overBudget;
-    const statusTag=budget<=0?'<span class="tag ts xs2">No budget set</span>'
-      :overBudget?'<span class="tag tr xs2">Over budget</span>'
-      :overProjected?'<span class="tag to xs2">Trending over</span>'
-      :'<span class="tag tgn xs2">On track</span>';
-    html+=`<tr>
-      <td><span class="tag tb xs2">${cat}</span></td>
-      <td class="tr"><input type="number" value="${budget||''}" placeholder="0" onchange="updateBudget('${cat.replace(/'/g,"\\'")}',this.value)" style="width:110px;text-align:right;background:var(--sf2);border:1px solid var(--bd2);border-radius:4px;padding:4px 6px;font-size:12px;color:var(--tx)"></td>
-      <td class="tn tr orange">${fmt(act)}</td>
-      <td class="tn tr ${budget>0?(remaining<0?'red':'green'):'dim'}">${budget>0?fmt(remaining):'—'}</td>
-      <td class="tn tr ${pctUsed!=null&&pctUsed>100?'red':pctUsed!=null&&pctUsed>85?'orange':''}">${pctUsed!=null?Math.round(pctUsed)+'%':'—'}</td>
-      <td class="tn tr ${budget>0&&projFinal>budget?'red':''}">${elapsed>0?fmt(Math.round(projFinal)):'—'}</td>
-      <td>${statusTag}</td>
-    </tr>`;
+  const items=allItems();
+  let html='';let gAct=0,gProj=0;
+  BUDGET_SECTIONS.forEach(section=>{
+    const secLines=lines.filter(l=>l.section===section);
+    if(!secLines.length)return;
+    html+=`<tr class="cat-hdr-row"><td colspan="14">${section} <span style="font-weight:400;font-size:11px;color:var(--tx2)">Budget: ${fmt(sectionTotal(section))}</span></td></tr>`;
+    let lastDept='';
+    secLines.forEach(line=>{
+      const act=budgetLineActual(line);
+      const budget=parseFloat(line.total)||0;
+      const remaining=budget-act;
+      const projFinal=(remainingDays>0&&elapsed>0)?act+(act/elapsed)*remainingDays:act;
+      gAct+=act;gProj+=projFinal;
+      const overBudget=budget>0&&act>budget;
+      const overProjected=budget>0&&projFinal>budget&&!overBudget;
+      const statusTag=budget<=0?'<span class="tag ts xs2">No budget</span>'
+        :overBudget?'<span class="tag tr xs2">Over budget</span>'
+        :overProjected?'<span class="tag to xs2">Trending over</span>'
+        :act<=0?'<span class="tag ts xs2">No spend yet</span>'
+        :'<span class="tag tgn xs2">On track</span>';
+      const sIn=(val,field,w)=>`<input type="text" value="${(val||'').toString().replace(/"/g,'&quot;')}" onchange="updateBudgetLine('${line.id}','${field}',this.value)" style="width:${w};box-sizing:border-box;background:var(--sf2);border:1px solid var(--bd2);border-radius:4px;padding:3px 6px;font-size:11px;color:var(--tx)">`;
+      const nIn=(val,field,w,bold)=>`<input type="number" value="${val||''}" onchange="updateBudgetLine('${line.id}','${field}',this.value)" style="width:${w};box-sizing:border-box;background:var(--sf2);border:1px solid var(--bd2);border-radius:4px;padding:3px 6px;font-size:11px;text-align:right;color:var(--tx);${bold?'font-weight:700':''}">`;
+      html+=`<tr>
+        <td><select onchange="updateBudgetLine('${line.id}','section',this.value)" style="font-size:10px;padding:2px 4px;border-radius:4px;border:1px solid var(--bd2);background:var(--sf2)">${BUDGET_SECTIONS.map(s=>`<option${s===line.section?' selected':''}>${s}</option>`).join('')}</select></td>
+        <td>${sIn(line.department,'department','110px')}</td>
+        <td>${sIn(line.lineItem,'lineItem','130px')}</td>
+        <td>${sIn(line.basis,'basis','140px')}</td>
+        <td>${nIn(line.rate,'rate','85px')}</td>
+        <td>${nIn(line.qty,'qty','50px')}</td>
+        <td><select onchange="updateBudgetLine('${line.id}','formula',this.value)" style="font-size:10px;padding:3px 4px;border-radius:4px;border:1px solid var(--bd2);background:var(--sf2)">${Object.entries(BUDGET_FORMULAS).map(([k,v])=>`<option value="${k}"${line.formula===k?' selected':''}>${v.label}</option>`).join('')}</select></td>
+        <td>${nIn(line.unitsCount,'unitsCount','60px')}</td>
+        <td>${nIn(line.total,'total','95px',true)}</td>
+        <td><select onchange="updateBudgetLine('${line.id}','liKey',this.value)" style="font-size:10px;padding:3px 4px;border-radius:4px;border:1px solid var(--bd2);background:var(--sf2);max-width:120px">
+          <option value="">— none —</option>
+          ${items.map(e=>`<option value="${liKey(e).replace(/"/g,'&quot;')}"${line.liKey===liKey(e)?' selected':''}>${e.item}</option>`).join('')}
+        </select></td>
+        <td class="tn tr ${act>0?'orange':'dim'}">${act>0?fmt(act):'—'}</td>
+        <td class="tn tr ${budget>0?(remaining<0?'red':'green'):'dim'}">${budget>0?fmt(remaining):'—'}</td>
+        <td>${statusTag}</td>
+        <td class="no-print"><button onclick="removeBudgetLine('${line.id}')" style="background:none;border:none;color:var(--rd);cursor:pointer;padding:2px 6px">✕</button></td>
+      </tr>`;
+    });
   });
-  tb.innerHTML=html||'<tr><td colspan="7" class="te">No categories with activity yet — log estimates, actuals, or bills first</td></tr>';
+  const uncat=uncategorizedBudgetBillSpend();
+  if(uncat>0){
+    gAct+=uncat;
+    html+=`<tr style="background:rgba(239,68,68,.06)">
+      <td colspan="3"><span class="tag tr xs2">⚠ Uncategorized Bills</span></td>
+      <td colspan="6" class="xs2 dim">Bill Category/Sub-Category doesn't match any budget line's Department/Line Item — check Bills Archive</td>
+      <td class="tn tr orange">${fmt(uncat)}</td>
+      <td class="tn tr dim">—</td><td class="tn tr dim">—</td><td class="tn tr dim">—</td><td></td>
+    </tr>`;
+  }
+  tb.innerHTML=html||'<tr><td colspan="14" class="te">No budget line items yet — use "+ Add Line Item" above to start building the budget</td></tr>';
   if(tf)tf.innerHTML=`<tr class="tfoot-row">
-    <td style="padding:9px 8px;font-size:10px;color:var(--tx3);text-transform:uppercase;letter-spacing:1px">Grand Total</td>
-    <td class="tn tr">${anyBudgetSet?fmt(gBudget):'—'}</td>
-    <td class="tn tr orange">${fmt(gAct)}</td>
-    <td class="tn tr ${gBudget>0?(gBudget-gAct<0?'red':'green'):''}">${gBudget>0?fmt(gBudget-gAct):'—'}</td>
-    <td class="tn tr">${gBudget>0?Math.round(gAct/gBudget*100)+'%':'—'}</td>
-    <td class="tn tr">${elapsed>0?fmt(Math.round(gProj)):'—'}</td>
+    <td colspan="8" style="padding:9px 8px;font-size:10px;color:var(--tx3);text-transform:uppercase;letter-spacing:1px">Grand Total</td>
+    <td class="tn tr">${fmt(finalTotal)}</td>
     <td></td>
+    <td class="tn tr orange">${fmt(gAct)}</td>
+    <td class="tn tr ${finalTotal>0?(finalTotal-gAct<0?'red':'green'):''}">${finalTotal>0?fmt(finalTotal-gAct):'—'}</td>
+    <td></td><td></td>
   </tr>`;
+
   const sEl=document.getElementById('bud-stats');
   if(sEl){
     const dayNote=planned>0?`${elapsed} of ${planned} shoot days logged`:'Set total planned days above to enable projections';
     sEl.innerHTML=`
-      <div class="stat"><div class="sl">Total Budget</div><div class="sv blue">${anyBudgetSet?fmt(gBudget):'—'}</div><div class="ss">across ${cats.filter(c=>DB.budgets&&DB.budgets[c]).length} categories</div></div>
       <div class="stat"><div class="sl">Actual to Date</div><div class="sv orange">${fmt(gAct)}</div></div>
-      <div class="stat"><div class="sl">Remaining</div><div class="sv ${gBudget>0&&gBudget-gAct<0?'red':'green'}">${gBudget>0?fmt(gBudget-gAct):'—'}</div></div>
-      <div class="stat"><div class="sl">Projected Final</div><div class="sv ${gBudget>0&&gProj>gBudget?'red':''}">${elapsed>0?fmt(Math.round(gProj)):'—'}</div></div>
+      <div class="stat"><div class="sl">Remaining</div><div class="sv ${finalTotal>0&&finalTotal-gAct<0?'red':'green'}">${finalTotal>0?fmt(finalTotal-gAct):'—'}</div></div>
+      <div class="stat"><div class="sl">Projected Final</div><div class="sv ${finalTotal>0&&gProj>finalTotal?'red':''}">${elapsed>0?fmt(Math.round(gProj)):'—'}</div></div>
       <div class="stat"><div class="sl">Shoot Days</div><div class="sv">${elapsed}${planned>0?'/'+planned:''}</div><div class="ss">${dayNote}</div></div>`;
   }
 }
