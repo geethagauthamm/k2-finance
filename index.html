@@ -17610,10 +17610,11 @@ function fxRenderRoles(){
         </select>
       </div>
       <div class="flex aic gap4">
-        <select onchange="fxRolePayTypeChanged('${r.id}',this.value)" title="Per CS multiplies rate × count × CS. Per Day multiplies rate × count only (CS ignored). Package multiplies rate × CS (call sheets) — headcount is for records only, not multiplied." style="background:var(--sf2);border:1px solid var(--bd2);border-radius:4px;padding:3px 6px;font-size:11px;font-weight:600;color:${r.payType==='Package'?'var(--pu)':(r.payType==='Per Day'?'var(--gn)':'var(--bl)')}">
+        <select onchange="fxRolePayTypeChanged('${r.id}',this.value)" title="Per CS multiplies rate × count × CS. Per Day multiplies rate × count only (CS ignored). Package (× CS) multiplies rate × CS (call sheets) — headcount is for records only, not multiplied. Flat (One-Time) charges the rate exactly once, not multiplied by CS or headcount — use for one-off lump-sum charges like a prosthetic making charge." style="background:var(--sf2);border:1px solid var(--bd2);border-radius:4px;padding:3px 6px;font-size:11px;font-weight:600;color:${r.payType==='Package'?'var(--pu)':(r.payType==='Flat'?'#e85d04':(r.payType==='Per Day'?'var(--gn)':'var(--bl)'))}">
           <option value="Per CS"${(r.payType||'Per CS')==='Per CS'?' selected':''}>Per CS</option>
           <option value="Per Day"${r.payType==='Per Day'?' selected':''}>Per Day</option>
-          <option value="Package"${r.payType==='Package'?' selected':''}>Package (flat)</option>
+          <option value="Package"${r.payType==='Package'?' selected':''}>Package (× CS)</option>
+          <option value="Flat"${r.payType==='Flat'?' selected':''}>Flat (One-Time)</option>
         </select>
       </div>
       <span class="xs3" style="color:${r.liKey?'var(--gn)':'var(--tx3)'};white-space:nowrap">${flagged?'⚠️ check rate type':(r.liKey?'✓ linked':'manual')}</span>
@@ -17718,6 +17719,13 @@ function fxRowCalc(idx){
       total+=count*(parseFloat(rd.allowance)||0); // allowance still per-head if set
       return;
     }
+    if(r.payType==='Flat'){
+      // True one-time flat charge — rate only, NOT multiplied by CS or headcount.
+      // For lump-sum items like a one-off making/purchase charge.
+      if(count>0)total+=(parseFloat(rd.rate)||0);
+      total+=count*(parseFloat(rd.allowance)||0);
+      return;
+    }
     const csMultiplier=(r.payType==='Per Day')?1:(parseFloat(row.cs)||1);
     total+=count*(parseFloat(rd.rate)||0)*csMultiplier;
     total+=count*(parseFloat(rd.allowance)||0); // allowance NOT multiplied by CS
@@ -17738,7 +17746,7 @@ function fxRenderTable(){
     <th style="padding:6px 8px;font-size:10px;white-space:nowrap">CS</th>
     <th style="padding:6px 8px;font-size:10px;white-space:nowrap">Day Type</th>
     <th style="padding:6px 8px;font-size:10px;white-space:nowrap">Split Tag</th>
-    ${_fxRoles.map(r=>`<th colspan="3" style="padding:6px 8px;font-size:10px;text-align:center;border-left:1px solid var(--bd);white-space:nowrap;min-width:160px">${r.label}${r.liKey?' <span style="color:var(--gn)">🔗</span>':''} <span style="font-size:8px;padding:1px 4px;border-radius:3px;background:${r.payType==='Package'?'rgba(168,85,247,.15)':((r.payType||'Per CS')==='Per Day'?'rgba(46,204,138,.15)':'rgba(91,138,240,.15)')};color:${r.payType==='Package'?'var(--pu)':((r.payType||'Per CS')==='Per Day'?'var(--gn)':'var(--bl)')}">${r.payType||'Per CS'}</span><br><span style="font-weight:400;font-size:8px;opacity:.7">Count · Rate ₹ · Allow ₹</span></th>`).join('')}
+    ${_fxRoles.map(r=>`<th colspan="3" style="padding:6px 8px;font-size:10px;text-align:center;border-left:1px solid var(--bd);white-space:nowrap;min-width:160px">${r.label}${r.liKey?' <span style="color:var(--gn)">🔗</span>':''} <span style="font-size:8px;padding:1px 4px;border-radius:3px;background:${r.payType==='Package'?'rgba(168,85,247,.15)':(r.payType==='Flat'?'rgba(232,93,4,.15)':((r.payType||'Per CS')==='Per Day'?'rgba(46,204,138,.15)':'rgba(91,138,240,.15)'))};color:${r.payType==='Package'?'var(--pu)':(r.payType==='Flat'?'#e85d04':((r.payType||'Per CS')==='Per Day'?'var(--gn)':'var(--bl)'))}">${r.payType||'Per CS'}</span><br><span style="font-weight:400;font-size:8px;opacity:.7">Count · Rate ₹ · Allow ₹</span></th>`).join('')}
     <th style="padding:6px 8px;font-size:10px;white-space:nowrap;border-left:1px solid var(--bd)">Other ₹</th>
     <th style="padding:6px 8px;font-size:10px;text-align:right;white-space:nowrap">Total ₹</th>
     <th style="padding:6px 8px;font-size:10px;text-align:left;min-width:220px;white-space:normal;word-wrap:break-word">Remarks</th>
@@ -18331,6 +18339,8 @@ function printFlexBillTopsheet(b){
       let battas;
       if(r.payType==='Package'){
         battas=count>0?rate*(parseFloat(row.cs)||1):0; // flat per call sheet × number of call sheets
+      }else if(r.payType==='Flat'){
+        battas=count>0?rate:0; // one-time flat charge — not multiplied by CS or headcount
       }else{
         const csMultiplier=(r.payType==='Per Day')?1:(parseFloat(row.cs)||1);
         battas=Math.round(count*rate*csMultiplier*100)/100;
@@ -18370,6 +18380,8 @@ function printFlexBillTopsheet(b){
       totCount+=count;
       if(r.payType==='Package'){
         totBattas+=count>0?rate*(parseFloat(row.cs)||1):0;
+      }else if(r.payType==='Flat'){
+        totBattas+=count>0?rate:0;
       }else{
         const csMultiplier=(r.payType==='Per Day')?1:(parseFloat(row.cs)||1);
         totBattas+=count*rate*csMultiplier;
@@ -19511,6 +19523,8 @@ function generateFlexTopsheetHtml(b){
       let battas;
       if(r.payType==='Package'){
         battas=count>0?rate*(parseFloat(row.cs)||1):0;
+      }else if(r.payType==='Flat'){
+        battas=count>0?rate:0;
       }else{
         const csMultiplier=(r.payType==='Per Day')?1:(parseFloat(row.cs)||1);
         battas=Math.round(count*rate*csMultiplier*100)/100;
@@ -19547,6 +19561,8 @@ function generateFlexTopsheetHtml(b){
       totCount+=count;
       if(r.payType==='Package'){
         totBattas+=count>0?rate*(parseFloat(row.cs)||1):0;
+      }else if(r.payType==='Flat'){
+        totBattas+=count>0?rate:0;
       }else{
         const csMultiplier=(r.payType==='Per Day')?1:(parseFloat(row.cs)||1);
         totBattas+=count*rate*csMultiplier;
@@ -19563,8 +19579,14 @@ function generateFlexTopsheetHtml(b){
     activeRoles.forEach(r=>{
       const rd=row.roleData?.[r.id]||{};
       const count=parseFloat(rd.count)||0,rate=parseFloat(rd.rate)||0,allow=parseFloat(rd.allowance)||0;
-      const cs=(r.payType='Per Day')?1:(parseFloat(row.cs)||1);
-      rt+=count*rate*cs+count*allow;
+      if(r.payType==='Package'){
+        rt+=(count>0?rate*(parseFloat(row.cs)||1):0)+count*allow;
+      }else if(r.payType==='Flat'){
+        rt+=(count>0?rate:0)+count*allow;
+      }else{
+        const cs=(r.payType==='Per Day')?1:(parseFloat(row.cs)||1);
+        rt+=count*rate*cs+count*allow;
+      }
     });
     rt+=parseFloat(row.otherCharges)||0;
     return s+Math.round(rt*100)/100;
