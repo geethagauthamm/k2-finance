@@ -6113,6 +6113,81 @@ function fixNameMismatch(oldName,newName,btn){
   if(row)row.remove();
 }
 
+// Scan Payment Tracker entries currently tagged "Miscellaneous" for ones
+// whose vendor/description text strongly suggests they're actually Hotels,
+// Flights, Trains, or Buses — the categories most likely to have been
+// dumped into Miscellaneous before those options existed. Deliberately
+// conservative: only scans Miscellaneous (the known dumping ground), only
+// flags on fairly unambiguous keywords, and only suggests one category per
+// entry (first rule to match) rather than guessing among several.
+const CAT_MISMATCH_RULES=[
+  {cat:'Hotels',re:/\bhotels?\b|\bresorts?\b|\bitc\b|guest\s*house|guesthouse|\binns?\b|\bsuites?\b|marriott|hyatt|novotel|lemon\s*tree|radisson|\btaj\b|oberoi|westin|sheraton/i},
+  {cat:'Flights',re:/\bflights?\b|\bairlines?\b|\bjets?\b|\bcharter\b|\bairways\b|indigo|spicejet|vistara|air\s*india/i},
+  {cat:'Trains',re:/\btrains?\b|\brailway\b|\birctc\b/i},
+  {cat:'Buses',re:/\bbuses?\b/i}
+];
+function findCategoryMismatches(){
+  if(!Object.keys(S).length)ld();
+  const results=[];
+  getDays().forEach(function(dayKey){
+    const day=S[dayKey];if(!day||!Array.isArray(day.entries))return;
+    day.entries.forEach(function(e){
+      if((e.cat||'')!=='Miscellaneous')return;
+      const text=((e.vendor||'')+' '+(e.desc||'')).toLowerCase();
+      for(var i=0;i<CAT_MISMATCH_RULES.length;i++){
+        if(CAT_MISMATCH_RULES[i].re.test(text)){
+          results.push({id:e.id,dayKey:dayKey,vendor:e.vendor,desc:e.desc,amt:e.amt,suggestedCat:CAT_MISMATCH_RULES[i].cat});
+          break;
+        }
+      }
+    });
+  });
+  return results;
+}
+function openCategoryMismatchChecker(){
+  const hits=findCategoryMismatches();
+  const body=hits.length?hits.map(function(h){return`
+    <div style="border:1px solid var(--bd);border-radius:8px;padding:10px 14px;margin-bottom:8px" data-entry-id="${h.id}">
+      <div class="flex aic jb wrap gap8">
+        <div>
+          <div><strong>${esc(h.vendor||'—')}</strong> <span class="xs3 dim">— ₹${fm(h.amt||0)}</span></div>
+          <div class="xs2 dim">${esc(h.desc||'')}</div>
+          <div class="xs3 dim" style="margin-top:2px">Currently: <strong>Miscellaneous</strong> → looks like <strong>${h.suggestedCat}</strong></div>
+        </div>
+        <div class="flex gap8">
+          <button class="btn bs xs" onclick="fixCategoryMismatch('${h.id}','${h.suggestedCat}',this)">→ Use "${h.suggestedCat}"</button>
+          <button class="btn bs xs" onclick="this.closest('[data-entry-id]').remove()" title="Leave as Miscellaneous">Ignore</button>
+        </div>
+      </div>
+    </div>`;}).join('')
+    : '<div class="te" style="padding:20px">✓ No likely category mismatches found among Miscellaneous entries.</div>';
+  const bg=document.createElement('div');
+  bg.className='modal-bg open';
+  bg.style.zIndex='9500';
+  const box=document.createElement('div');
+  box.style.cssText='max-width:640px;width:95%;max-height:80vh;overflow-y:auto;background:#0f172a;border:1px solid #1e293b;border-radius:12px;padding:20px 22px';
+  box.innerHTML='<div class="flex aic jb mb10"><div class="semi" style="font-size:15px;color:#e8eaf0">🏷 Category Mismatch Check</div><button class="btn bs xs" id="cmc-close">✕</button></div>'
+    +'<div class="xs2" style="color:#b0bacf;margin-bottom:14px">These entries are tagged Miscellaneous but their vendor/description strongly suggests a more specific category — only scanning Miscellaneous since that\'s the likely dumping ground from before these categories existed. Review each before applying.</div>'
+    +'<div id="cmc-body">'+body+'</div>';
+  bg.appendChild(box);
+  document.body.appendChild(bg);
+  box.querySelector('#cmc-close').onclick=function(){document.body.removeChild(bg);};
+}
+function fixCategoryMismatch(id,newCat,btn){
+  const e=findEntry(id);if(!e){toast('Entry not found — try refreshing','err');return;}
+  const oldCat=e.cat;
+  e.cat=newCat;
+  if(!e.comments)e.comments=[];
+  e.comments.push({date:new Date().toLocaleDateString('en-IN'),text:'Category corrected — '+oldCat+' → '+newCat,status:e.producerStatus});
+  sv();
+  toast('✓ "'+(e.vendor||'Entry')+'" recategorized to '+newCat);
+  if(typeof renderEntries==='function')renderEntries();
+  if(typeof renderHistory==='function')renderHistory();
+  if(typeof renderPending==='function')renderPending();
+  const row=btn.closest('[data-entry-id]');
+  if(row)row.remove();
+}
+
 function syncBillFromPaytrackerEntry(e){
   if(!e||!e.billId)return;
   const b=(DB.bills||[]).find(x=>x.id===e.billId);
@@ -13429,6 +13504,7 @@ function renderFinancePhases(){
   html+='<div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;padding-bottom:12px;margin-bottom:2px;border-bottom:2px solid var(--bd)">';
   html+='<div class="ps-title">💰 PRODUCTION FINANCE</div>';
   html+='<button class="btn bs xs no-print" onclick="openNameMismatchChecker()" style="margin-left:8px" title="Scan all vendor/artist names for typos that could be silently breaking Dashboard totals">🔍 Check Name Mismatches</button>';
+  html+='<button class="btn bs xs no-print" onclick="openCategoryMismatchChecker()" style="margin-left:8px" title="Scan Miscellaneous-tagged Payment Tracker entries for ones that look like Hotels, Flights, Trains, or Buses">🏷 Check Category Mismatches</button>';
   html+='<div style="display:flex;gap:20px;flex-wrap:wrap">';
   if(arContracted>0) html+='<div style="text-align:right"><div class="ps-hdl" style="color:#a78bfa">Contracted</div><div class="ps-nh" style="color:#a78bfa">'+fmt(arContracted)+'</div></div>';
   html+='<div style="text-align:right"><div class="ps-hdl" style="color:#60a5fa">Agreed</div><div class="ps-nh" style="color:#60a5fa">'+fmt(grandAgreed)+'</div></div>';
