@@ -781,7 +781,10 @@ body.auditor-mode #save-btn { display:none !important; }
     <div class="card mb10" style="background:linear-gradient(135deg,rgba(232,169,69,.07),rgba(91,138,240,.04));border-color:rgba(232,169,69,.22);">
       <div class="flex jb wrap gap12">
         <div><div class="syne" style="font-size:20px;font-weight:800;color:var(--go)" id="dp-title">K2</div><div class="flex gap12 mt8 wrap" id="dp-meta"></div></div>
-        <div class="flex gap10 wrap" id="dp-shoot-stats"></div>
+        <div class="flex aic gap10">
+          <div class="flex gap10 wrap" id="dp-shoot-stats"></div>
+          <button class="btn bs xs no-print" onclick="openShootDayChecker()" title="See exactly which dates count toward Shoot Days, and flag any duplicate Call Sheets inflating the total">🔍 Check Shoot Days</button>
+        </div>
       </div>
     </div>
     <div id="d-snap"></div>
@@ -2992,13 +2995,20 @@ function renderPhaseSummary(){
     });
   });
   var activePhase=document.getElementById('f-phase')?document.getElementById('f-phase').value:'';
+  var phaseColors2={'Pre-Production':'#f59e0b','Post-Production':'#10b981','ATL / Talent':'#8b5cf6','Marketing & Release':'#ec4899','Admin & Finance':'#94a3b8'};
   var html='';
   opts.forEach(function(o){
     if(!counts[o.val]&&!totals[o.val])return;
     var isActive=activePhase===o.val;
-    var icon=o.label.split(' ')[0];
+    // Same fix as buildHistEditChips: most groups' "icon" was really a
+    // Unicode circle emoji standing in for a colored dot, but Marketing's
+    // was a pink heart (no pink circle exists in Unicode) — render a real
+    // CSS dot in the phase's actual color instead, everywhere except the
+    // genuine 🎬 schedule icon.
+    var dotColor=o.val.startsWith('Sched:')?'#3b82f6':(phaseColors2[o.topLevel]||'#94a3b8');
+    var iconHtml=o.isSchedule?'🎬 ':'<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:'+dotColor+';margin-right:4px;vertical-align:middle"></span>';
     html+='<div class="phase-summary-card'+(isActive?' active-phase':'')+'" onclick="filterByPhase(\''+o.val+'\')" title="Click to filter by '+o.label+'">'+
-      '<div class="ps-label '+phaseClass(o.val)+'">'+icon+' '+(o.isSchedule?(o.label.replace('🎬 ','')):(o.val))+'</div>'+
+      '<div class="ps-label '+phaseClass(o.val)+'">'+iconHtml+(o.isSchedule?(o.label.replace('🎬 ','')):(o.val))+'</div>'+
       '<div class="ps-total" style="color:'+(totals[o.val]>0?'#4ade80':'#334155')+'">₹'+fm(totals[o.val])+'</div>'+
       '<div class="ps-count">'+counts[o.val]+' entr'+(counts[o.val]===1?'y':'ies')+'</div>'+
       '</div>';
@@ -4391,13 +4401,18 @@ function buildHistEditChips(cur){
   var allOpts=getPhaseOpts().filter(function(o){return o.val!=='';});
   var phaseColors2={'Pre-Production':'#f59e0b','Post-Production':'#10b981','ATL / Talent':'#8b5cf6','Marketing & Release':'#ec4899','Admin & Finance':'#94a3b8'};
   function col(p){return p.startsWith('Sched:')?'#3b82f6':(phaseColors2[p]||'#94a3b8');}
+  function dot(c){return'<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:'+c+';margin-right:4px;vertical-align:middle"></span>';}
   return'<button onclick="selectHistEditPhase(\'\')" style="padding:4px 10px;border-radius:12px;font-size:11px;font-weight:600;cursor:pointer;border:1px solid '+(cur===''||!cur?'#e2e8f0':'#334155')+';background:'+(cur===''||!cur?'rgba(255,255,255,.12)':'transparent')+';color:'+(cur===''||!cur?'#e2e8f0':'#64748b')+'">None</button>'+
   allOpts.map(function(o){
     var active=cur===o.val;
     var c=col(o.val);
-    var icon=o.label.split(' ')[0];
+    // Schedules already carry their own 🎬 emoji in the label (a real film-reel
+    // icon, not a stand-in) — keep that. Every other group used an emoji as a
+    // makeshift "colored circle" (Marketing's was a pink heart, not a dot), so
+    // render a real CSS dot in the exact phase color instead for consistency.
+    var iconHtml=o.isSchedule?'🎬 ':dot(c);
     var lbl=o.isSchedule?o.label.replace('🎬 ',''):o.val;
-    return'<button onclick="selectHistEditPhase(\''+o.val+'\')" style="padding:4px 10px;border-radius:12px;font-size:11px;font-weight:600;cursor:pointer;border:1px solid '+(active?c:'#334155')+';background:'+(active?'rgba('+hexToRgb(c)+',.18)':'transparent')+';color:'+(active?c:'#64748b')+'">'+icon+' '+lbl+'</button>';
+    return'<button onclick="selectHistEditPhase(\''+o.val+'\')" style="padding:4px 10px;border-radius:12px;font-size:11px;font-weight:600;cursor:pointer;border:1px solid '+(active?c:'#334155')+';background:'+(active?'rgba('+hexToRgb(c)+',.18)':'transparent')+';color:'+(active?c:'#64748b')+'">'+iconHtml+lbl+'</button>';
   }).join('');
 }
 
@@ -6185,6 +6200,140 @@ function fixCategoryMismatch(id,newCat,btn){
   if(typeof renderHistory==='function')renderHistory();
   if(typeof renderPending==='function')renderPending();
   const row=btn.closest('[data-entry-id]');
+  if(row)row.remove();
+}
+
+// Diagnose the Dashboard's "Shoot Days" count. It comes from DB.shootDays
+// entries with type==='Shoot Day', which backfillShootDaysFromCallSheets()
+// auto-populates from Call Sheets (deduped by exact date string) but never
+// removes from. Two ways the count can end up higher than the real number
+// of shoot days: (1) two Call Sheets recorded with dayType 'Shoot' on two
+// different date strings that actually represent the same day (typo, wrong
+// year, extra whitespace), or (2) a manual Shoot Days Register entry that
+// doesn't correspond to any Call Sheet at all (leftover from before a date
+// got corrected, or added by mistake).
+// Self-heal: collapse duplicate DB.shootDays entries (same date, same type)
+// down to one each. Silent version of what dedupeAllShootDays() does on
+// user request from the checker modal — runs automatically so a fresh
+// duplicate can't silently inflate the Shoot Days count again.
+function dedupeShootDaysSelfHeal(){
+  if(!DB.shootDays||!DB.shootDays.length)return false;
+  const seen=new Set();
+  const deduped=[];
+  let changed=false;
+  DB.shootDays.forEach(d=>{
+    const key=(d.type||'')+'|'+(d.date||'').trim();
+    if(seen.has(key)){changed=true;return;}
+    seen.add(key);
+    deduped.push(d);
+  });
+  if(changed)DB.shootDays=deduped;
+  return changed;
+}
+function findShootDayIssues(){
+  const csShootDates={};
+  (DB.callSheets||[]).forEach(cs=>{
+    if(cs.dayType==='Shoot'){
+      const key=(cs.date||'').trim();
+      if(!csShootDates[key])csShootDates[key]=[];
+      csShootDates[key].push(cs);
+    }
+  });
+  const csDateSet=new Set(Object.keys(csShootDates));
+  const dupeCallSheets=Object.entries(csShootDates).filter(([d,arr])=>arr.length>1)
+    .map(([d,arr])=>({date:d,count:arr.length,nos:arr.map(c=>c.no).filter(Boolean)}));
+  const shootDayEntries=(DB.shootDays||[]).filter(d=>d.type==='Shoot Day');
+  const orphanEntries=shootDayEntries.filter(d=>!csDateSet.has((d.date||'').trim()));
+  // The actual bug this was built to catch: two (or more) separate records in
+  // DB.shootDays itself sharing the same date. backfillShootDaysFromCallSheets()
+  // is supposed to prevent this (it checks for an existing entry before
+  // pushing), but if something else ever wrote directly to DB.shootDays —
+  // an import, a restore, a manual add — outside that function, duplicates
+  // like this can slip in. Each duplicate date has a real Call Sheet AND an
+  // existing register entry, so the two checks above (Call Sheet dupes,
+  // orphan entries) both correctly report clean — this is a third, distinct
+  // failure mode.
+  const byDate={};
+  shootDayEntries.forEach(d=>{
+    const k=(d.date||'').trim();
+    (byDate[k]=byDate[k]||[]).push(d);
+  });
+  const internalDupes=Object.entries(byDate).filter(([d,arr])=>arr.length>1)
+    .map(([d,arr])=>({date:d,entries:arr}));
+  return{
+    total:shootDayEntries.length,
+    allDates:shootDayEntries.map(d=>d.date).sort(),
+    dupeCallSheets,
+    orphanEntries,
+    internalDupes
+  };
+}
+function openShootDayChecker(){
+  const r=findShootDayIssues();
+  const datesHtml=r.allDates.map(d=>`<span class="xs3" style="display:inline-block;background:var(--sf3);border-radius:4px;padding:2px 6px;margin:2px">${typeof fmtD==='function'?fmtD(d):d}</span>`).join('');
+  const internalDupeHtml=r.internalDupes.length?`
+    <div style="border:1px solid rgba(239,68,68,.4);border-radius:8px;padding:10px 12px;margin-bottom:10px;background:rgba(239,68,68,.08)">
+      <div style="margin-bottom:8px"><strong>${r.internalDupes.length} date${r.internalDupes.length>1?'s have':' has'} duplicate entries</strong> in the Shoot Days Register itself — the actual cause of the inflated count. Each of these dates is counted ${r.internalDupes[0].entries.length}× instead of once.</div>
+      <div style="max-height:160px;overflow-y:auto;margin-bottom:8px">${r.internalDupes.map(x=>`<span class="xs3" style="display:inline-block;background:rgba(239,68,68,.15);border-radius:4px;padding:2px 6px;margin:2px">${x.date} ×${x.entries.length}</span>`).join('')}</div>
+      <button class="btn bg xs" onclick="dedupeAllShootDays(this)" style="background:#ef4444">🧹 Remove all duplicates (keep one per date)</button>
+    </div>`
+    :'<div class="xs2 dim" style="margin-bottom:10px">✓ No duplicate dates within the Shoot Days Register.</div>';
+  const dupeHtml=r.dupeCallSheets.length?r.dupeCallSheets.map(x=>`
+    <div style="border:1px solid rgba(239,68,68,.35);border-radius:8px;padding:8px 12px;margin-bottom:6px;background:rgba(239,68,68,.06)">
+      <strong>${x.date}</strong> — ${x.count} Call Sheets marked "Shoot" on this exact date${x.nos.length?' (CS# '+x.nos.join(', ')+')':''}
+    </div>`).join('')
+    :'<div class="xs2 dim">No two Call Sheets share the exact same date.</div>';
+  const orphanHtml=r.orphanEntries.length?r.orphanEntries.map(d=>`
+    <div style="border:1px solid rgba(251,191,36,.35);border-radius:8px;padding:8px 12px;margin-bottom:6px;background:rgba(251,191,36,.06);display:flex;justify-content:space-between;align-items:center">
+      <span><strong>${d.date}</strong> — counted as a Shoot Day but has no matching Call Sheet</span>
+      <button class="btn bs xs" onclick="removeOrphanShootDay('${d.id}',this)">🗑 Remove</button>
+    </div>`).join('')
+    :'<div class="xs2 dim">Every Shoot Day entry has a matching Call Sheet.</div>';
+  const bg=document.createElement('div');
+  bg.className='modal-bg open';
+  bg.style.zIndex='9500';
+  const box=document.createElement('div');
+  box.style.cssText='max-width:680px;width:95%;max-height:80vh;overflow-y:auto;background:#0f172a;border:1px solid #1e293b;border-radius:12px;padding:20px 22px';
+  box.innerHTML='<div class="flex aic jb mb10"><div class="semi" style="font-size:15px;color:#e8eaf0">🔍 Shoot Days Check</div><button class="btn bs xs" id="sdc-close">✕</button></div>'
+    +`<div class="xs2" style="color:#b0bacf;margin-bottom:14px">The Dashboard counts <strong>${r.total}</strong> distinct dates tagged "Shoot Day".</div>`
+    +internalDupeHtml
+    +'<div class="semi xs2" style="margin-bottom:6px;color:#f87171">Duplicate Call Sheets on the same date</div>'+dupeHtml
+    +'<div class="semi xs2" style="margin:14px 0 6px;color:#fbbf24">Manual Shoot Day entries with no Call Sheet backing them</div>'+orphanHtml
+    +`<div class="semi xs2" style="margin:14px 0 6px;color:var(--tx2)">All ${r.total} counted dates</div><div>${datesHtml}</div>`;
+  bg.appendChild(box);
+  document.body.appendChild(bg);
+  box.querySelector('#sdc-close').onclick=()=>document.body.removeChild(bg);
+}
+// Collapse DB.shootDays down to one entry per date, for dates that ended up
+// with duplicates. Keeps whichever entry came from a Call Sheet if one of
+// the duplicates did (most reliable source); otherwise keeps the first.
+function dedupeAllShootDays(btn){
+  const r=findShootDayIssues();
+  if(!r.internalDupes.length)return;
+  const totalRemoved=r.internalDupes.reduce((s,x)=>s+(x.entries.length-1),0);
+  if(!confirm('Remove '+totalRemoved+' duplicate Shoot Day entr'+(totalRemoved===1?'y':'ies')+', keeping one per date?'))return;
+  const dupDates=new Set(r.internalDupes.map(x=>x.date));
+  const kept=new Set();
+  DB.shootDays=(DB.shootDays||[]).filter(d=>{
+    if(d.type!=='Shoot Day')return true; // leave non-Shoot-Day entries untouched
+    const key=(d.date||'').trim();
+    if(!dupDates.has(key))return true; // not a duplicated date, keep as-is
+    if(kept.has(key))return false; // already kept one for this date — drop this one
+    kept.add(key);
+    return true;
+  });
+  saveDB();
+  toast('✓ Removed '+totalRemoved+' duplicate entr'+(totalRemoved===1?'y':'ies'));
+  if(typeof renderDash==='function')renderDash();
+  document.querySelectorAll('.modal-bg.open').forEach(m=>m.remove());
+}
+function removeOrphanShootDay(id,btn){
+  if(!confirm('Remove this Shoot Day entry? It has no matching Call Sheet.'))return;
+  DB.shootDays=(DB.shootDays||[]).filter(d=>d.id!==id);
+  saveDB();
+  toast('✓ Removed');
+  if(typeof renderDash==='function')renderDash();
+  const row=btn.closest('div[style*="border:1px solid rgba(251,191,36"]');
   if(row)row.remove();
 }
 
@@ -13690,6 +13839,11 @@ function renderFinancePhases(){
 function renderDash(){
   // Self-heal: sync any Call Sheets created before the auto-sync fix into the Shoot Days register
   if(backfillShootDaysFromCallSheets())saveDB();
+  // Self-heal: collapse any Shoot Days Register entries that ended up duplicated
+  // on the same date (inflates the "Shoot Days" count on this page and in the
+  // sidebar) — silently, since this is a pure data-integrity fix with no
+  // ambiguity about which entry to keep.
+  if(dedupeShootDaysSelfHeal())saveDB();
   // Self-heal: fix Call Sheet numbers (#1, #2…) to be in chronological order
   if(csRenumberAll())saveDB();
   // Self-heal: assign a Schedule to any Call Sheet missing one, by matching its date to a schedule's range
@@ -14006,6 +14160,9 @@ function init(){
   // Self-heal: fix any paytracker day whose .entries got corrupted into a non-array
   // (this previously crashed renderDash/renderInbox/renderVendorPayHistory entirely)
   if(sanitizePaytracker())saveDB();
+  // Self-heal: collapse duplicate Shoot Days Register entries (inflates the
+  // sidebar's shoot-day count even before the Dashboard page itself renders).
+  if(dedupeShootDaysSelfHeal())saveDB();
   // Self-heal: repair any artist records missing category/payment-type fields
   // (an earlier version of the ATL quick-add tool created incomplete records,
   // which rendered as literal "undefined" in the Artists & Contracts table).
