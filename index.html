@@ -17893,8 +17893,17 @@ function fxGenerateRange(){
   if(!from||!to){toast('Set both From and To dates','err');return;}
   if(to<from){toast('"To" date must be after "From" date','err');return;}
   const dates=dateRangeList(from,to);
-  // Remove any auto-empty placeholder rows (single blank row with no data entered)
-  if(_fxRows.length===1&&!_fxRows[0].date){_fxRows=[];}
+  // Remove the auto-added placeholder row from modal-open, if it's still
+  // untouched. It always has a date pre-filled (today's, via fxAddRow's
+  // lastDate fallback) so checking "date is empty" never matched — that was
+  // the bug: this stray row would survive every "Generate Rows for Range"
+  // and show up as an extra row for today's date after sorting.
+  if(_fxRows.length===1){
+    const r0=_fxRows[0];
+    const untouched=Object.values(r0.roleData||{}).every(rd=>!rd.count)
+      &&!r0.otherCharges&&!r0.remarks&&!r0.deviationNote&&!r0.otherChargesNote&&!r0.splitTag;
+    if(untouched)_fxRows=[];
+  }
   let added=0;
   dates.forEach(d=>{
     if(_fxRows.some(r=>r.date===d))return; // don't duplicate
