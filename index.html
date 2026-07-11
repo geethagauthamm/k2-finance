@@ -17653,6 +17653,12 @@ function fxSaveDraft(){
     rangeTo:document.getElementById('fx-range-to')?.value||'',
     roles:JSON.parse(JSON.stringify(_fxRoles)),
     rows:JSON.parse(JSON.stringify(_fxRows)),
+    messCols:JSON.parse(JSON.stringify(_fxMessCatCols)),
+    messRows:JSON.parse(JSON.stringify(_fxMessDateRows)),
+    prodCols:JSON.parse(JSON.stringify(_fxProdItemCols)),
+    prodRows:JSON.parse(JSON.stringify(_fxProdDateRows)),
+    hireCols:JSON.parse(JSON.stringify(_fxHireCatCols)),
+    hireRows:JSON.parse(JSON.stringify(_fxHireDateRows)),
     savedAt:new Date().toLocaleTimeString()
   };
   localStorage.setItem(FX_DRAFT_KEY,JSON.stringify(draft));
@@ -17681,10 +17687,18 @@ function fxRestoreDraft(draft){
   if(draft.rangeTo)document.getElementById('fx-range-to').value=draft.rangeTo;
   if(draft.roles&&draft.roles.length)_fxRoles=draft.roles;
   if(draft.rows&&draft.rows.length)_fxRows=draft.rows;
-  fxRenderRoles();fxRenderRows();
+  if(draft.messCols&&draft.messCols.length)_fxMessCatCols=draft.messCols;
+  if(draft.messRows&&draft.messRows.length)_fxMessDateRows=draft.messRows;
+  if(draft.prodCols&&draft.prodCols.length)_fxProdItemCols=draft.prodCols;
+  if(draft.prodRows&&draft.prodRows.length)_fxProdDateRows=draft.prodRows;
+  if(draft.hireCols&&draft.hireCols.length)_fxHireCatCols=draft.hireCols;
+  if(draft.hireRows&&draft.hireRows.length)_fxHireDateRows=draft.hireRows;
+  fxRenderRoles();fxRenderTable();fxRenderMess();fxRenderProd();fxRenderHire();
   const el=document.getElementById('fx-draft-status');
   if(el)el.textContent='Draft from '+draft.savedAt+' restored';
-  toast('Draft restored — '+draft.rows.length+' rows, '+draft.roles.length+' role tiers');
+  const prodRowCount=(draft.prodRows||[]).length,messRowCount=(draft.messRows||[]).length,hireRowCount=(draft.hireRows||[]).length;
+  const extras=[messRowCount?messRowCount+' Mess row(s)':'',prodRowCount?prodRowCount+' Production Expenses row(s)':'',hireRowCount?hireRowCount+' Hires row(s)':''].filter(Boolean).join(', ');
+  toast('Draft restored — '+draft.rows.length+' main row(s), '+draft.roles.length+' role tier(s)'+(extras?'; '+extras:''));
 }
 
 // Prevent double-submit — debounce guard
@@ -18557,8 +18571,14 @@ function fxLoadPrevPayments(){
 }
 
 
+// Whether there's anything to save at all — checks the main role/date table
+// AND all three expense grids, since a bill might legitimately only use
+// Production Expenses (or Mess, or Hires) with zero rows in the main table.
+function fxHasAnyRows(){
+  return _fxRows.length>0 || _fxMessDateRows.length>0 || _fxProdDateRows.length>0 || _fxHireDateRows.length>0;
+}
 function fxPreview(){
-  if(!_fxRows.length){toast('Add at least one row','err');return;}
+  if(!fxHasAnyRows()){toast('Add at least one row (in the main table, or in Mess/Production Expenses/Hires)','err');return;}
   fxCalcTotals();
   const vendor=(document.getElementById('fx-vendor')?.value||'').trim();
   const billNo=document.getElementById('fx-billno')?.value||'';
@@ -18634,8 +18654,8 @@ function fxSave(){
   const notes=document.getElementById('fx-notes')?.value||'';
 
   if(!vendor){toast('Vendor name is required','err');return;}
-  if(!_fxRows.length){toast('Add at least one date row','err');return;}
-  if(_fxRows.some(r=>!r.date)){toast('Every row needs a date','err');return;}
+  if(!fxHasAnyRows()){toast('Add at least one row (in the main table, or in Mess/Production Expenses/Hires)','err');return;}
+  if(_fxRows.some(r=>!r.date)){toast('Every row in the main table needs a date','err');return;}
 
   fxCalcTotals();
   const subtotal=parseFloat(document.getElementById('fx-subtotal')?.value)||0;
@@ -18644,7 +18664,14 @@ function fxSave(){
 
   // Pre-check: estimates declared for these dates/dept — match by category only (as per Excel structure).
   // Don't check vendor name since the topsheet vendor may not match the estimate item name.
-  const dates=[...new Set(_fxRows.map(r=>r.date))];
+  // Combine dates from every source — a bill might only use Production
+  // Expenses (or Mess/Hires) with nothing in the main role table.
+  const dates=[...new Set([
+    ..._fxRows.map(r=>r.date),
+    ..._fxMessDateRows.map(r=>r.date),
+    ..._fxProdDateRows.map(r=>r.date),
+    ..._fxHireDateRows.map(r=>r.date)
+  ].filter(Boolean))].sort();
   const missing=dates.filter(d=>!(DB.estimates||[]).some(e=>e.date===d&&e.cat===dept));
   if(missing.length){
     const proceed=confirm(`⚠ Not declared in Estimates\n\nNo "${dept}" entries found in Estimates for:\n\n${missing.map(d=>fmtD(d)).join(', ')}\n\nContinue and flag these as "Not in Estimates"?`);
@@ -18771,8 +18798,8 @@ function fxUpdateBill(){
   const notes=document.getElementById('fx-notes')?.value||'';
 
   if(!vendor){toast('Vendor name is required','err');return;}
-  if(!_fxRows.length){toast('Add at least one date row','err');return;}
-  if(_fxRows.some(r=>!r.date)){toast('Every row needs a date','err');return;}
+  if(!fxHasAnyRows()){toast('Add at least one row (in the main table, or in Mess/Production Expenses/Hires)','err');return;}
+  if(_fxRows.some(r=>!r.date)){toast('Every row in the main table needs a date','err');return;}
 
   fxCalcTotals();
   const subtotal=parseFloat(document.getElementById('fx-subtotal')?.value)||0;
@@ -18781,7 +18808,14 @@ function fxUpdateBill(){
 
   if(!confirm(`Save changes to this bill?\n\nNew total: ${fmt(total)}\nThis will update the bill and refresh its posted actuals to match.`))return;
 
-  const dates=[...new Set(_fxRows.map(r=>r.date))];
+  // Combine dates from every source — a bill might only use Production
+  // Expenses (or Mess/Hires) with nothing in the main role table.
+  const dates=[...new Set([
+    ..._fxRows.map(r=>r.date),
+    ..._fxMessDateRows.map(r=>r.date),
+    ..._fxProdDateRows.map(r=>r.date),
+    ..._fxHireDateRows.map(r=>r.date)
+  ].filter(Boolean))].sort();
   const schedId=document.getElementById('fx-sched')?.value||'';
   const items=_fxRows.map((row,idx)=>{
     const rowTotal=fxRowCalc(idx);
