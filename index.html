@@ -14872,7 +14872,39 @@ async function loadFromSupabase(){
       updateSyncStatus('☁ No cloud data yet','var(--tx3)');
       return false;
     }
+    // Preserve local tombstones across this load — the incoming cloud row
+    // can be stale (e.g. this device's own debounced save from a moment ago
+    // hasn't landed yet), and if we just spread it over DB unconditionally,
+    // any entry deleted moments earlier (a merged duplicate, a deleted bill,
+    // etc.) would silently come right back with no tombstone check at all —
+    // unlike the save path (mergeInCloudAdditions), which already respects
+    // tombstones. This mirrors that same protection on the load path too.
+    const localTombstones=DB._tombstones;
     DB={...DB,...rows[0].data};
+    if(localTombstones){
+      if(!DB._tombstones)DB._tombstones={};
+      Object.keys(localTombstones).forEach(field=>{
+        if(!Array.isArray(DB._tombstones[field]))DB._tombstones[field]=[];
+        (localTombstones[field]||[]).forEach(id=>{if(!DB._tombstones[field].includes(id))DB._tombstones[field].push(id);});
+      });
+    }
+    if(DB._tombstones){
+      Object.keys(DB._tombstones).forEach(field=>{
+        const dead=DB._tombstones[field]||[];
+        if(!dead.length)return;
+        if(field==='paytracker'){
+          if(DB.paytracker&&typeof DB.paytracker==='object'){
+            Object.keys(DB.paytracker).forEach(k=>{
+              if(k==='_cats')return;
+              const day=DB.paytracker[k];
+              if(day&&Array.isArray(day.entries))day.entries=day.entries.filter(e=>!e||!dead.includes(e.id));
+            });
+          }
+        } else if(Array.isArray(DB[field])){
+          DB[field]=DB[field].filter(item=>!item||!item.id||!dead.includes(item.id));
+        }
+      });
+    }
     sanitizePaytracker(); // repair before any render can touch it — returning sessions re-render below, ahead of init()
     // Load scans
     try{
