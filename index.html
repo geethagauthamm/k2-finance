@@ -18230,17 +18230,19 @@ function fxAddMessRow(){
 // has Qty/Heads · Call Sheets · Rate · Amount (auto = Qty × Rate ×
 // (Call Sheets || 1)), plus a Grand Total column on the right.
 
-function fxProdCellAmount(cell){
+function fxProdCellAmount(cell,usesCS){
   if(!cell)return 0;
   const qty=parseFloat(cell.qty)||0,rate=parseFloat(cell.rate)||0;
+  if(!usesCS)return qty*rate;
   const cs=cell.cs!=null&&cell.cs!==''?parseFloat(cell.cs):1;
   return qty*rate*(isNaN(cs)?1:cs);
 }
 function fxProdRowTotal(row){
-  return _fxProdItemCols.reduce((s,c)=>s+fxProdCellAmount(row.vals[c.id]),0);
+  return _fxProdItemCols.reduce((s,c)=>s+fxProdCellAmount(row.vals[c.id],c.usesCS),0);
 }
 function fxProdColTotal(colId){
-  return _fxProdDateRows.reduce((s,r)=>s+fxProdCellAmount(r.vals[colId]),0);
+  const col=_fxProdItemCols.find(c=>c.id===colId);
+  return _fxProdDateRows.reduce((s,r)=>s+fxProdCellAmount(r.vals[colId],col?.usesCS),0);
 }
 function fxProdTotal(){
   return _fxProdDateRows.reduce((s,r)=>s+fxProdRowTotal(r),0);
@@ -18248,8 +18250,9 @@ function fxProdTotal(){
 function fxAddProdItemCol(){
   const label=prompt('Item name (e.g. Evening Snacks, Water Bottles, Coconuts):','');
   if(!label||!label.trim())return;
+  const usesCS=confirm('Does "'+label.trim()+'" use a Call Sheets multiplier?\n\nMost items don\'t (Coconuts, Water Bottles, Snacks…) — only ones like Daily Production Expenses that scale with a long shoot day usually do.\n\nOK = Yes, uses Call Sheets. Cancel = No, just Qty × Rate.');
   const id=fxUid();
-  _fxProdItemCols.push({id,label:label.trim()});
+  _fxProdItemCols.push({id,label:label.trim(),usesCS});
   fxSaveProdPreset(label.trim());
   _fxProdDateRows.forEach(r=>r.vals[id]={qty:'',cs:'',rate:''});
   fxRenderProd();
@@ -18262,6 +18265,10 @@ function fxRemoveProdItemCol(colId){
 function fxProdItemLabelChanged(colId,val){
   const c=_fxProdItemCols.find(c=>c.id===colId);if(c)c.label=val;
   if(val)fxSaveProdPreset(val.trim());
+  fxRenderProd();
+}
+function fxProdItemUsesCSChanged(colId,val){
+  const c=_fxProdItemCols.find(c=>c.id===colId);if(c)c.usesCS=val;
   fxRenderProd();
 }
 function fxAddProdDateRow(){
@@ -18323,12 +18330,13 @@ function fxRenderProd(){
     ${_fxProdItemCols.map(c=>`<th colspan="4" style="padding:4px 6px;font-size:11px;text-align:center;border-left:1px solid var(--bd);white-space:nowrap;min-width:220px">
       <input type="text" value="${(c.label||'').replace(/"/g,'&quot;')}" onchange="fxProdItemLabelChanged('${c.id}',this.value)" style="width:140px;box-sizing:border-box;background:var(--sf2);border:1px solid var(--bd2);border-radius:4px;padding:2px 5px;font-size:11px;font-weight:700;text-align:center">
       <button onclick="fxRemoveProdItemCol('${c.id}')" title="Remove item" style="background:none;border:none;color:var(--rd);cursor:pointer;font-size:10px;padding:0 2px">✕</button>
+      <div class="xs3 dim" style="margin-top:2px;font-weight:400"><label style="cursor:pointer"><input type="checkbox" ${c.usesCS?'checked':''} onchange="fxProdItemUsesCSChanged('${c.id}',this.checked)" style="vertical-align:middle"> Uses Call Sheets</label></div>
     </th>`).join('')}
     <th rowspan="2" style="padding:5px 8px;font-size:10px;text-align:right;white-space:nowrap;border-bottom:1px solid var(--bd);border-left:1px solid var(--bd);vertical-align:bottom">Grand Total</th>
     <th rowspan="2" class="no-print" style="border-bottom:1px solid var(--bd)"></th>
   </tr>
   <tr style="background:var(--sf3)">
-    ${_fxProdItemCols.map(()=>`<th style="${TH}">Qty/Heads</th><th style="${TH}">Call Sheets</th><th style="${TH}">Rate ₹</th><th style="${TH}">Amount ₹</th>`).join('')}
+    ${_fxProdItemCols.map(c=>`<th style="${TH}">Qty/Heads</th><th style="${TH}${c.usesCS?'':';opacity:.35'}">Call Sheets</th><th style="${TH}">Rate ₹</th><th style="${TH}">Amount ₹</th>`).join('')}
   </tr>`;
 
   // body: one row per date
@@ -18338,9 +18346,12 @@ function fxRenderProd(){
       <td style="padding:4px 6px"><input type="date" value="${row.date||''}" onchange="fxProdDateChanged('${row.id}',this.value)" style="width:130px;box-sizing:border-box;background:var(--sf);border:1px solid var(--bd2);border-radius:4px;padding:3px 5px;font-size:11px"></td>
       ${_fxProdItemCols.map(c=>{
         const cell=row.vals[c.id]||{qty:'',cs:'',rate:''};
-        const amt=fxProdCellAmount(cell);
+        const amt=fxProdCellAmount(cell,c.usesCS);
+        const csCell=c.usesCS
+          ?SUBIN(cell.cs,'1',`fxProdCellChanged('${row.id}','${c.id}','cs',this.value)`,'48px')
+          :`<input type="text" value="—" disabled title="This item doesn't use a Call Sheets multiplier — toggle it on in the column header if needed" style="width:48px;box-sizing:border-box;background:var(--sf3);border:1px solid var(--bd2);border-radius:4px;padding:3px 4px;font-size:11px;text-align:center;color:var(--tx3)">`;
         return`<td style="padding:3px 4px;border-left:1px solid var(--bd)">${SUBIN(cell.qty,'Qty',`fxProdCellChanged('${row.id}','${c.id}','qty',this.value)`)}</td>
-        <td style="padding:3px 4px">${SUBIN(cell.cs,'1',`fxProdCellChanged('${row.id}','${c.id}','cs',this.value)`,'48px')}</td>
+        <td style="padding:3px 4px">${csCell}</td>
         <td style="padding:3px 4px">${SUBIN(cell.rate,'Rate',`fxProdCellChanged('${row.id}','${c.id}','rate',this.value)`)}</td>
         <td style="padding:3px 6px;text-align:right;font-weight:600;color:${amt?'var(--gn)':'var(--tx3)'};white-space:nowrap">${amt?fmt(amt):'—'}</td>`;
       }).join('')}
@@ -18584,11 +18595,11 @@ function fxBuildExpItems(type){
       if(!row.date)return;
       _fxProdItemCols.forEach(c=>{
         const cell=row.vals[c.id];
-        const amt=fxProdCellAmount(cell);
+        const amt=fxProdCellAmount(cell,c.usesCS);
         if(!amt)return;
         out.push({description:`Production Expenses — ${c.label}`,dept:'',sub:c.label,
           qty:parseFloat(cell?.qty)||1,rate:parseFloat(cell?.rate)||0,amount:amt,
-          _date:row.date,_breakdown:'',_dayType:'',_remarks:cell?.cs?'CS ×'+cell.cs:''});
+          _date:row.date,_breakdown:'',_dayType:'',_remarks:(c.usesCS&&cell?.cs)?'CS ×'+cell.cs:''});
       });
     });
     return out;
