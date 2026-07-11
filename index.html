@@ -17625,7 +17625,7 @@ function fxEditBill(billId){
   }
   fxRenderRoles();
   fxRenderTable();
-  if(typeof fxInitExtras==='function')fxInitExtras({cols:b._flexMessCols,rows:b._flexMessRows},{items:b._flexProdItems,dateMeta:b._flexProdDateMeta},{cols:b._flexHireCols,rows:b._flexHireRows});
+  if(typeof fxInitExtras==='function')fxInitExtras({cols:b._flexMessCols,rows:b._flexMessRows},{cols:b._flexProdCols,rows:b._flexProdRows},{cols:b._flexHireCols,rows:b._flexHireRows});
   fxUpdateExtrasVisibility();
 
   const titleEl=document.getElementById('fx-modal-title');
@@ -18094,16 +18094,14 @@ let _fxMessCatCols = [];  // [{id, label}]
 let _fxHireDateRows = [];
 let _fxHireCatCols = [];
 
-// Production Expenses: a proper itemized ledger, one row per line item —
-// Date, Category, Item, Qty, Rate, Lump Sum, Include in Calc?, Notes — plus
-// two auto-generated report views built from it (Category Summary pivot,
-// and a per-date Top Sheet reconciling Calculated vs Bill vs Approved).
-let _fxProdItems = []; // [{id,date,category,item,qty,rate,lumpSum,includeInCalc,notes}]
-let _fxProdDateMeta = {}; // {date: {billTotal, approvedAmount, statusNotes}}
+// Production Expenses: date rows × item columns (see full implementation
+// further below) — declared here alongside Mess/Hires for consistency.
+let _fxProdItemCols = []; // [{id, label}]
+let _fxProdDateRows = [];  // [{id, date, vals:{itemId:{qty,cs,rate}}}]
 
 // Dispatch table so the shared helpers below work across Mess/Hires
 // without a growing chain of ternaries. Production Expenses has its own
-// itemized data shape (see above) and its own dedicated functions instead.
+// date-rows/item-columns shape (see above) and its own dedicated functions.
 // get/set are closures over the module-level `let` vars above since those
 // vars get reassigned wholesale (e.g. via .filter()), not mutated in place.
 const fxGridTypes={
@@ -18113,7 +18111,7 @@ const fxGridTypes={
 
 // ── Preset category names (persisted in DB) ──────────────────────
 function fxGetMessPresets(){ return (DB.fxPresets||{}).messCols||['Production','Snacks','Consumables','Super Market','Fruits & Coconut','Beverages','Misc']; }
-function fxGetProdPresets(){ return (DB.fxPresets||{}).prodCols||['Production','Snacks','Consumables','Super Market','Fruits & Coconut','Beverages','Misc','Separate / Flagged']; }
+function fxGetProdPresets(){ return (DB.fxPresets||{}).prodCols||['Daily Production Expenses','Evening Snacks','Water Bottles','Coconuts','Tea Time Glasses']; }
 function fxGetHirePresets(){ return (DB.fxPresets||{}).hireCols||['Equipment Hire','Vehicle Hire','Costume Hire','Prop Hire','Miscellaneous Hire']; }
 function fxSaveMessPreset(label){ if(!label)return; const p=fxGetMessPresets(); if(!p.includes(label)){p.push(label);if(!DB.fxPresets)DB.fxPresets={};DB.fxPresets.messCols=p;saveDB();} }
 function fxSaveProdPreset(label){ if(!label)return; const p=fxGetProdPresets(); if(!p.includes(label)){p.push(label);if(!DB.fxPresets)DB.fxPresets={};DB.fxPresets.prodCols=p;saveDB();} }
@@ -18121,12 +18119,12 @@ function fxSaveHirePreset(label){ if(!label)return; const p=fxGetHirePresets(); 
 
 // Reset all three grids on open for a NEW bill, or restore saved grid data
 // when editing an existing bill (savedMess/savedProd/savedHire come from the
-// bill's _flexMessCols/_flexMessRows / _flexProdItems etc., if present).
+// bill's _flexMessCols/_flexMessRows / _flexProdCols/_flexProdRows etc., if present).
 function fxInitExtras(savedMess,savedProd,savedHire){
   _fxMessCatCols=savedMess&&savedMess.cols?JSON.parse(JSON.stringify(savedMess.cols)):[];
   _fxMessDateRows=savedMess&&savedMess.rows?JSON.parse(JSON.stringify(savedMess.rows)):[];
-  _fxProdItems=savedProd&&savedProd.items?JSON.parse(JSON.stringify(savedProd.items)):[];
-  _fxProdDateMeta=savedProd&&savedProd.dateMeta?JSON.parse(JSON.stringify(savedProd.dateMeta)):{};
+  _fxProdItemCols=savedProd&&savedProd.cols?JSON.parse(JSON.stringify(savedProd.cols)):[];
+  _fxProdDateRows=savedProd&&savedProd.rows?JSON.parse(JSON.stringify(savedProd.rows)):[];
   _fxHireCatCols=savedHire&&savedHire.cols?JSON.parse(JSON.stringify(savedHire.cols)):[];
   _fxHireDateRows=savedHire&&savedHire.rows?JSON.parse(JSON.stringify(savedHire.rows)):[];
   fxRenderMess(); fxRenderProd(); fxRenderHire();
@@ -18226,149 +18224,144 @@ function fxAddMessRow(){
   fxRenderMess();
 }
 
-// ── Production Expenses: itemized ledger ──────────────────────────
-function fxProdItemAmount(item){
-  const lump=parseFloat(item.lumpSum);
-  if(!isNaN(lump)&&item.lumpSum!==''&&item.lumpSum!=null)return lump;
-  const qty=parseFloat(item.qty)||0,rate=parseFloat(item.rate)||0;
-  return qty*rate;
+// ── Production Expenses: date rows × item columns ─────────────────
+// Matches the uploaded template exactly: one row per date, one column
+// GROUP per item (fully editable name, add as many as needed), each group
+// has Qty/Heads · Call Sheets · Rate · Amount (auto = Qty × Rate ×
+// (Call Sheets || 1)), plus a Grand Total column on the right.
+
+function fxProdCellAmount(cell){
+  if(!cell)return 0;
+  const qty=parseFloat(cell.qty)||0,rate=parseFloat(cell.rate)||0;
+  const cs=cell.cs!=null&&cell.cs!==''?parseFloat(cell.cs):1;
+  return qty*rate*(isNaN(cs)?1:cs);
 }
-function fxProdItemCalcText(item){
-  const lump=parseFloat(item.lumpSum);
-  if(!isNaN(lump)&&item.lumpSum!==''&&item.lumpSum!=null)return'Lump sum';
-  const qty=parseFloat(item.qty)||0,rate=parseFloat(item.rate)||0;
-  if(!qty&&!rate)return'—';
-  return`${qty} × ${fmt(rate)}`;
+function fxProdRowTotal(row){
+  return _fxProdItemCols.reduce((s,c)=>s+fxProdCellAmount(row.vals[c.id]),0);
 }
-function fxAddProdItem(){
-  const lastDate=_fxProdItems.length?_fxProdItems[_fxProdItems.length-1].date:'';
-  _fxProdItems.push({id:fxUid(),date:lastDate,category:'',item:'',qty:'',rate:'',lumpSum:'',includeInCalc:true,notes:''});
-  fxRenderProd();
-}
-function fxRemoveProdItem(id){
-  _fxProdItems=_fxProdItems.filter(i=>i.id!==id);
-  fxRenderProd();
-}
-function fxProdItemChanged(id,field,val){
-  const item=_fxProdItems.find(i=>i.id===id);if(!item)return;
-  if(field==='includeInCalc')item[field]=!!val;
-  else item[field]=val;
-  if(field==='category'&&val)fxSaveProdPreset(val.trim());
-  fxRenderProd();
-}
-// Every distinct date across the itemized entries, in order — this drives
-// both the Category Summary columns and the Top Sheet reconciliation rows.
-function fxProdDates(){
-  return[...new Set(_fxProdItems.map(i=>i.date).filter(Boolean))].sort();
-}
-function fxProdDateMetaChanged(date,field,val){
-  if(!_fxProdDateMeta[date])_fxProdDateMeta[date]={billTotal:'',approvedAmount:'',statusNotes:''};
-  _fxProdDateMeta[date][field]=val;
-  fxRenderProd();
+function fxProdColTotal(colId){
+  return _fxProdDateRows.reduce((s,r)=>s+fxProdCellAmount(r.vals[colId]),0);
 }
 function fxProdTotal(){
-  return _fxProdItems.reduce((s,i)=>s+(i.includeInCalc?fxProdItemAmount(i):0),0);
+  return _fxProdDateRows.reduce((s,r)=>s+fxProdRowTotal(r),0);
+}
+function fxAddProdItemCol(){
+  const label=prompt('Item name (e.g. Evening Snacks, Water Bottles, Coconuts):','');
+  if(!label||!label.trim())return;
+  const id=fxUid();
+  _fxProdItemCols.push({id,label:label.trim()});
+  fxSaveProdPreset(label.trim());
+  _fxProdDateRows.forEach(r=>r.vals[id]={qty:'',cs:'',rate:''});
+  fxRenderProd();
+}
+function fxRemoveProdItemCol(colId){
+  _fxProdItemCols=_fxProdItemCols.filter(c=>c.id!==colId);
+  _fxProdDateRows.forEach(r=>delete r.vals[colId]);
+  fxRenderProd();
+}
+function fxProdItemLabelChanged(colId,val){
+  const c=_fxProdItemCols.find(c=>c.id===colId);if(c)c.label=val;
+  if(val)fxSaveProdPreset(val.trim());
+  fxRenderProd();
+}
+function fxAddProdDateRow(){
+  const lastDate=_fxProdDateRows.length?_fxProdDateRows[_fxProdDateRows.length-1].date:'';
+  const vals={}; _fxProdItemCols.forEach(c=>vals[c.id]={qty:'',cs:'',rate:''});
+  _fxProdDateRows.push({id:fxUid(),date:lastDate,vals});
+  fxRenderProd();
+}
+function fxRemoveProdDateRow(rowId){
+  _fxProdDateRows=_fxProdDateRows.filter(r=>r.id!==rowId);
+  fxRenderProd();
+}
+function fxProdDateChanged(rowId,val){
+  const r=_fxProdDateRows.find(r=>r.id===rowId);if(r)r.date=val;
+  fxRenderProd();
+}
+function fxProdCellChanged(rowId,colId,field,val){
+  const r=_fxProdDateRows.find(r=>r.id===rowId);if(!r)return;
+  if(!r.vals[colId])r.vals[colId]={qty:'',cs:'',rate:''};
+  r.vals[colId][field]=val;
+  fxRenderProd();
+}
+function fxGenerateProdDateRange(){
+  const fromEl=document.getElementById('fx-prod-range-from');
+  const toEl=document.getElementById('fx-prod-range-to');
+  const from=fromEl?fromEl.value:'',to=toEl?toEl.value:'';
+  if(!from||!to){toast('Pick both a From and To date','err');return;}
+  if(from>to){toast('From date must be before To date','err');return;}
+  const existing=new Set(_fxProdDateRows.map(r=>r.date));
+  let added=0;
+  let d=new Date(from+'T00:00:00');
+  const end=new Date(to+'T00:00:00');
+  while(d<=end){
+    const dstr=d.toISOString().slice(0,10);
+    if(!existing.has(dstr)){
+      const vals={}; _fxProdItemCols.forEach(c=>vals[c.id]={qty:'',cs:'',rate:''});
+      _fxProdDateRows.push({id:fxUid(),date:dstr,vals});
+      added++;
+    }
+    d.setDate(d.getDate()+1);
+  }
+  fxRenderProd();
+  toast(added?'✓ Added '+added+' date row'+(added>1?'s':''):'All dates in that range already have rows');
 }
 function fxRenderProd(){
+  const thead=document.getElementById('fx-prod-thead');
   const tbody=document.getElementById('fx-prod-tbody');
-  if(!tbody)return; // card not on this page
-  const dept=document.getElementById('fx-dept')?.value||'';
-  const presets=fxGetProdPresets();
+  const tfoot=document.getElementById('fx-prod-tfoot');
+  if(!thead||!tbody||!tfoot)return;
 
-  // ── Itemized entries table ──
-  tbody.innerHTML = _fxProdItems.length ? _fxProdItems.map(item=>{
-    const amount=fxProdItemAmount(item);
-    return`<tr style="${item.includeInCalc?'':'opacity:.5'}">
-      <td style="padding:4px"><input type="date" value="${item.date||''}" onchange="fxProdItemChanged('${item.id}','date',this.value)" style="width:120px;box-sizing:border-box;background:var(--sf);border:1px solid var(--bd2);border-radius:4px;padding:3px 5px;font-size:11px"></td>
-      <td style="padding:4px"><input type="text" list="fx-prod-cat-presets" value="${(item.category||'').replace(/"/g,'&quot;')}" placeholder="Category" onchange="fxProdItemChanged('${item.id}','category',this.value)" style="width:110px;box-sizing:border-box;background:var(--sf);border:1px solid var(--bd2);border-radius:4px;padding:3px 5px;font-size:11px"></td>
-      <td style="padding:4px"><input type="text" value="${(item.item||'').replace(/"/g,'&quot;')}" placeholder="Item description" onchange="fxProdItemChanged('${item.id}','item',this.value)" style="width:150px;box-sizing:border-box;background:var(--sf);border:1px solid var(--bd2);border-radius:4px;padding:3px 5px;font-size:11px"></td>
-      <td style="padding:4px"><input type="number" value="${item.qty||''}" placeholder="Qty" onchange="fxProdItemChanged('${item.id}','qty',this.value)" style="width:60px;box-sizing:border-box;background:var(--sf);border:1px solid var(--bd2);border-radius:4px;padding:3px 5px;font-size:11px;text-align:right"></td>
-      <td style="padding:4px"><input type="number" value="${item.rate||''}" placeholder="Rate" onchange="fxProdItemChanged('${item.id}','rate',this.value)" style="width:70px;box-sizing:border-box;background:var(--sf);border:1px solid var(--bd2);border-radius:4px;padding:3px 5px;font-size:11px;text-align:right"></td>
-      <td style="padding:4px"><input type="number" value="${item.lumpSum||''}" placeholder="Lump sum" onchange="fxProdItemChanged('${item.id}','lumpSum',this.value)" style="width:80px;box-sizing:border-box;background:var(--sf);border:1px solid var(--bd2);border-radius:4px;padding:3px 5px;font-size:11px;text-align:right"></td>
-      <td style="padding:4px;font-size:10px;color:var(--tx3);white-space:nowrap">${fxProdItemCalcText(item)}</td>
-      <td style="padding:4px;text-align:center"><input type="checkbox" ${item.includeInCalc?'checked':''} onchange="fxProdItemChanged('${item.id}','includeInCalc',this.checked)" title="Include in Calc?"></td>
-      <td style="padding:4px;text-align:right;font-weight:700;color:var(--gn);white-space:nowrap">${fmt(amount)}</td>
-      <td style="padding:4px"><input type="text" value="${(item.notes||'').replace(/"/g,'&quot;')}" placeholder="Notes" onchange="fxProdItemChanged('${item.id}','notes',this.value)" style="width:140px;box-sizing:border-box;background:var(--sf);border:1px solid var(--bd2);border-radius:4px;padding:3px 5px;font-size:11px"></td>
-      <td style="padding:4px"><button onclick="fxRemoveProdItem('${item.id}')" style="background:none;border:none;color:var(--rd);cursor:pointer;font-size:13px">✕</button></td>
-    </tr>`;
-  }).join('') : `<tr><td colspan="11" style="text-align:center;padding:12px;color:var(--tx3);font-size:11px">No items yet — click ＋ Add Item</td></tr>`;
+  _fxProdDateRows.sort((a,b)=>(a.date||'').localeCompare(b.date||''));
 
-  const presetsEl=document.getElementById('fx-prod-cat-presets');
-  if(presetsEl)presetsEl.innerHTML=presets.map(p=>`<option value="${p.replace(/"/g,'&quot;')}">`).join('');
+  const TH='padding:5px 6px;font-size:10px;text-align:center;white-space:nowrap;border-bottom:1px solid var(--bd);border-left:1px solid var(--bd)';
+  const SUBIN=(val,ph,onch,w)=>`<input type="number" value="${val!=null?val:''}" placeholder="${ph}" onchange="${onch}" style="width:${w||'52px'};box-sizing:border-box;background:var(--sf);border:1px solid var(--bd2);border-radius:4px;padding:3px 4px;font-size:11px;text-align:right">`;
 
-  const totalEl=document.getElementById('fx-prod-total');
-  if(totalEl)totalEl.textContent=fmt(fxProdTotal());
+  // header row 1: item names (editable, removable), spanning 4 sub-columns each
+  thead.innerHTML=`<tr style="background:var(--sf3)">
+    <th rowspan="2" style="padding:5px 8px;font-size:10px;text-align:left;white-space:nowrap;border-bottom:1px solid var(--bd);vertical-align:bottom">Date</th>
+    ${_fxProdItemCols.map(c=>`<th colspan="4" style="padding:4px 6px;font-size:11px;text-align:center;border-left:1px solid var(--bd);white-space:nowrap;min-width:220px">
+      <input type="text" value="${(c.label||'').replace(/"/g,'&quot;')}" onchange="fxProdItemLabelChanged('${c.id}',this.value)" style="width:140px;box-sizing:border-box;background:var(--sf2);border:1px solid var(--bd2);border-radius:4px;padding:2px 5px;font-size:11px;font-weight:700;text-align:center">
+      <button onclick="fxRemoveProdItemCol('${c.id}')" title="Remove item" style="background:none;border:none;color:var(--rd);cursor:pointer;font-size:10px;padding:0 2px">✕</button>
+    </th>`).join('')}
+    <th rowspan="2" style="padding:5px 8px;font-size:10px;text-align:right;white-space:nowrap;border-bottom:1px solid var(--bd);border-left:1px solid var(--bd);vertical-align:bottom">Grand Total</th>
+    <th rowspan="2" class="no-print" style="border-bottom:1px solid var(--bd)"></th>
+  </tr>
+  <tr style="background:var(--sf3)">
+    ${_fxProdItemCols.map(()=>`<th style="${TH}">Qty/Heads</th><th style="${TH}">Call Sheets</th><th style="${TH}">Rate ₹</th><th style="${TH}">Amount ₹</th>`).join('')}
+  </tr>`;
 
-  fxRenderProdCategorySummary();
-  fxRenderProdTopSheet();
-  if(typeof fxCalcTotals==='function')fxCalcTotals();
-}
-// Read-only pivot: categories as rows, dates as columns, generated live
-// from the itemized entries (Include in Calc? = No entries are excluded,
-// matching the reference Category Summary sheet).
-function fxRenderProdCategorySummary(){
-  const el=document.getElementById('fx-prod-catsummary');
-  if(!el)return;
-  const included=_fxProdItems.filter(i=>i.includeInCalc&&i.date&&i.category);
-  if(!included.length){el.innerHTML='<div class="xs2 dim" style="padding:8px">Add itemized entries above to see the category × date breakdown here.</div>';return;}
-  const dates=[...new Set(included.map(i=>i.date))].sort();
-  const cats=[...new Set(included.map(i=>i.category))];
-  const grid={}; cats.forEach(c=>{grid[c]={};dates.forEach(d=>grid[c][d]=0);});
-  included.forEach(i=>{grid[i.category][i.date]+=fxProdItemAmount(i);});
-  const catTotal=c=>dates.reduce((s,d)=>s+grid[c][d],0);
-  const dateTotal=d=>cats.reduce((s,c)=>s+grid[c][d],0);
-  const grand=cats.reduce((s,c)=>s+catTotal(c),0);
-  const TH='padding:5px 8px;font-size:11px;text-align:left;white-space:nowrap;border-bottom:1px solid var(--bd)';
-  const TD='padding:4px 6px;font-size:11px;text-align:right;white-space:nowrap;border-bottom:1px solid var(--bd2)';
-  el.innerHTML=`<table style="border-collapse:collapse;font-size:12px;width:100%">
-    <thead><tr style="background:var(--sf3)"><th style="${TH}">Category</th>${dates.map(d=>`<th style="${TH};text-align:right">${fmtD(d)}</th>`).join('')}<th style="${TH};text-align:right;background:var(--sf2)">Category Total</th></tr></thead>
-    <tbody>${cats.map(c=>`<tr><td style="${TD};text-align:left;font-weight:600">${c}</td>${dates.map(d=>`<td style="${TD}">${grid[c][d]?fmt(grid[c][d]):'—'}</td>`).join('')}<td style="${TD};background:var(--sf2);font-weight:700;color:var(--gn)">${fmt(catTotal(c))}</td></tr>`).join('')}</tbody>
-    <tfoot><tr style="background:var(--sf3);font-weight:700"><td style="${TH}">Date Total</td>${dates.map(d=>`<td style="${TH};text-align:right">${fmt(dateTotal(d))}</td>`).join('')}<td style="${TH};text-align:right;color:var(--gn)">${fmt(grand)}</td></tr></tfoot>
-  </table>`;
-}
-// Per-date reconciliation: Calculated Total (from itemized entries) vs Bill
-// Total vs Approved Amount (both entered by hand), with variances — matches
-// the reference Top Sheet. Bill Total / Approved Amount / Status-Notes are
-// stored in _fxProdDateMeta, keyed by date.
-function fxRenderProdTopSheet(){
-  const el=document.getElementById('fx-prod-topsheet');
-  if(!el)return;
-  const dates=fxProdDates();
-  if(!dates.length){el.innerHTML='<div class="xs2 dim" style="padding:8px">Add itemized entries above to reconcile against bills here.</div>';return;}
-  const calcFor=d=>_fxProdItems.filter(i=>i.date===d&&i.includeInCalc).reduce((s,i)=>s+fxProdItemAmount(i),0);
-  const TH='padding:5px 8px;font-size:11px;text-align:left;white-space:nowrap;border-bottom:1px solid var(--bd)';
-  const TD='padding:4px 6px;font-size:11px;white-space:nowrap;border-bottom:1px solid var(--bd2)';
-  const NUMIN=(date,field,val)=>`<input type="number" value="${val!=null&&val!==''?val:''}" placeholder="—" onchange="fxProdDateMetaChanged('${date}','${field}',this.value)" style="width:90px;box-sizing:border-box;background:var(--sf);border:1px solid var(--bd2);border-radius:4px;padding:3px 5px;font-size:11px;text-align:right">`;
-  let sumCalc=0,sumBill=0,sumApproved=0;
-  const rows=dates.map(d=>{
-    const meta=_fxProdDateMeta[d]||{};
-    const calc=calcFor(d);
-    const bill=meta.billTotal!=null&&meta.billTotal!==''?parseFloat(meta.billTotal):null;
-    const approved=meta.approvedAmount!=null&&meta.approvedAmount!==''?parseFloat(meta.approvedAmount):null;
-    const varApprovedBill=(bill!=null&&approved!=null)?approved-bill:null;
-    const varBillCalc=(bill!=null)?bill-calc:null;
-    sumCalc+=calc; if(bill!=null)sumBill+=bill; if(approved!=null)sumApproved+=approved;
+  // body: one row per date
+  tbody.innerHTML = _fxProdDateRows.length ? _fxProdDateRows.map(row=>{
+    const rowTotal=fxProdRowTotal(row);
     return`<tr>
-      <td style="${TD};font-weight:600">${fmtD(d)}</td>
-      <td style="${TD};text-align:right">${fmt(calc)}</td>
-      <td style="${TD};text-align:right">${NUMIN(d,'billTotal',meta.billTotal)}</td>
-      <td style="${TD};text-align:right">${NUMIN(d,'approvedAmount',meta.approvedAmount)}</td>
-      <td style="${TD};text-align:right;color:${varApprovedBill<0?'var(--rd)':'var(--tx2)'}">${varApprovedBill!=null?fmt(varApprovedBill):'—'}</td>
-      <td style="${TD};text-align:right;color:${varBillCalc!=null&&varBillCalc>0?'var(--go)':'var(--tx2)'}">${varBillCalc!=null?fmt(varBillCalc):'—'}</td>
-      <td style="${TD}"><input type="text" value="${(meta.statusNotes||'').replace(/"/g,'&quot;')}" placeholder="Status / notes" onchange="fxProdDateMetaChanged('${d}','statusNotes',this.value)" style="width:170px;box-sizing:border-box;background:var(--sf);border:1px solid var(--bd2);border-radius:4px;padding:3px 5px;font-size:11px"></td>
+      <td style="padding:4px 6px"><input type="date" value="${row.date||''}" onchange="fxProdDateChanged('${row.id}',this.value)" style="width:130px;box-sizing:border-box;background:var(--sf);border:1px solid var(--bd2);border-radius:4px;padding:3px 5px;font-size:11px"></td>
+      ${_fxProdItemCols.map(c=>{
+        const cell=row.vals[c.id]||{qty:'',cs:'',rate:''};
+        const amt=fxProdCellAmount(cell);
+        return`<td style="padding:3px 4px;border-left:1px solid var(--bd)">${SUBIN(cell.qty,'Qty',`fxProdCellChanged('${row.id}','${c.id}','qty',this.value)`)}</td>
+        <td style="padding:3px 4px">${SUBIN(cell.cs,'1',`fxProdCellChanged('${row.id}','${c.id}','cs',this.value)`,'48px')}</td>
+        <td style="padding:3px 4px">${SUBIN(cell.rate,'Rate',`fxProdCellChanged('${row.id}','${c.id}','rate',this.value)`)}</td>
+        <td style="padding:3px 6px;text-align:right;font-weight:600;color:${amt?'var(--gn)':'var(--tx3)'};white-space:nowrap">${amt?fmt(amt):'—'}</td>`;
+      }).join('')}
+      <td style="padding:4px 8px;text-align:right;font-weight:700;color:var(--gn);border-left:1px solid var(--bd);white-space:nowrap">${fmt(rowTotal)}</td>
+      <td class="no-print" style="padding:4px"><button onclick="fxRemoveProdDateRow('${row.id}')" style="background:none;border:none;color:var(--rd);cursor:pointer;font-size:13px">✕</button></td>
     </tr>`;
-  }).join('');
-  el.innerHTML=`<table style="border-collapse:collapse;font-size:12px;width:100%">
-    <thead><tr style="background:var(--sf3)">
-      <th style="${TH}">Date</th><th style="${TH};text-align:right">Calculated Total ₹</th><th style="${TH};text-align:right">Bill Total ₹</th><th style="${TH};text-align:right">Approved Amount ₹</th>
-      <th style="${TH};text-align:right">Var: Approved − Bill</th><th style="${TH};text-align:right">Var: Bill − Calc</th><th style="${TH}">Status / Notes</th>
-    </tr></thead>
-    <tbody>${rows}</tbody>
-    <tfoot><tr style="background:var(--sf3);font-weight:700">
-      <td style="${TH}">TOTALS</td><td style="${TH};text-align:right">${fmt(sumCalc)}</td><td style="${TH};text-align:right">${fmt(sumBill)}</td><td style="${TH};text-align:right">${fmt(sumApproved)}</td>
-      <td style="${TH};text-align:right">${fmt(sumApproved-sumBill)}</td><td style="${TH};text-align:right">${fmt(sumBill-sumCalc)}</td><td style="${TH}"></td>
-    </tr></tfoot>
-  </table>`;
+  }).join('') : `<tr><td colspan="${_fxProdItemCols.length*4+3}" style="text-align:center;padding:16px;color:var(--tx3);font-size:11px">No rows yet — click 📅 Generate Date Rows or ＋ Add Date Row, and ＋ Add Item to start</td></tr>`;
+
+  // footer: per-item column totals + grand total
+  const grand=fxProdTotal();
+  tfoot.innerHTML=`<tr style="background:var(--sf3);font-weight:700">
+    <td style="padding:6px 8px;font-size:11px">TOTAL</td>
+    ${_fxProdItemCols.map(c=>`<td colspan="3" style="border-left:1px solid var(--bd)"></td><td style="padding:6px 6px;text-align:right;font-size:11px;color:var(--gn)">${fmt(fxProdColTotal(c.id))}</td>`).join('')}
+    <td style="padding:6px 8px;text-align:right;border-left:1px solid var(--bd);color:var(--gn)">${fmt(grand)}</td>
+    <td class="no-print"></td>
+  </tr>`;
+
+  const presetsEl=document.getElementById('fx-prod-item-presets');
+  if(presetsEl)presetsEl.innerHTML=fxGetProdPresets().map(p=>`<option value="${p.replace(/"/g,'&quot;')}">`).join('');
+
+  if(typeof fxCalcTotals==='function')fxCalcTotals();
 }
 
 // ── Hire helpers ─────────────────────────────────────────────────
@@ -18586,11 +18579,19 @@ function fxPreview(){
 // own department when an item has none (see billCategorySummary).
 function fxBuildExpItems(type){
   if(type==='prod'){
-    return _fxProdItems.filter(i=>i.includeInCalc&&i.date).map(i=>({
-      description:`Production Expenses — ${i.category||'Uncategorized'}${i.item?': '+i.item:''}`,
-      dept:'',sub:i.category||'Production Expenses',qty:parseFloat(i.qty)||1,rate:parseFloat(i.rate)||0,
-      amount:fxProdItemAmount(i),_date:i.date,_breakdown:'',_dayType:'',_remarks:i.notes||''
-    }));
+    const out=[];
+    _fxProdDateRows.forEach(row=>{
+      if(!row.date)return;
+      _fxProdItemCols.forEach(c=>{
+        const cell=row.vals[c.id];
+        const amt=fxProdCellAmount(cell);
+        if(!amt)return;
+        out.push({description:`Production Expenses — ${c.label}`,dept:'',sub:c.label,
+          qty:parseFloat(cell?.qty)||1,rate:parseFloat(cell?.rate)||0,amount:amt,
+          _date:row.date,_breakdown:'',_dayType:'',_remarks:cell?.cs?'CS ×'+cell.cs:''});
+      });
+    });
+    return out;
   }
   const store=fxGridTypes[type];if(!store)return[];
   const dateRows=store.getRows();
@@ -18673,7 +18674,7 @@ function fxSave(){
     imageData:null,imageType:null,
     notes:notes||'',
     manpower:null,_flexRoles:_fxRoles,_flexRows:_fxRows,
-    _flexMessCols:_fxMessCatCols,_flexMessRows:_fxMessDateRows,_flexProdItems:_fxProdItems,_flexProdDateMeta:_fxProdDateMeta,
+    _flexMessCols:_fxMessCatCols,_flexMessRows:_fxMessDateRows,_flexProdCols:_fxProdItemCols,_flexProdRows:_fxProdDateRows,
     _flexHireCols:_fxHireCatCols,_flexHireRows:_fxHireDateRows
   };
   if(!DB.bills)DB.bills=[];
@@ -18787,7 +18788,7 @@ function fxUpdateBill(){
   b.department=dept;b.subdept=subdept;b.items=items;b.subtotal=subtotal;b.gst=gst;b.total=total;
   b.notes=notes||'';
   b._flexRoles=_fxRoles;b._flexRows=_fxRows;
-  b._flexMessCols=_fxMessCatCols;b._flexMessRows=_fxMessDateRows;b._flexProdItems=_fxProdItems;b._flexProdDateMeta=_fxProdDateMeta;
+  b._flexMessCols=_fxMessCatCols;b._flexMessRows=_fxMessDateRows;b._flexProdCols=_fxProdItemCols;b._flexProdRows=_fxProdDateRows;
   b._flexHireCols=_fxHireCatCols;b._flexHireRows=_fxHireDateRows;
   b._editedAt=new Date().toISOString();
 
@@ -21183,44 +21184,25 @@ function arRenderPayables(){
     <!-- ── PRODUCTION EXPENSES ────────────────────────────────────────── -->
     <div class="card" style="background:var(--sf2);margin-bottom:12px;padding:12px 14px" id="fx-prod-card">
       <div class="flex aic jb mb8">
-        <div class="ct" style="margin:0;font-size:12px">🧾 Production Expenses — Itemized Entries</div>
-        <button class="btn bg sm" onclick="fxAddProdItem()">＋ Add Item</button>
+        <div class="ct" style="margin:0;font-size:12px">🧾 Production Expenses</div>
+        <div class="flex gap6 aic wrap">
+          <input type="date" id="fx-prod-range-from" style="font-size:11px;padding:3px 5px">
+          <span class="xs3 dim">to</span>
+          <input type="date" id="fx-prod-range-to" style="font-size:11px;padding:3px 5px">
+          <button class="btn bs sm" onclick="fxGenerateProdDateRange()">📅 Generate Date Rows</button>
+          <button class="btn bs sm" onclick="fxAddProdDateRow()">＋ Add Date Row</button>
+          <button class="btn bg sm" onclick="fxAddProdItemCol()">＋ Add Item</button>
+        </div>
       </div>
       <div style="overflow-x:auto">
-        <table style="border-collapse:collapse;font-size:12px;width:100%">
-          <thead><tr style="background:var(--sf3)">
-            <th style="padding:5px 8px;font-size:11px;text-align:left">Date</th>
-            <th style="padding:5px 8px;font-size:11px;text-align:left">Category</th>
-            <th style="padding:5px 8px;font-size:11px;text-align:left">Item</th>
-            <th style="padding:5px 8px;font-size:11px;text-align:right">Qty</th>
-            <th style="padding:5px 8px;font-size:11px;text-align:right">Rate ₹</th>
-            <th style="padding:5px 8px;font-size:11px;text-align:right">Lump Sum ₹</th>
-            <th style="padding:5px 8px;font-size:11px;text-align:left">Calculation</th>
-            <th style="padding:5px 8px;font-size:11px;text-align:center">Include?</th>
-            <th style="padding:5px 8px;font-size:11px;text-align:right">Amount ₹</th>
-            <th style="padding:5px 8px;font-size:11px;text-align:left">Notes</th>
-            <th class="no-print"></th>
-          </tr></thead>
+        <table style="border-collapse:collapse;font-size:12px;width:max-content;min-width:100%">
+          <thead id="fx-prod-thead"></thead>
           <tbody id="fx-prod-tbody"></tbody>
-          <tfoot><tr style="background:var(--sf3);font-weight:700">
-            <td colspan="8" style="padding:7px 8px;font-size:11px;text-align:right">TOTAL</td>
-            <td style="padding:7px 8px;font-size:12px;text-align:right;color:var(--gn)" id="fx-prod-total">₹0</td>
-            <td colspan="2"></td>
-          </tr></tfoot>
+          <tfoot id="fx-prod-tfoot"></tfoot>
         </table>
       </div>
-      <datalist id="fx-prod-cat-presets"></datalist>
-      <div class="xs2 dim" style="margin-top:6px">Enter either Qty × Rate <em>or</em> Lump Sum — Lump Sum wins if both are filled. Uncheck "Include?" to flag an item as excluded from the total (it stays visible, dimmed, for reference). Category is free text with autocomplete from your past entries.</div>
-    </div>
-
-    <div class="card" style="background:var(--sf2);margin-bottom:12px;padding:12px 14px" id="fx-prod-catsummary-card">
-      <div class="ct" style="margin:0 0 8px;font-size:12px">📊 Category Summary <span class="xs3 dim" style="font-weight:400">— auto-generated from the itemized entries above</span></div>
-      <div style="overflow-x:auto" id="fx-prod-catsummary"></div>
-    </div>
-
-    <div class="card" style="background:var(--sf2);margin-bottom:12px;padding:12px 14px" id="fx-prod-topsheet-card">
-      <div class="ct" style="margin:0 0 8px;font-size:12px">📋 Top Sheet — Bill Reconciliation <span class="xs3 dim" style="font-weight:400">— enter Bill Total / Approved Amount per date as they come in</span></div>
-      <div style="overflow-x:auto" id="fx-prod-topsheet"></div>
+      <datalist id="fx-prod-item-presets"></datalist>
+      <div class="xs2 dim" style="margin-top:6px">Dates are rows, items are columns — click an item name to rename it. Each item has Qty/Heads · Call Sheets · Rate, with Amount auto-computed as Qty × Rate × (Call Sheets, or 1 if left blank). Grand Total sums every item for that date.</div>
     </div>
 
     <!-- ── HIRES ──────────────────────────────────────────────────────── -->
