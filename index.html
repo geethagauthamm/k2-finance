@@ -17619,7 +17619,7 @@ function fxEditBill(billId){
   }
   fxRenderRoles();
   fxRenderTable();
-  if(typeof fxInitExtras==='function')fxInitExtras({cols:b._flexMessCols,rows:b._flexMessRows},{cols:b._flexProdCols,rows:b._flexProdRows});
+  if(typeof fxInitExtras==='function')fxInitExtras({cols:b._flexMessCols,rows:b._flexMessRows},{cols:b._flexProdCols,rows:b._flexProdRows},{cols:b._flexHireCols,rows:b._flexHireRows});
   fxUpdateExtrasVisibility();
 
   const titleEl=document.getElementById('fx-modal-title');
@@ -17730,18 +17730,17 @@ function fxDeptChanged(){
  * selected category looks like one of these.
  */
 function fxUpdateExtrasVisibility(){
-  const cat=(document.getElementById('fx-dept')?.value||'').trim();
-  const sub=(document.getElementById('fx-subdept')?.value||'').toLowerCase().trim();
-  // Real rate-card structure: category "Expenses" holds items like
-  // "Daily Production Expenses", "Food Charges", "Special Food" — these two
-  // extra tables only matter when billing against that category.
-  const isExpensesCat=cat==='Expenses';
-  const showMess=isExpensesCat&&(!sub||sub.includes('food')||sub.includes('mess')||sub.includes('special food'));
-  const showProd=isExpensesCat&&(!sub||sub.includes('production'));
+  // These grids used to be hidden unless Department was typed as exactly
+  // "Expenses" — an undiscoverable condition with no visible trigger. Always
+  // show them now; an empty grid with a "No rows yet" placeholder is
+  // self-explanatory, a hidden section that only appears under a magic
+  // condition is not.
   const messCard=document.getElementById('fx-mess-card');
   const prodCard=document.getElementById('fx-prod-card');
-  if(messCard)messCard.style.display=showMess?'':'none';
-  if(prodCard)prodCard.style.display=showProd?'':'none';
+  const hireCard=document.getElementById('fx-hire-card');
+  if(messCard)messCard.style.display='';
+  if(prodCard)prodCard.style.display='';
+  if(hireCard)hireCard.style.display='';
 }
 
 function fxAddRole(){
@@ -18055,7 +18054,8 @@ function fxCalcTotals(){
   const rolesTotal=_fxRows.reduce((s,_,i)=>s+fxRowCalc(i),0);
   const messTotal=(typeof fxMessTotal==='function')?fxMessTotal():0;
   const prodTotal=(typeof fxProdTotal==='function')?fxProdTotal():0;
-  const sub=Math.round((rolesTotal+messTotal+prodTotal)*100)/100;
+  const hireTotal=(typeof fxHireTotal==='function')?fxHireTotal():0;
+  const sub=Math.round((rolesTotal+messTotal+prodTotal+hireTotal)*100)/100;
   const gstPct=parseFloat(document.getElementById('fx-gst-pct')?.value)||0;
   const gst=Math.round(sub*(gstPct/100)*100)/100;
   const total=Math.round((sub+gst)*100)/100;
@@ -18071,25 +18071,41 @@ function fxCalcTotals(){
 
 // ── Data stores (reset on openFlexTopsheet) ─────────────────────
 let _fxMessCols = [];   // [{id, label}]
-let _fxMessRows = [];   // [{id, label, vals:{colId:amount}}]
+let _fxMessRows = [];   // [{id, date, vals:{colId:amount}}]
 let _fxProdCols = [];   // [{id, label}]
-let _fxProdRows = [];   // [{id, label, vals:{colId:amount}}]
+let _fxProdRows = [];   // [{id, date, vals:{colId:amount}}]
+let _fxHireCols = [];   // [{id, label}]
+let _fxHireRows = [];   // [{id, date, vals:{colId:amount}}]
+
+// Dispatch table so the shared helpers below work across all three grids
+// (mess/prod/hire) without a growing chain of ternaries. get/set are
+// closures over the module-level `let` vars above since those vars get
+// reassigned wholesale (e.g. via .filter()), not mutated in place.
+const fxGridTypes={
+  mess:{getCols:()=>_fxMessCols,setCols:v=>_fxMessCols=v,getRows:()=>_fxMessRows,setRows:v=>_fxMessRows=v,render:()=>fxRenderMess()},
+  prod:{getCols:()=>_fxProdCols,setCols:v=>_fxProdCols=v,getRows:()=>_fxProdRows,setRows:v=>_fxProdRows=v,render:()=>fxRenderProd()},
+  hire:{getCols:()=>_fxHireCols,setCols:v=>_fxHireCols=v,getRows:()=>_fxHireRows,setRows:v=>_fxHireRows=v,render:()=>fxRenderHire()}
+};
 
 // ── Preset col names (persisted in DB) ──────────────────────────
 function fxGetMessPresets(){ return (DB.fxPresets||{}).messCols||['Lunch','Dinner','Snacks','Tea/Coffee','Special Meals']; }
 function fxGetProdPresets(){ return (DB.fxPresets||{}).prodCols||['Petty Cash','Conveyance','Stationery','Sundry','Miscellaneous']; }
+function fxGetHirePresets(){ return (DB.fxPresets||{}).hireCols||['Equipment Hire','Vehicle Hire','Costume Hire','Prop Hire','Miscellaneous Hire']; }
 function fxSaveMessPreset(label){ if(!label)return; const p=fxGetMessPresets(); if(!p.includes(label)){p.push(label);if(!DB.fxPresets)DB.fxPresets={};DB.fxPresets.messCols=p;saveDB();} }
 function fxSaveProdPreset(label){ if(!label)return; const p=fxGetProdPresets(); if(!p.includes(label)){p.push(label);if(!DB.fxPresets)DB.fxPresets={};DB.fxPresets.prodCols=p;saveDB();} }
+function fxSaveHirePreset(label){ if(!label)return; const p=fxGetHirePresets(); if(!p.includes(label)){p.push(label);if(!DB.fxPresets)DB.fxPresets={};DB.fxPresets.hireCols=p;saveDB();} }
 
-// Reset mess & prod on open for a NEW bill, or restore saved grid data when
-// editing an existing bill (savedMess/savedProd come from the bill's
-// _flexMessCols/_flexMessRows/_flexProdCols/_flexProdRows, if present).
-function fxInitExtras(savedMess,savedProd){
+// Reset all three grids on open for a NEW bill, or restore saved grid data
+// when editing an existing bill (savedMess/savedProd/savedHire come from the
+// bill's _flexMessCols/_flexMessRows etc., if present).
+function fxInitExtras(savedMess,savedProd,savedHire){
   _fxMessCols=savedMess&&savedMess.cols?JSON.parse(JSON.stringify(savedMess.cols)):[];
   _fxMessRows=savedMess&&savedMess.rows?JSON.parse(JSON.stringify(savedMess.rows)):[];
   _fxProdCols=savedProd&&savedProd.cols?JSON.parse(JSON.stringify(savedProd.cols)):[];
   _fxProdRows=savedProd&&savedProd.rows?JSON.parse(JSON.stringify(savedProd.rows)):[];
-  fxRenderMess(); fxRenderProd();
+  _fxHireCols=savedHire&&savedHire.cols?JSON.parse(JSON.stringify(savedHire.cols)):[];
+  _fxHireRows=savedHire&&savedHire.rows?JSON.parse(JSON.stringify(savedHire.rows)):[];
+  fxRenderMess(); fxRenderProd(); fxRenderHire();
 }
 
 // ── Generic table renderer ───────────────────────────────────────
@@ -18169,7 +18185,7 @@ function fxRenderExpTable(thId, tbId, tfId, cols, rows, type){
 // ── Mess helpers ─────────────────────────────────────────────────
 function fxRenderMess(){ fxRenderExpTable('fx-mess-thead','fx-mess-tbody','fx-mess-tfoot',_fxMessCols,_fxMessRows,'mess'); if(typeof fxCalcTotals==='function')fxCalcTotals(); }
 function fxAddMessCol(){
-  const label=prompt('Column name (e.g. Mess, Catering, Lunch, Hires):','');
+  const label=prompt('Column name (e.g. Mess, Catering, Lunch):','');
   if(!label||!label.trim())return;
   _fxMessCols.push({id:fxUid(),label:label.trim()});
   fxSaveMessPreset(label.trim());
@@ -18186,7 +18202,7 @@ function fxAddMessRow(){
 // ── Prod helpers ─────────────────────────────────────────────────
 function fxRenderProd(){ fxRenderExpTable('fx-prod-thead','fx-prod-tbody','fx-prod-tfoot',_fxProdCols,_fxProdRows,'prod'); if(typeof fxCalcTotals==='function')fxCalcTotals(); }
 function fxAddProdCol(){
-  const label=prompt('Column name (e.g. Petty Cash, Conveyance, Hires):','');
+  const label=prompt('Column name (e.g. Petty Cash, Conveyance):','');
   if(!label||!label.trim())return;
   _fxProdCols.push({id:fxUid(),label:label.trim()});
   fxSaveProdPreset(label.trim());
@@ -18199,17 +18215,35 @@ function fxAddProdRow(){
   _fxProdRows.push({id,date:'',vals});
   fxRenderProd();
 }
-// Generate one row per date in the given range for either grid — skips
-// dates that already have a row, same "append, don't duplicate" behaviour
-// as the main topsheet's date-range generator.
+
+// ── Hire helpers ─────────────────────────────────────────────────
+function fxRenderHire(){ fxRenderExpTable('fx-hire-thead','fx-hire-tbody','fx-hire-tfoot',_fxHireCols,_fxHireRows,'hire'); if(typeof fxCalcTotals==='function')fxCalcTotals(); }
+function fxAddHireCol(){
+  const label=prompt('Column name (e.g. Equipment Hire, Vehicle Hire):','');
+  if(!label||!label.trim())return;
+  _fxHireCols.push({id:fxUid(),label:label.trim()});
+  fxSaveHirePreset(label.trim());
+  _fxHireRows.forEach(r=>r.vals[_fxHireCols[_fxHireCols.length-1].id]='');
+  fxRenderHire();
+}
+function fxAddHireRow(){
+  const id=fxUid(); const vals={};
+  _fxHireCols.forEach(c=>vals[c.id]='');
+  _fxHireRows.push({id,date:'',vals});
+  fxRenderHire();
+}
+
+// Generate one row per date in the given range for any of the three grids —
+// skips dates that already have a row, same "append, don't duplicate"
+// behaviour as the main topsheet's date-range generator.
 function fxGenerateExpRange(type){
   const fromEl=document.getElementById('fx-'+type+'-range-from');
   const toEl=document.getElementById('fx-'+type+'-range-to');
   const from=fromEl?fromEl.value:'',to=toEl?toEl.value:'';
   if(!from||!to){toast('Pick both a From and To date','err');return;}
   if(from>to){toast('From date must be before To date','err');return;}
-  const rows=type==='mess'?_fxMessRows:_fxProdRows;
-  const cols=type==='mess'?_fxMessCols:_fxProdCols;
+  const store=fxGridTypes[type];if(!store)return;
+  const rows=store.getRows(),cols=store.getCols();
   const existing=new Set(rows.map(r=>r.date));
   let added=0;
   let d=new Date(from+'T00:00:00');
@@ -18223,36 +18257,39 @@ function fxGenerateExpRange(type){
     }
     d.setDate(d.getDate()+1);
   }
-  if(type==='mess')fxRenderMess();else fxRenderProd();
+  store.render();
   toast(added?'✓ Added '+added+' date row'+(added>1?'s':''):'All dates in that range already have rows');
 }
 
-// ── Shared helpers ───────────────────────────────────────────────
+// ── Shared helpers (dispatch across mess/prod/hire) ───────────────
 function fxDelCol(type,colId){
-  if(type==='mess'){_fxMessCols=_fxMessCols.filter(c=>c.id!==colId);_fxMessRows.forEach(r=>delete r.vals[colId]);fxRenderMess();}
-  else{_fxProdCols=_fxProdCols.filter(c=>c.id!==colId);_fxProdRows.forEach(r=>delete r.vals[colId]);fxRenderProd();}
+  const store=fxGridTypes[type];if(!store)return;
+  store.setCols(store.getCols().filter(c=>c.id!==colId));
+  store.getRows().forEach(r=>delete r.vals[colId]);
+  store.render();
 }
 function fxDelExpRow(type,rowId){
-  if(type==='mess'){_fxMessRows=_fxMessRows.filter(r=>r.id!==rowId);fxRenderMess();}
-  else{_fxProdRows=_fxProdRows.filter(r=>r.id!==rowId);fxRenderProd();}
+  const store=fxGridTypes[type];if(!store)return;
+  store.setRows(store.getRows().filter(r=>r.id!==rowId));
+  store.render();
 }
 function fxExpRowDate(type,rowId,val){
-  const rows=type==='mess'?_fxMessRows:_fxProdRows;
-  const r=rows.find(r=>r.id===rowId);if(r)r.date=val;
-  if(type==='mess')fxRenderMess();else fxRenderProd();
+  const store=fxGridTypes[type];if(!store)return;
+  const r=store.getRows().find(r=>r.id===rowId);if(r)r.date=val;
+  store.render();
 }
 function fxExpVal(type,rowId,colId,val){
-  const rows=type==='mess'?_fxMessRows:_fxProdRows;
-  const r=rows.find(r=>r.id===rowId);
+  const store=fxGridTypes[type];if(!store)return;
+  const r=store.getRows().find(r=>r.id===rowId);
   if(r){
     if(val!==''&&fxEvalFormula(val)==null){ toast('Could not evaluate "'+val+'" — use a number or a formula like 5*2000','err'); return; }
     r.vals[colId]=val;
   }
-  if(type==='mess')fxRenderMess();else fxRenderProd();
+  store.render();
 }
 function fxExpRowTotalOverride(type,rowId,val){
-  const rows=type==='mess'?_fxMessRows:_fxProdRows;
-  const r=rows.find(r=>r.id===rowId);
+  const store=fxGridTypes[type];if(!store)return;
+  const r=store.getRows().find(r=>r.id===rowId);
   if(r){
     if(val===''||val==null){ r.rowTotalOverride=null; } // reset to auto sum
     else{
@@ -18261,7 +18298,7 @@ function fxExpRowTotalOverride(type,rowId,val){
       r.rowTotalOverride=String(val).trim(); // keep raw formula/number text for display
     }
   }
-  if(type==='mess')fxRenderMess();else fxRenderProd();
+  store.render();
 }
 function _fxRowTotal(r,cols){
   const autoTotal=cols.reduce((rs,c)=>{const v=fxEvalFormula(r.vals[c.id]);return rs+(v!=null?v:0);},0);
@@ -18272,6 +18309,9 @@ function _fxRowTotal(r,cols){
 }
 function fxMessTotal(){return _fxMessRows.reduce((s,r)=>s+_fxRowTotal(r,_fxMessCols),0);}
 function fxProdTotal(){return _fxProdRows.reduce((s,r)=>s+_fxRowTotal(r,_fxProdCols),0);}
+function fxHireTotal(){return _fxHireRows.reduce((s,r)=>s+_fxRowTotal(r,_fxHireCols),0);}
+
+
 
 // ── Salaries loader ──────────────────────────────────────────────
 function fxLoadSalaries(){
@@ -18383,9 +18423,10 @@ function fxPreview(){
 // blank on purpose — the Category display already falls back to the bill's
 // own department when an item has none (see billCategorySummary).
 function fxBuildExpItems(type){
-  const rows=type==='mess'?_fxMessRows:_fxProdRows;
-  const cols=type==='mess'?_fxMessCols:_fxProdCols;
-  const label=type==='mess'?'Mess / Food Expenses':'Production Expenses';
+  const store=fxGridTypes[type];if(!store)return[];
+  const rows=store.getRows();
+  const cols=store.getCols();
+  const label=type==='mess'?'Mess / Food Expenses':(type==='hire'?'Hires':'Production Expenses');
   const out=[];
   rows.forEach(row=>{
     const hasOverride=row.rowTotalOverride!=null&&row.rowTotalOverride!=='';
@@ -18451,7 +18492,7 @@ function fxSave(){
     return{description:`${vendor}${row.splitTag?' — '+row.splitTag:''}`,dept,sub:subdept,
       qty:1,rate:0,rateType:'Per Call Sheet',cs:row.cs,fixedAllow:0,
       amount:rowTotal,_date:row.date,_breakdown:breakdown,_dayType:row.dayType,_remarks:remarksParts.join(' · ')};
-  }).concat(fxBuildExpItems('mess')).concat(fxBuildExpItems('prod'));
+  }).concat(fxBuildExpItems('mess')).concat(fxBuildExpItems('prod')).concat(fxBuildExpItems('hire'));
 
   const bill={
     id:billId,uploadedAt:new Date().toISOString(),
@@ -18462,7 +18503,8 @@ function fxSave(){
     imageData:null,imageType:null,
     notes:notes||'',
     manpower:null,_flexRoles:_fxRoles,_flexRows:_fxRows,
-    _flexMessCols:_fxMessCols,_flexMessRows:_fxMessRows,_flexProdCols:_fxProdCols,_flexProdRows:_fxProdRows
+    _flexMessCols:_fxMessCols,_flexMessRows:_fxMessRows,_flexProdCols:_fxProdCols,_flexProdRows:_fxProdRows,
+    _flexHireCols:_fxHireCols,_flexHireRows:_fxHireRows
   };
   if(!DB.bills)DB.bills=[];
   DB.bills.push(bill);
@@ -18567,7 +18609,7 @@ function fxUpdateBill(){
     return{description:`${vendor}${row.splitTag?' — '+row.splitTag:''}`,dept,sub:subdept,
       qty:1,rate:0,rateType:'Per Call Sheet',cs:row.cs,fixedAllow:0,
       amount:rowTotal,_date:row.date,_breakdown:breakdown,_dayType:row.dayType,_remarks:remarksParts.join(' · ')};
-  }).concat(fxBuildExpItems('mess')).concat(fxBuildExpItems('prod'));
+  }).concat(fxBuildExpItems('mess')).concat(fxBuildExpItems('prod')).concat(fxBuildExpItems('hire'));
 
   // Update the bill object in place — preserve fields not editable here (status, paidAt, images, etc.)
   b.vendor=vendor;b.billNo=billNo;b.billDate=billDate;b.schedId=schedId;
@@ -18576,6 +18618,7 @@ function fxUpdateBill(){
   b.notes=notes||'';
   b._flexRoles=_fxRoles;b._flexRows=_fxRows;
   b._flexMessCols=_fxMessCols;b._flexMessRows=_fxMessRows;b._flexProdCols=_fxProdCols;b._flexProdRows=_fxProdRows;
+  b._flexHireCols=_fxHireCols;b._flexHireRows=_fxHireRows;
   b._editedAt=new Date().toISOString();
 
   // Remove this bill's old actAdhoc entries everywhere (dates may have changed), then re-post fresh ones
@@ -20987,7 +21030,30 @@ function arRenderPayables(){
           <tfoot id="fx-prod-tfoot"></tfoot>
         </table>
       </div>
-      <div class="xs2 dim" style="margin-top:6px">Add columns for each expense type (Petty Cash, Conveyance, Stationery, Hires…). Preset names are saved. Any cell or the Row Total can take a formula too, e.g. type <code>5*2000</code> and it'll evaluate to 10,000.</div>
+      <div class="xs2 dim" style="margin-top:6px">Add columns for each expense type (Petty Cash, Conveyance, Stationery…). Preset names are saved. Any cell or the Row Total can take a formula too, e.g. type <code>5*2000</code> and it'll evaluate to 10,000.</div>
+    </div>
+
+    <!-- ── HIRES ──────────────────────────────────────────────────────── -->
+    <div class="card" style="background:var(--sf2);margin-bottom:12px;padding:12px 14px" id="fx-hire-card">
+      <div class="flex aic jb mb8">
+        <div class="ct" style="margin:0;font-size:12px">🔧 Hires</div>
+        <div class="flex gap6 aic wrap">
+          <input type="date" id="fx-hire-range-from" style="font-size:11px;padding:3px 5px">
+          <span class="xs3 dim">to</span>
+          <input type="date" id="fx-hire-range-to" style="font-size:11px;padding:3px 5px">
+          <button class="btn bs sm" onclick="fxGenerateExpRange('hire')">📅 Generate Date Rows</button>
+          <button class="btn bs sm" onclick="fxAddHireCol()">＋ Add Column</button>
+          <button class="btn bg sm" onclick="fxAddHireRow()">＋ Add Row</button>
+        </div>
+      </div>
+      <div style="overflow-x:auto">
+        <table id="fx-hire-table" style="border-collapse:collapse;font-size:12px;width:100%">
+          <thead id="fx-hire-thead"></thead>
+          <tbody id="fx-hire-tbody"></tbody>
+          <tfoot id="fx-hire-tfoot"></tfoot>
+        </table>
+      </div>
+      <div class="xs2 dim" style="margin-top:6px">Add columns for each hire type (Equipment Hire, Vehicle Hire, Costume Hire…). Preset names are saved. Any cell or the Row Total can take a formula too, e.g. type <code>5*2000</code> and it'll evaluate to 10,000.</div>
     </div>
 
     <div class="mbtns" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
