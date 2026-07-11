@@ -752,7 +752,6 @@ body.auditor-mode #save-btn { display:none !important; }
     <div class="ni" data-page="callsheets" onclick="go('callsheets')"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="1" width="12" height="14" rx="1.5"/><path d="M5 4h6M5 7h6M5 10h3"/><circle cx="12" cy="11" r="3"/><path d="M11 11h2M12 10v2"/></svg>Call Sheets</div>
     <div class="ni" data-page="sched-summary" onclick="go('sched-summary')"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="1" y="3" width="14" height="11" rx="1.5"/><path d="M1 6h14M5 3V1M11 3V1"/><path d="M4 9h2M7 9h2M10 9h2M4 12h2M7 12h2M10 12h2"/></svg>Schedule Summary</div>
     <div class="ni" data-page="bills" onclick="go('bills')"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="1" width="12" height="14" rx="1.5"/><path d="M5 5h6M5 8h6M5 11h3"/></svg>Bills<span class="nbadge" id="bills-badge" style="display:none">0</span></div>
-    <div class="ni" data-page="prod-expenses" onclick="go('prod-expenses')" style="padding-left:34px;font-size:12px"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" style="width:13px;height:13px"><rect x="1" y="2" width="14" height="12" rx="1.5"/><path d="M1 6h14"/><path d="M4 9.5h3M4 12h5"/></svg>Production Expenses</div>
     <div class="ni" data-page="inbox" onclick="go('inbox')"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="1" y="4" width="14" height="10" rx="1.5"/><path d="M1 8h3l2 3h4l2-3h3"/></svg>Inbox<span class="nbadge" id="inbox-badge" style="display:none">0</span></div>
     <div class="ni" data-page="notifications" onclick="go('notifications')"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M8 1a4 4 0 0 0-4 4v3l-1.5 3h11L12 8V5a4 4 0 0 0-4-4z"/><path d="M6.5 14a1.5 1.5 0 0 0 3 0"/></svg>Notifications</div>
   </nav>
@@ -1930,71 +1929,7 @@ body.auditor-mode #save-btn { display:none !important; }
       </div>
     </div>
   </div>
-
-  <!-- PRODUCTION EXPENSES REGISTER -->
-  <div class="page" id="page-prod-expenses">
-    <div class="print-header"><h1>Production Expenses</h1></div>
-    <div class="card no-print" id="pe-add-card">
-      <div class="ct">＋ Add Entry</div>
-      <div style="display:grid;grid-template-columns:1fr 1.4fr 1.4fr 0.7fr 0.8fr 0.8fr 0.7fr 0.9fr;gap:8px;align-items:end">
-        <div class="fld"><label>Date</label><input type="date" id="pe-date"></div>
-        <div class="fld"><label>Category</label>
-          <select id="pe-category" onchange="peCategoryChanged()">
-            <option value="Daily Expenses">Daily Expenses</option>
-            <option value="Disposables">Disposables</option>
-            <option value="Coconuts">Coconuts</option>
-            <option value="Evening Snacks">Evening Snacks</option>
-            <option value="Cool Drinks">Cool Drinks</option>
-            <option value="Super Market">Super Market</option>
-            <option value="Namkeens & Others">Namkeens &amp; Others</option>
-            <option value="__other__">Other (type new)…</option>
-          </select>
-          <input type="text" id="pe-category-other" placeholder="Type category name" style="display:none;margin-top:4px">
-        </div>
-        <div class="fld"><label>Particular</label><input type="text" id="pe-particular" list="pe-particular-presets" placeholder="e.g. Water Bottles" onchange="peTryPrefillRate()"><datalist id="pe-particular-presets"></datalist></div>
-        <div class="fld"><label>Qty/Heads</label><input type="number" id="pe-qty" oninput="peRecalcAmount()"></div>
-        <div class="fld"><label>Call Sheets</label><input type="number" id="pe-cs" oninput="peRecalcAmount()" disabled title="Only Daily Expenses uses a Call Sheets multiplier"></div>
-        <div class="fld"><label>Unit</label><input type="text" id="pe-unit" placeholder="optional"></div>
-        <div class="fld"><label>Rate ₹</label><input type="number" id="pe-rate" oninput="peRecalcAmount()"></div>
-        <div class="fld"><label>Amount ₹</label><input type="number" id="pe-amount" style="font-weight:700"></div>
-      </div>
-      <div class="flex gap8 mt8">
-        <button class="btn bg" onclick="peAddEntry()">＋ Add Entry</button>
-        <span class="xs2 dim" style="align-self:center">Amount auto-fills from Qty × Rate × (Call Sheets, Daily Expenses only) — you can still overwrite it directly, e.g. for a lump-sum bill.</span>
-      </div>
-    </div>
-
-    <div class="flex gap8 mb12 wrap no-print" style="align-items:center;margin-top:12px">
-      <button class="btn bs sm" onclick="peExpandAll()">⊞ Expand All</button>
-      <button class="btn bs sm" onclick="peCollapseAll()">⊟ Collapse All</button>
-      <div style="flex:1"></div>
-      <button class="btn bg sm" onclick="openPeGenerateBill()">🧾 Generate Bill from Entries</button>
-      <button class="btn bs sm" onclick="printPage()">&#9113; Print</button>
-    </div>
-
-    <div class="card"><div class="ct">Register</div>
-      <div id="pe-register-body"></div>
-    </div>
   </div>
-
-  <!-- Generate Bill from Production Expenses entries -->
-  <div class="modal-bg" id="pe-genbill-modal">
-    <div class="modal" style="width:min(96vw,900px);max-height:90vh;overflow-y:auto">
-      <h3>🧾 Generate Bill from Production Expenses</h3>
-      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:12px">
-        <div class="field"><label>Vendor / Supplier *</label><input id="pe-gb-vendor" list="fx-vendor-list" placeholder="Vendor name"></div>
-        <div class="field"><label>From</label><input type="date" id="pe-gb-from"></div>
-        <div class="field"><label>To</label><input type="date" id="pe-gb-to"></div>
-      </div>
-      <button class="btn bs sm" onclick="peGenBillPreview()">Preview Matching Entries</button>
-      <div id="pe-gb-preview" style="margin-top:12px"></div>
-      <div class="mbtns" style="margin-top:14px">
-        <button class="bo" onclick="document.getElementById('pe-genbill-modal').style.display='none'">Cancel</button>
-        <button class="btn bg" id="pe-gb-confirm" style="display:none" onclick="peConfirmGenBill()">✓ Create Bill from These Entries</button>
-      </div>
-    </div>
-  </div>
-
 
   <!-- INBOX -->
   <div class="page" id="page-inbox">
@@ -6458,7 +6393,7 @@ function k2Confirm(message,choices){
 // ══════════════════════════════════
 // NAVIGATION
 // ══════════════════════════════════
-const PTITLES={dash:'Dashboard',pettycash:'Petty Cash Register',estimates:'Estimates — Day Plan',vehicles:'Vehicles Log',ratecard:'Rate Card','actor-contracts':'Artists & Contracts',actuals:'Actuals',daysheet:'Day Sheet',payments:'Daily Payments',pending:'Pending Queue',actors:'Actor Payments',summary:'Summary',budgets:'Budgets & Projections',topsheet:'Topsheet',project:'Project Setup',vendors:'Vendors',schedules:'Schedules','submit-actuals':'Submit Actuals',bills:'Bills Archive','prod-expenses':'Production Expenses',callsheets:'Call Sheets','sched-summary':'Schedule Summary Report','admin-charges':'Admin & Legal Charges','salaries':'Monthly Salaries',notifications:'Notifications',inbox:'Inbox'};
+const PTITLES={dash:'Dashboard',pettycash:'Petty Cash Register',estimates:'Estimates — Day Plan',vehicles:'Vehicles Log',ratecard:'Rate Card','actor-contracts':'Artists & Contracts',actuals:'Actuals',daysheet:'Day Sheet',payments:'Daily Payments',pending:'Pending Queue',actors:'Actor Payments',summary:'Summary',budgets:'Budgets & Projections',topsheet:'Topsheet',project:'Project Setup',vendors:'Vendors',schedules:'Schedules','submit-actuals':'Submit Actuals',bills:'Bills Archive',callsheets:'Call Sheets','sched-summary':'Schedule Summary Report','admin-charges':'Admin & Legal Charges','salaries':'Monthly Salaries',notifications:'Notifications',inbox:'Inbox'};
 const SUBTAG={Hire:'<span class="tag to">Hire</span>',Battas:'<span class="tag tb">Battas</span>',Remuneration:'<span class="tag tp">Rem.</span>','Daily Battas':'<span class="tag tc">Daily</span>',Expenses:'<span class="tag ts">Exp.</span>'};
 const STAG3={Paid:'<span class="tag tgn">Paid</span>',Partial:'<span class="tag tg">Partial</span>',Hold:'<span class="tag to">Hold</span>',Rejected:'<span class="tag tr2">Rejected</span>',Scheduled:'<span class="tag tp">Scheduled</span>'};
 const DAY_CAT_TAGS={'Shoot Day':'tg','Set Work':'tb','Rehearsal':'tp','Pre Lighting':'tc','Post Work':'to','Recce':'tgn','Off Day':'ts','Outdoor':'tr2'};
@@ -6528,7 +6463,6 @@ function _renderPageCore(p){
   else if(p==='schedules')renderScheduleList();
   else if(p==='submit-actuals')renderSubmitActuals();
   else if(p==='bills'){renderBills();updateBillsBadge();setTimeout(function(){resetBillUpload();},50);}
-  else if(p==='prod-expenses')renderProdExpenses();
   else if(p==='callsheets'){renderCallSheets();}
   else if(p==='sched-summary'){renderSchedSummary();}
   else if(p==='notifications'){renderNotifSettings();}
@@ -15046,13 +14980,13 @@ const DEFAULT_USERS=[
 // Pages each role can access — admin gets everything
 const ROLE_ACCESS={
   admin:      null,
-  producer:   ['inbox','estimates','actuals','payments','bills','prod-expenses','sched-summary','summary','budgets','hotels','flights','vehicles','notifications'],
+  producer:   ['inbox','estimates','actuals','payments','bills','sched-summary','summary','budgets','hotels','flights','vehicles','notifications'],
   transport:  ['vehicles'],
   hospitality:['hotels','flights'],
   cashier:    ['pettycash','petty'],
-  accounts:   ['payments','bills','prod-expenses','sched-summary','vendors','inbox'],
-  coordinator:['actuals','daysheet','callsheets','actorlog','dpr','submit-actuals','prod-expenses'],
-  auditor:    ['dash','estimates','actuals','bills','prod-expenses','payments','vendors','sched-summary','summary','budgets','dpr','hotels','flights','vehicles','pettycash','petty','salaries','actorlog','actor-contracts','notifications','inbox']
+  accounts:   ['payments','bills','sched-summary','vendors','inbox'],
+  coordinator:['actuals','daysheet','callsheets','actorlog','dpr','submit-actuals'],
+  auditor:    ['dash','estimates','actuals','bills','payments','vendors','sched-summary','summary','budgets','dpr','hotels','flights','vehicles','pettycash','petty','salaries','actorlog','actor-contracts','notifications','inbox']
 };
 
 function getUsers(){
@@ -18635,232 +18569,6 @@ function fxLoadPrevPayments(){
   el.innerHTML=html;
 }
 
-
-// ═══════════════════════════════════════════════════════════════════
-//  PRODUCTION EXPENSES REGISTER — persistent day-by-day log, separate
-//  from any single bill. Entries accumulate over time; "Generate Bill"
-//  compiles an unbilled date range into a real bill, same pattern as
-//  Actors Day Log → Actor Payments.
-// ═══════════════════════════════════════════════════════════════════
-
-// Remembered "last used" rate per Category+Particular, so the Rate field
-// auto-fills next time instead of retyping — but can always be overridden
-// per entry (rates do change over the shoot). Seeded with the two known
-// starting rates; every other combination just has no default until used once.
-function peRateKey(cat,part){return(cat||'').trim()+'|'+(part||'').trim().toLowerCase();}
-function peGetDefaultRate(cat,part){
-  if(!DB.prodExpenseRateDefaults)DB.prodExpenseRateDefaults={
-    'Daily Expenses|daily expenses':65,
-    'Evening Snacks|regular':45
-  };
-  const v=DB.prodExpenseRateDefaults[peRateKey(cat,part)];
-  return v!=null?v:null;
-}
-function peRememberRate(cat,part,rate){
-  if(!DB.prodExpenseRateDefaults)DB.prodExpenseRateDefaults={};
-  DB.prodExpenseRateDefaults[peRateKey(cat,part)]=rate;
-}
-function peCategoryChanged(){
-  const sel=document.getElementById('pe-category');
-  const otherEl=document.getElementById('pe-category-other');
-  const csEl=document.getElementById('pe-cs');
-  if(!sel||!otherEl||!csEl)return;
-  const isOther=sel.value==='__other__';
-  otherEl.style.display=isOther?'':'none';
-  const effectiveCat=isOther?(otherEl.value||''):sel.value;
-  // Only "Daily Expenses" uses a Call Sheets multiplier — everything else
-  // (Disposables, Coconuts, Evening Snacks, Cool Drinks, Super Market,
-  // Namkeens & Others) is per-unit only, per the rule this was built to.
-  const usesCS=effectiveCat==='Daily Expenses';
-  csEl.disabled=!usesCS;
-  if(!usesCS)csEl.value='';
-  const presetsEl=document.getElementById('pe-particular-presets');
-  if(presetsEl){
-    const parts=[...new Set((DB.prodExpenseLog||[]).filter(e=>e.category===effectiveCat).map(e=>e.particular))];
-    presetsEl.innerHTML=parts.map(p=>`<option value="${p.replace(/"/g,'&quot;')}">`).join('');
-  }
-  peTryPrefillRate();
-}
-function peTryPrefillRate(){
-  const sel=document.getElementById('pe-category');
-  const rateEl=document.getElementById('pe-rate');
-  if(!sel||!rateEl||rateEl.value)return; // don't clobber a value the user already typed
-  const isOther=sel.value==='__other__';
-  const cat=isOther?(document.getElementById('pe-category-other')?.value||''):sel.value;
-  const part=document.getElementById('pe-particular')?.value||'';
-  const def=peGetDefaultRate(cat,part);
-  if(def!=null){rateEl.value=def;peRecalcAmount();}
-}
-function peRecalcAmount(){
-  const qty=parseFloat(document.getElementById('pe-qty')?.value)||0;
-  const rate=parseFloat(document.getElementById('pe-rate')?.value)||0;
-  const csEl=document.getElementById('pe-cs');
-  const cs=(csEl&&!csEl.disabled&&csEl.value)?parseFloat(csEl.value):1;
-  if(qty&&rate){
-    const amtEl=document.getElementById('pe-amount');
-    if(amtEl)amtEl.value=Math.round(qty*rate*(isNaN(cs)?1:cs)*100)/100;
-  }
-}
-function peAddEntry(){
-  const date=document.getElementById('pe-date')?.value;
-  const catSel=document.getElementById('pe-category');
-  let category=catSel?.value;
-  if(category==='__other__')category=(document.getElementById('pe-category-other')?.value||'').trim();
-  const particular=(document.getElementById('pe-particular')?.value||'').trim();
-  const qty=document.getElementById('pe-qty')?.value;
-  const cs=document.getElementById('pe-cs')?.value;
-  const unit=(document.getElementById('pe-unit')?.value||'').trim();
-  const rate=document.getElementById('pe-rate')?.value;
-  const amount=parseFloat(document.getElementById('pe-amount')?.value)||0;
-  if(!date){toast('Pick a date','err');return;}
-  if(!category){toast('Pick or type a category','err');return;}
-  if(!particular){toast('Enter a particular / item name','err');return;}
-  if(!amount){toast('Amount is required — or fill Qty + Rate to auto-calculate it','err');return;}
-  if(!DB.prodExpenseLog)DB.prodExpenseLog=[];
-  DB.prodExpenseLog.push({
-    id:uid(),date,category,particular,
-    qty:qty?parseFloat(qty):null,
-    cs:(category==='Daily Expenses'&&cs)?parseFloat(cs):null,
-    unit,rate:rate?parseFloat(rate):null,amount,
-    billed:false,billId:null
-  });
-  if(rate)peRememberRate(category,particular,parseFloat(rate));
-  saveDB();
-  toast('✓ Entry added');
-  // Keep Date + Category set for fast repeated entry (you're usually adding
-  // several particulars under the same head/date in a row) — clear the rest.
-  ['pe-particular','pe-qty','pe-cs','pe-unit','pe-rate','pe-amount'].forEach(id=>{
-    const el=document.getElementById(id);if(el)el.value='';
-  });
-  peRenderRegister();
-}
-function peDeleteEntry(id){
-  if(!confirm('Remove this entry?'))return;
-  DB.prodExpenseLog=(DB.prodExpenseLog||[]).filter(e=>e.id!==id);
-  saveDB();
-  peRenderRegister();
-}
-function peExpandAll(){document.querySelectorAll('#pe-register-body details').forEach(d=>d.open=true);}
-function peCollapseAll(){document.querySelectorAll('#pe-register-body details').forEach(d=>d.open=false);}
-function peRenderRegister(){
-  const el=document.getElementById('pe-register-body');
-  if(!el)return;
-  const entries=DB.prodExpenseLog||[];
-  if(!entries.length){el.innerHTML='<div class="te" style="padding:20px">No entries yet — use ＋ Add Entry above to start the register.</div>';return;}
-  const dates=[...new Set(entries.map(e=>e.date))].filter(Boolean).sort();
-  el.innerHTML=dates.map(d=>{
-    const dayEntries=entries.filter(e=>e.date===d);
-    const dayTotal=dayEntries.reduce((s,e)=>s+(parseFloat(e.amount)||0),0);
-    const heads=[...new Set(dayEntries.map(e=>e.category))];
-    return`<details class="pe-date-block" style="margin-bottom:10px;border:1px solid var(--bd);border-radius:8px;overflow:hidden">
-      <summary style="padding:10px 14px;background:var(--sf2);cursor:pointer;font-weight:700;display:flex;justify-content:space-between;list-style:none">
-        <span>${fmtD(d)} — Total Expenses</span><span style="color:var(--gn)">${fmt(dayTotal)}</span>
-      </summary>
-      <div style="padding:8px 14px">
-      ${heads.map(h=>{
-        const headEntries=dayEntries.filter(e=>e.category===h);
-        const headTotal=headEntries.reduce((s,e)=>s+(parseFloat(e.amount)||0),0);
-        return`<details class="pe-head-block" style="margin-bottom:6px;border:1px solid var(--bd2);border-radius:6px;overflow:hidden">
-          <summary style="padding:7px 12px;background:var(--sf);cursor:pointer;font-weight:600;display:flex;justify-content:space-between;font-size:13px;list-style:none">
-            <span>${esc(h)}</span><span style="color:var(--gn)">${fmt(headTotal)}</span>
-          </summary>
-          <table style="width:100%;border-collapse:collapse;font-size:12px">
-            <thead><tr style="color:var(--tx3);font-size:10px;text-transform:uppercase">
-              <th style="text-align:left;padding:4px 12px">Particular</th><th style="text-align:right;padding:4px 8px">Qty/Heads</th><th style="text-align:right;padding:4px 8px">Call Sheets</th><th style="text-align:left;padding:4px 8px">Unit</th><th style="text-align:right;padding:4px 8px">Rate ₹</th><th style="text-align:right;padding:4px 12px">Amount ₹</th><th class="no-print"></th>
-            </tr></thead>
-            <tbody>${headEntries.map(e=>`<tr style="${e.billed?'opacity:.5':''}">
-              <td style="padding:4px 12px">${esc(e.particular||'—')}${e.billed?' <span class="tag ts xs3">Billed</span>':''}</td>
-              <td style="text-align:right;padding:4px 8px">${e.qty||'—'}</td>
-              <td style="text-align:right;padding:4px 8px">${(h==='Daily Expenses'&&e.cs)?e.cs:'—'}</td>
-              <td style="padding:4px 8px">${esc(e.unit||'')||'—'}</td>
-              <td style="text-align:right;padding:4px 8px">${e.rate?fmt(e.rate):'—'}</td>
-              <td style="text-align:right;padding:4px 12px;font-weight:600">${fmt(e.amount)}</td>
-              <td class="no-print" style="padding:4px"><button onclick="peDeleteEntry('${e.id}')" style="background:none;border:none;color:var(--rd);cursor:pointer">✕</button></td>
-            </tr>`).join('')}</tbody>
-          </table>
-        </details>`;
-      }).join('')}
-      </div>
-    </details>`;
-  }).join('');
-}
-function renderProdExpenses(){
-  const dateEl=document.getElementById('pe-date');
-  if(dateEl&&!dateEl.value)dateEl.value=tod();
-  peRenderRegister();
-}
-
-// ── Generate Bill from a date range of unbilled entries ──────────────
-var _peGbMatches=[];
-function openPeGenerateBill(){
-  document.getElementById('pe-gb-vendor').value='';
-  document.getElementById('pe-gb-from').value='';
-  document.getElementById('pe-gb-to').value='';
-  document.getElementById('pe-gb-preview').innerHTML='';
-  document.getElementById('pe-gb-confirm').style.display='none';
-  const dl=document.getElementById('fx-vendor-list');
-  if(dl)dl.innerHTML=(DB.vendors||[]).map(v=>`<option value="${v.name.replace(/"/g,'&quot;')}">`).join('');
-  document.getElementById('pe-genbill-modal').style.display='flex';
-}
-function peGenBillPreview(){
-  const from=document.getElementById('pe-gb-from').value;
-  const to=document.getElementById('pe-gb-to').value;
-  if(!from||!to){toast('Pick both From and To dates','err');return;}
-  const matches=(DB.prodExpenseLog||[]).filter(e=>!e.billed&&e.date>=from&&e.date<=to);
-  _peGbMatches=matches;
-  const el=document.getElementById('pe-gb-preview');
-  const confirmBtn=document.getElementById('pe-gb-confirm');
-  if(!matches.length){
-    el.innerHTML='<div class="te" style="padding:16px">No unbilled entries found in that date range.</div>';
-    confirmBtn.style.display='none';
-    return;
-  }
-  const total=matches.reduce((s,e)=>s+(parseFloat(e.amount)||0),0);
-  const dates=[...new Set(matches.map(e=>e.date))].sort();
-  el.innerHTML=`<div class="xs2 dim" style="margin-bottom:8px">${matches.length} entr${matches.length===1?'y':'ies'}, ${fmt(total)} total, across ${dates.length} date${dates.length===1?'':'s'}</div>`
-    +dates.map(d=>{
-      const dayEntries=matches.filter(e=>e.date===d);
-      const dayTotal=dayEntries.reduce((s,e)=>s+(parseFloat(e.amount)||0),0);
-      return`<div style="border:1px solid var(--bd);border-radius:6px;padding:8px 12px;margin-bottom:6px">
-        <div style="font-weight:700;display:flex;justify-content:space-between"><span>${fmtD(d)}</span><span>${fmt(dayTotal)}</span></div>
-        ${dayEntries.map(e=>`<div class="xs2" style="display:flex;justify-content:space-between;padding:2px 0"><span>${esc(e.category)} — ${esc(e.particular)}</span><span>${fmt(e.amount)}</span></div>`).join('')}
-      </div>`;
-    }).join('')
-    +`<div style="text-align:right;font-weight:700;margin-top:8px;color:var(--gn)">Grand Total: ${fmt(total)}</div>`;
-  confirmBtn.style.display='';
-}
-function peConfirmGenBill(){
-  const vendor=(document.getElementById('pe-gb-vendor').value||'').trim();
-  if(!vendor){toast('Vendor name is required','err');return;}
-  if(!_peGbMatches.length){toast('Nothing to bill — preview a date range first','err');return;}
-  const dates=[...new Set(_peGbMatches.map(e=>e.date))].sort();
-  const items=_peGbMatches.map(e=>({
-    description:`Production Expenses — ${e.category}${e.particular?': '+e.particular:''}`,
-    dept:'',sub:e.category,qty:e.qty||1,rate:e.rate||0,amount:parseFloat(e.amount)||0,
-    _date:e.date,_breakdown:'',_dayType:'',_remarks:e.unit?('Unit: '+e.unit):''
-  }));
-  const subtotal=Math.round(items.reduce((s,i)=>s+i.amount,0)*100)/100;
-  const billId=uid();
-  const bill={
-    id:billId,uploadedAt:new Date().toISOString(),
-    vendor,billNo:'',billDate:tod(),schedId:'',
-    shootDate:dates[0],shootDateFrom:dates.length>1?dates[0]:null,shootDateTo:dates.length>1?dates[dates.length-1]:null,
-    department:'',subdept:'',items,subtotal,gst:0,total:subtotal,
-    status:'approved',approvedAt:new Date().toISOString(),paidAt:null,
-    imageData:null,imageType:null,notes:'Generated from the Production Expenses register',manpower:null
-  };
-  if(!DB.bills)DB.bills=[];
-  DB.bills.push(bill);
-  // Mark these entries as billed so they don't get pulled into a second
-  // bill later — same "consumed once billed" pattern as Actors Day Log.
-  _peGbMatches.forEach(e=>{e.billed=true;e.billId=billId;});
-  saveDB();
-  toast('✓ Bill created for '+fmt(subtotal));
-  document.getElementById('pe-genbill-modal').style.display='none';
-  peRenderRegister();
-  if(typeof renderBills==='function')renderBills();
-  if(typeof updateBillsBadge==='function')updateBillsBadge();
-}
 
 // Whether there's anything to save at all — checks the main role/date table
 // AND all three expense grids, since a bill might legitimately only use
