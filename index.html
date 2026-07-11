@@ -17619,7 +17619,7 @@ function fxEditBill(billId){
   }
   fxRenderRoles();
   fxRenderTable();
-  if(typeof fxInitExtras==='function')fxInitExtras();
+  if(typeof fxInitExtras==='function')fxInitExtras({cols:b._flexMessCols,rows:b._flexMessRows},{cols:b._flexProdCols,rows:b._flexProdRows});
   fxUpdateExtrasVisibility();
 
   const titleEl=document.getElementById('fx-modal-title');
@@ -18081,10 +18081,14 @@ function fxGetProdPresets(){ return (DB.fxPresets||{}).prodCols||['Petty Cash','
 function fxSaveMessPreset(label){ if(!label)return; const p=fxGetMessPresets(); if(!p.includes(label)){p.push(label);if(!DB.fxPresets)DB.fxPresets={};DB.fxPresets.messCols=p;saveDB();} }
 function fxSaveProdPreset(label){ if(!label)return; const p=fxGetProdPresets(); if(!p.includes(label)){p.push(label);if(!DB.fxPresets)DB.fxPresets={};DB.fxPresets.prodCols=p;saveDB();} }
 
-// Reset mess & prod on open
-function fxInitExtras(){
-  _fxMessCols=[]; _fxMessRows=[];
-  _fxProdCols=[]; _fxProdRows=[];
+// Reset mess & prod on open for a NEW bill, or restore saved grid data when
+// editing an existing bill (savedMess/savedProd come from the bill's
+// _flexMessCols/_flexMessRows/_flexProdCols/_flexProdRows, if present).
+function fxInitExtras(savedMess,savedProd){
+  _fxMessCols=savedMess&&savedMess.cols?JSON.parse(JSON.stringify(savedMess.cols)):[];
+  _fxMessRows=savedMess&&savedMess.rows?JSON.parse(JSON.stringify(savedMess.rows)):[];
+  _fxProdCols=savedProd&&savedProd.cols?JSON.parse(JSON.stringify(savedProd.cols)):[];
+  _fxProdRows=savedProd&&savedProd.rows?JSON.parse(JSON.stringify(savedProd.rows)):[];
   fxRenderMess(); fxRenderProd();
 }
 
@@ -18112,13 +18116,21 @@ function fxRenderExpTable(thId, tbId, tfId, cols, rows, type){
   const tfoot=document.getElementById(tfId);
   if(!thead||!tbody||!tfoot)return;
 
+  rows.sort((a,b)=>(a.date||'').localeCompare(b.date||''));
+
   const TH='padding:5px 8px;font-size:11px;text-align:left;white-space:nowrap;border-bottom:1px solid var(--bd)';
   const TD='padding:4px 6px;font-size:11px;white-space:nowrap;border-bottom:1px solid var(--bd2)';
-  const INP=(val,onch)=>`<input type="number" value="${val||''}" placeholder="0" onchange="${onch}" style="width:80px;box-sizing:border-box;background:var(--sf);border:1px solid var(--bd2);border-radius:4px;padding:3px 5px;font-size:11px;text-align:right">`;
+  // Cells are formula-capable text inputs (not plain number inputs) — type a
+  // flat amount like 500, or a Rate×Qty formula like 5*2000, and it evaluates.
+  const CELLIN=(raw,onch)=>{
+    const evaluated=fxEvalFormula(raw);
+    const isFormula=raw!=null&&raw!==''&&/[+\-*/()]/.test(String(raw));
+    return `<input type="text" value="${raw!=null?String(raw).replace(/"/g,'&quot;'):''}" placeholder="0 or 5*2000" onchange="${onch}" title="${isFormula&&evaluated!=null?'= '+fmt(evaluated):'Plain number, or a formula like 5*2000'}" style="width:84px;box-sizing:border-box;background:${isFormula?'rgba(232,169,69,.08)':'var(--sf)'};border:1px solid ${isFormula?'var(--go)':'var(--bd2)'};border-radius:4px;padding:3px 5px;font-size:11px;text-align:right">`;
+  };
 
   // header
   thead.innerHTML=`<tr style="background:var(--sf3)">
-    <th style="${TH}">Description</th>
+    <th style="${TH}">Date</th>
     ${cols.map(c=>`<th style="${TH};text-align:right">${c.label} <button onclick="fxDelCol('${type}','${c.id}')" style="background:none;border:none;color:var(--rd);cursor:pointer;font-size:10px;padding:0 2px" title="Remove column">✕</button></th>`).join('')}
     <th style="${TH};text-align:right">Row Total</th>
     <th style="${TH};width:24px"></th>
@@ -18126,14 +18138,14 @@ function fxRenderExpTable(thId, tbId, tfId, cols, rows, type){
 
   // body
   tbody.innerHTML = rows.length ? rows.map((row,ri)=>{
-    const autoTotal = cols.reduce((s,c)=>s+(parseFloat(row.vals[c.id])||0),0);
+    const autoTotal = cols.reduce((s,c)=>{const v=fxEvalFormula(row.vals[c.id]);return s+(v!=null?v:0);},0);
     const hasOverride = row.rowTotalOverride!=null && row.rowTotalOverride!=='';
     const overrideVal = hasOverride ? fxEvalFormula(row.rowTotalOverride) : null;
     const rowTotal = hasOverride ? (overrideVal!=null?overrideVal:0) : autoTotal;
     const isFormula = hasOverride && /[+\-*/()]/.test(String(row.rowTotalOverride));
     return `<tr>
-      <td style="${TD}"><input type="text" value="${(row.label||'').replace(/"/g,'&quot;')}" placeholder="Description…" onchange="fxExpRowLabel('${type}','${row.id}',this.value)" style="width:140px;background:var(--sf);border:1px solid var(--bd2);border-radius:4px;padding:3px 5px;font-size:11px"></td>
-      ${cols.map(c=>`<td style="${TD};text-align:right">${INP(row.vals[c.id],`fxExpVal('${type}','${row.id}','${c.id}',this.value)`)}</td>`).join('')}
+      <td style="${TD}"><input type="date" value="${row.date||''}" onchange="fxExpRowDate('${type}','${row.id}',this.value)" style="background:var(--sf);border:1px solid var(--bd2);border-radius:4px;padding:3px 5px;font-size:11px"></td>
+      ${cols.map(c=>`<td style="${TD};text-align:right">${CELLIN(row.vals[c.id],`fxExpVal('${type}','${row.id}','${c.id}',this.value)`)}</td>`).join('')}
       <td style="${TD};text-align:right">
         <input type="text" value="${hasOverride?(row.rowTotalOverride||'').toString().replace(/"/g,'&quot;'):rowTotal}" placeholder="0 or =50*25" onchange="fxExpRowTotalOverride('${type}','${row.id}',this.value)" title="${hasOverride?'Custom value/formula — overrides column sum. Type a plain number or a formula like =50*25':'Auto sum of columns — type a number or formula (e.g. =50*25) to override'}" style="width:84px;box-sizing:border-box;background:${hasOverride?'rgba(232,169,69,.08)':'var(--sf)'};border:1px solid ${hasOverride?'var(--go)':'var(--bd2)'};border-radius:4px;padding:3px 5px;font-size:11px;text-align:right;font-weight:700;color:var(--gn)">
         ${isFormula?`<div class="xs3 dim" style="text-align:right;line-height:1.3">= ${fmt(rowTotal)}</div>`:''}
@@ -18141,16 +18153,11 @@ function fxRenderExpTable(thId, tbId, tfId, cols, rows, type){
       </td>
       <td style="${TD}"><button onclick="fxDelExpRow('${type}','${row.id}')" style="background:none;border:none;color:var(--rd);cursor:pointer;font-size:13px">✕</button></td>
     </tr>`;
-  }).join('') : `<tr><td colspan="${cols.length+3}" style="text-align:center;padding:12px;color:var(--tx3);font-size:11px">No rows yet — click ＋ Add Row</td></tr>`;
+  }).join('') : `<tr><td colspan="${cols.length+3}" style="text-align:center;padding:12px;color:var(--tx3);font-size:11px">No rows yet — click ＋ Add Row or 📅 Generate Date Rows</td></tr>`;
 
   // footer totals
-  const colTotals = cols.map(c=>rows.reduce((s,r)=>s+(parseFloat(r.vals[c.id])||0),0));
-  const grand = rows.reduce((s,r)=>{
-    const autoTotal = cols.reduce((s2,c)=>s2+(parseFloat(r.vals[c.id])||0),0);
-    const hasOverride = r.rowTotalOverride!=null && r.rowTotalOverride!=='';
-    const overrideVal = hasOverride ? fxEvalFormula(r.rowTotalOverride) : null;
-    return s+(hasOverride?(overrideVal!=null?overrideVal:0):autoTotal);
-  },0);
+  const colTotals = cols.map(c=>rows.reduce((s,r)=>{const v=fxEvalFormula(r.vals[c.id]);return s+(v!=null?v:0);},0));
+  const grand = rows.reduce((s,r)=>s+_fxRowTotal(r,cols),0);
   tfoot.innerHTML=`<tr style="background:var(--sf3);font-weight:700">
     <td style="${TH}">Total</td>
     ${colTotals.map(v=>`<td style="${TH};text-align:right">${fmt(v)}</td>`).join('')}
@@ -18162,35 +18169,62 @@ function fxRenderExpTable(thId, tbId, tfId, cols, rows, type){
 // ── Mess helpers ─────────────────────────────────────────────────
 function fxRenderMess(){ fxRenderExpTable('fx-mess-thead','fx-mess-tbody','fx-mess-tfoot',_fxMessCols,_fxMessRows,'mess'); if(typeof fxCalcTotals==='function')fxCalcTotals(); }
 function fxAddMessCol(){
-  const label=prompt('Column name (e.g. Lunch, Dinner, Snacks):','');
+  const label=prompt('Column name (e.g. Mess, Catering, Lunch, Hires):','');
   if(!label||!label.trim())return;
   _fxMessCols.push({id:fxUid(),label:label.trim()});
   fxSaveMessPreset(label.trim());
-  _fxMessRows.forEach(r=>r.vals[_fxMessCols[_fxMessCols.length-1].id]=0);
+  _fxMessRows.forEach(r=>r.vals[_fxMessCols[_fxMessCols.length-1].id]='');
   fxRenderMess();
 }
 function fxAddMessRow(){
   const id=fxUid(); const vals={};
-  _fxMessCols.forEach(c=>vals[c.id]=0);
-  _fxMessRows.push({id,label:'',vals});
+  _fxMessCols.forEach(c=>vals[c.id]='');
+  _fxMessRows.push({id,date:'',vals});
   fxRenderMess();
 }
 
 // ── Prod helpers ─────────────────────────────────────────────────
 function fxRenderProd(){ fxRenderExpTable('fx-prod-thead','fx-prod-tbody','fx-prod-tfoot',_fxProdCols,_fxProdRows,'prod'); if(typeof fxCalcTotals==='function')fxCalcTotals(); }
 function fxAddProdCol(){
-  const label=prompt('Column name (e.g. Petty Cash, Conveyance):','');
+  const label=prompt('Column name (e.g. Petty Cash, Conveyance, Hires):','');
   if(!label||!label.trim())return;
   _fxProdCols.push({id:fxUid(),label:label.trim()});
   fxSaveProdPreset(label.trim());
-  _fxProdRows.forEach(r=>r.vals[_fxProdCols[_fxProdCols.length-1].id]=0);
+  _fxProdRows.forEach(r=>r.vals[_fxProdCols[_fxProdCols.length-1].id]='');
   fxRenderProd();
 }
 function fxAddProdRow(){
   const id=fxUid(); const vals={};
-  _fxProdCols.forEach(c=>vals[c.id]=0);
-  _fxProdRows.push({id,label:'',vals});
+  _fxProdCols.forEach(c=>vals[c.id]='');
+  _fxProdRows.push({id,date:'',vals});
   fxRenderProd();
+}
+// Generate one row per date in the given range for either grid — skips
+// dates that already have a row, same "append, don't duplicate" behaviour
+// as the main topsheet's date-range generator.
+function fxGenerateExpRange(type){
+  const fromEl=document.getElementById('fx-'+type+'-range-from');
+  const toEl=document.getElementById('fx-'+type+'-range-to');
+  const from=fromEl?fromEl.value:'',to=toEl?toEl.value:'';
+  if(!from||!to){toast('Pick both a From and To date','err');return;}
+  if(from>to){toast('From date must be before To date','err');return;}
+  const rows=type==='mess'?_fxMessRows:_fxProdRows;
+  const cols=type==='mess'?_fxMessCols:_fxProdCols;
+  const existing=new Set(rows.map(r=>r.date));
+  let added=0;
+  let d=new Date(from+'T00:00:00');
+  const end=new Date(to+'T00:00:00');
+  while(d<=end){
+    const dstr=d.toISOString().slice(0,10);
+    if(!existing.has(dstr)){
+      const vals={}; cols.forEach(c=>vals[c.id]='');
+      rows.push({id:fxUid(),date:dstr,vals});
+      added++;
+    }
+    d.setDate(d.getDate()+1);
+  }
+  if(type==='mess')fxRenderMess();else fxRenderProd();
+  toast(added?'✓ Added '+added+' date row'+(added>1?'s':''):'All dates in that range already have rows');
 }
 
 // ── Shared helpers ───────────────────────────────────────────────
@@ -18202,14 +18236,18 @@ function fxDelExpRow(type,rowId){
   if(type==='mess'){_fxMessRows=_fxMessRows.filter(r=>r.id!==rowId);fxRenderMess();}
   else{_fxProdRows=_fxProdRows.filter(r=>r.id!==rowId);fxRenderProd();}
 }
-function fxExpRowLabel(type,rowId,val){
+function fxExpRowDate(type,rowId,val){
   const rows=type==='mess'?_fxMessRows:_fxProdRows;
-  const r=rows.find(r=>r.id===rowId);if(r)r.label=val;
+  const r=rows.find(r=>r.id===rowId);if(r)r.date=val;
+  if(type==='mess')fxRenderMess();else fxRenderProd();
 }
 function fxExpVal(type,rowId,colId,val){
   const rows=type==='mess'?_fxMessRows:_fxProdRows;
   const r=rows.find(r=>r.id===rowId);
-  if(r){r.vals[colId]=parseFloat(val)||0;}
+  if(r){
+    if(val!==''&&fxEvalFormula(val)==null){ toast('Could not evaluate "'+val+'" — use a number or a formula like 5*2000','err'); return; }
+    r.vals[colId]=val;
+  }
   if(type==='mess')fxRenderMess();else fxRenderProd();
 }
 function fxExpRowTotalOverride(type,rowId,val){
@@ -18226,7 +18264,7 @@ function fxExpRowTotalOverride(type,rowId,val){
   if(type==='mess')fxRenderMess();else fxRenderProd();
 }
 function _fxRowTotal(r,cols){
-  const autoTotal=cols.reduce((rs,c)=>rs+(parseFloat(r.vals[c.id])||0),0);
+  const autoTotal=cols.reduce((rs,c)=>{const v=fxEvalFormula(r.vals[c.id]);return rs+(v!=null?v:0);},0);
   const hasOverride=r.rowTotalOverride!=null && r.rowTotalOverride!=='';
   if(!hasOverride) return autoTotal;
   const evaluated=fxEvalFormula(r.rowTotalOverride);
@@ -18339,6 +18377,30 @@ function fxPreview(){
   printFlexBillTopsheet(tempBill);
 }
 
+// Convert a Mess or Prod expense grid into bill line items, so the amounts
+// typed there show up in Bills Archive / Budgets by Category + Sub-Category
+// instead of only being folded into the bill's lump subtotal. dept is left
+// blank on purpose — the Category display already falls back to the bill's
+// own department when an item has none (see billCategorySummary).
+function fxBuildExpItems(type){
+  const rows=type==='mess'?_fxMessRows:_fxProdRows;
+  const cols=type==='mess'?_fxMessCols:_fxProdCols;
+  const label=type==='mess'?'Mess / Food Expenses':'Production Expenses';
+  const out=[];
+  rows.forEach(row=>{
+    const hasOverride=row.rowTotalOverride!=null&&row.rowTotalOverride!=='';
+    if(hasOverride){
+      const val=_fxRowTotal(row,cols);
+      if(val)out.push({description:label,dept:'',sub:label,qty:1,rate:0,amount:val,_date:row.date,_breakdown:'',_dayType:'',_remarks:'Row total override'});
+      return;
+    }
+    cols.forEach(c=>{
+      const val=fxEvalFormula(row.vals[c.id]);
+      if(val)out.push({description:`${label} — ${c.label}`,dept:'',sub:c.label,qty:1,rate:0,amount:val,_date:row.date,_breakdown:'',_dayType:'',_remarks:''});
+    });
+  });
+  return out;
+}
 function fxSave(){
   const vendor=(document.getElementById('fx-vendor')?.value||'').trim();
   const billNo=document.getElementById('fx-billno')?.value||'';
@@ -18389,7 +18451,7 @@ function fxSave(){
     return{description:`${vendor}${row.splitTag?' — '+row.splitTag:''}`,dept,sub:subdept,
       qty:1,rate:0,rateType:'Per Call Sheet',cs:row.cs,fixedAllow:0,
       amount:rowTotal,_date:row.date,_breakdown:breakdown,_dayType:row.dayType,_remarks:remarksParts.join(' · ')};
-  });
+  }).concat(fxBuildExpItems('mess')).concat(fxBuildExpItems('prod'));
 
   const bill={
     id:billId,uploadedAt:new Date().toISOString(),
@@ -18399,7 +18461,8 @@ function fxSave(){
     status:'approved',approvedAt:new Date().toISOString(),paidAt:null,
     imageData:null,imageType:null,
     notes:notes||'',
-    manpower:null,_flexRoles:_fxRoles,_flexRows:_fxRows
+    manpower:null,_flexRoles:_fxRoles,_flexRows:_fxRows,
+    _flexMessCols:_fxMessCols,_flexMessRows:_fxMessRows,_flexProdCols:_fxProdCols,_flexProdRows:_fxProdRows
   };
   if(!DB.bills)DB.bills=[];
   DB.bills.push(bill);
@@ -18504,7 +18567,7 @@ function fxUpdateBill(){
     return{description:`${vendor}${row.splitTag?' — '+row.splitTag:''}`,dept,sub:subdept,
       qty:1,rate:0,rateType:'Per Call Sheet',cs:row.cs,fixedAllow:0,
       amount:rowTotal,_date:row.date,_breakdown:breakdown,_dayType:row.dayType,_remarks:remarksParts.join(' · ')};
-  });
+  }).concat(fxBuildExpItems('mess')).concat(fxBuildExpItems('prod'));
 
   // Update the bill object in place — preserve fields not editable here (status, paidAt, images, etc.)
   b.vendor=vendor;b.billNo=billNo;b.billDate=billDate;b.schedId=schedId;
@@ -18512,6 +18575,7 @@ function fxUpdateBill(){
   b.department=dept;b.subdept=subdept;b.items=items;b.subtotal=subtotal;b.gst=gst;b.total=total;
   b.notes=notes||'';
   b._flexRoles=_fxRoles;b._flexRows=_fxRows;
+  b._flexMessCols=_fxMessCols;b._flexMessRows=_fxMessRows;b._flexProdCols=_fxProdCols;b._flexProdRows=_fxProdRows;
   b._editedAt=new Date().toISOString();
 
   // Remove this bill's old actAdhoc entries everywhere (dates may have changed), then re-post fresh ones
@@ -20884,7 +20948,11 @@ function arRenderPayables(){
     <div class="card" style="background:var(--sf2);margin-bottom:12px;padding:12px 14px" id="fx-mess-card">
       <div class="flex aic jb mb8">
         <div class="ct" style="margin:0;font-size:12px">🍱 Mess Bills / Food Expenses</div>
-        <div class="flex gap6">
+        <div class="flex gap6 aic wrap">
+          <input type="date" id="fx-mess-range-from" style="font-size:11px;padding:3px 5px">
+          <span class="xs3 dim">to</span>
+          <input type="date" id="fx-mess-range-to" style="font-size:11px;padding:3px 5px">
+          <button class="btn bs sm" onclick="fxGenerateExpRange('mess')">📅 Generate Date Rows</button>
           <button class="btn bs sm" onclick="fxAddMessCol()">＋ Add Column</button>
           <button class="btn bg sm" onclick="fxAddMessRow()">＋ Add Row</button>
         </div>
@@ -20896,14 +20964,18 @@ function arRenderPayables(){
           <tfoot id="fx-mess-tfoot"></tfoot>
         </table>
       </div>
-      <div class="xs2 dim" style="margin-top:6px">Add columns for each meal type (Lunch, Dinner, Snacks…). Preset column names are saved and reused next time.</div>
+      <div class="xs2 dim" style="margin-top:6px">Add columns for each meal type (Lunch, Dinner, Snacks…) — or any custom category like Mess, Catering, Hires. Preset column names are saved and reused next time. Any cell or the Row Total can take a formula too, e.g. type <code>5*2000</code> and it'll evaluate to 10,000.</div>
     </div>
 
     <!-- ── PRODUCTION EXPENSES ────────────────────────────────────────── -->
     <div class="card" style="background:var(--sf2);margin-bottom:12px;padding:12px 14px" id="fx-prod-card">
       <div class="flex aic jb mb8">
         <div class="ct" style="margin:0;font-size:12px">🧾 Production Expenses</div>
-        <div class="flex gap6">
+        <div class="flex gap6 aic wrap">
+          <input type="date" id="fx-prod-range-from" style="font-size:11px;padding:3px 5px">
+          <span class="xs3 dim">to</span>
+          <input type="date" id="fx-prod-range-to" style="font-size:11px;padding:3px 5px">
+          <button class="btn bs sm" onclick="fxGenerateExpRange('prod')">📅 Generate Date Rows</button>
           <button class="btn bs sm" onclick="fxAddProdCol()">＋ Add Column</button>
           <button class="btn bg sm" onclick="fxAddProdRow()">＋ Add Row</button>
         </div>
@@ -20915,7 +20987,7 @@ function arRenderPayables(){
           <tfoot id="fx-prod-tfoot"></tfoot>
         </table>
       </div>
-      <div class="xs2 dim" style="margin-top:6px">Add columns for each expense type (Petty Cash, Conveyance, Stationery…). Preset names are saved.</div>
+      <div class="xs2 dim" style="margin-top:6px">Add columns for each expense type (Petty Cash, Conveyance, Stationery, Hires…). Preset names are saved. Any cell or the Row Total can take a formula too, e.g. type <code>5*2000</code> and it'll evaluate to 10,000.</div>
     </div>
 
     <div class="mbtns" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
