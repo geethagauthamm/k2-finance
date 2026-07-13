@@ -20685,6 +20685,64 @@ function openPrintOverlay(title, html, extraBtns){
   document.getElementById('print-overlay').scrollTop=0;
 }
 
+// Plain itemized bill print — for bills built from a flat list of one-time
+// entries (Hotels/Flights/Vehicles, via Generate Bill) rather than a
+// recurring per-day crew rate. Just lists what's on the bill, in the same
+// professional style as the Hotels/Flights/Vehicles topsheets themselves.
+function printSimpleItemsBill(b){
+  const items=b.items||[];
+  const isPaid=b.status==='paid',isPartial=b.status==='partial';
+  const paidSoFar=typeof billPaidSoFar==='function'?billPaidSoFar(b):0;
+  const sorted=[...items].sort((a,b2)=>(a._date||'').localeCompare(b2._date||''));
+  const rowsHtml=sorted.map(it=>`<tr>
+    <td style="padding:6px 8px;border:1px solid #ddd;white-space:nowrap">${it._date?fmtD(it._date):'—'}</td>
+    <td style="padding:6px 8px;border:1px solid #ddd">${esc(it.description||'')}</td>
+    <td style="padding:6px 8px;border:1px solid #ddd;text-align:center">${it.qty||1}</td>
+    <td style="padding:6px 8px;border:1px solid #ddd;text-align:right">${it.rate?fmt(it.rate):'—'}</td>
+    <td style="padding:6px 8px;border:1px solid #ddd;text-align:right;font-weight:700">${fmt(it.amount)}</td>
+    <td style="padding:6px 8px;border:1px solid #ddd;font-size:10px;color:#666">${esc(it._remarks||'')}</td>
+  </tr>`).join('');
+  const rangeLabel=b.shootDateFrom&&b.shootDateTo?fmtD(b.shootDateFrom)+' to '+fmtD(b.shootDateTo):fmtD(b.shootDate);
+  const paymentRows=(b.paymentRecords||[]).map(r=>`<tr>
+    <td style="padding:5px 8px;border:1px solid #ddd">${fmtD(r.date)}</td>
+    <td style="padding:5px 8px;border:1px solid #ddd;text-align:right">${fmt(r.amount)}</td>
+    <td style="padding:5px 8px;border:1px solid #ddd">${esc(r.utr||'—')}</td>
+    <td style="padding:5px 8px;border:1px solid #ddd;font-size:10px;color:#666">${esc(r.note||'')}</td>
+  </tr>`).join('');
+  const html=`
+    ${isPaid?`<div style="display:inline-block;border:4px solid #ef4444;border-radius:6px;padding:3px 16px;color:#ef4444;font-size:32px;font-weight:900;font-family:serif;letter-spacing:3px;opacity:.85;transform:rotate(-8deg);margin-bottom:12px">PAID</div><br>`:''}
+    <h2 style="font-size:20px;margin:0 0 2px 0">${b.vendor||'Vendor'} — ${b.department||'Bill'}</h2>
+    <div style="font-size:12px;color:#888;margin-bottom:16px">Kalki 2 · Vyjayanthi Movies · ${rangeLabel} · Bill No: ${b.billNo||'—'} · Bill Date: ${fmtD(b.billDate)}</div>
+    <div style="overflow-x:auto">
+    <table style="border-collapse:collapse;font-size:11px;margin-bottom:14px;width:100%">
+      <thead><tr style="background:#1e3a5f;color:#fff">
+        <th style="padding:6px 8px;text-align:left">Date</th>
+        <th style="padding:6px 8px;text-align:left">Description</th>
+        <th style="padding:6px 8px;text-align:center">Qty</th>
+        <th style="padding:6px 8px;text-align:right">Rate ₹</th>
+        <th style="padding:6px 8px;text-align:right">Amount ₹</th>
+        <th style="padding:6px 8px;text-align:left">Notes</th>
+      </tr></thead>
+      <tbody>${rowsHtml}
+        ${b.gst?`<tr style="background:#f5f5f5"><td colspan="4" style="padding:6px 8px;border:1px solid #ddd;text-align:right;color:#666">GST</td><td style="padding:6px 8px;border:1px solid #ddd;text-align:right">${fmt(b.gst)}</td><td></td></tr>`:''}
+        <tr style="background:#1e3a5f;color:#fff;font-weight:700"><td colspan="4" style="padding:9px 8px;text-align:right">TOTAL</td><td style="padding:9px 8px;text-align:right">${fmt(b.total)}</td><td></td></tr>
+      </tbody>
+    </table>
+    </div>
+    ${(b.paymentRecords||[]).length?`
+    <div style="font-weight:700;font-size:13px;margin:14px 0 6px">Payments Recorded${isPartial?' — '+fmt(paidSoFar)+' of '+fmt(b.total)+' paid, '+fmt(b.total-paidSoFar)+' remaining':''}</div>
+    <table style="border-collapse:collapse;font-size:11px;margin-bottom:14px;width:100%">
+      <thead><tr style="background:#f1f5f9"><th style="padding:5px 8px;border:1px solid #ddd;text-align:left">Date</th><th style="padding:5px 8px;border:1px solid #ddd;text-align:right">Amount ₹</th><th style="padding:5px 8px;border:1px solid #ddd;text-align:left">UTR</th><th style="padding:5px 8px;border:1px solid #ddd;text-align:left">Note</th></tr></thead>
+      <tbody>${paymentRows}</tbody>
+    </table>`:''}
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:24px;font-size:11px;color:#666;margin-top:40px">
+      <div>Prepared by<br><br>___________________________<br>Executive Producer</div>
+      <div>Verified by<br><br>___________________________<br>Accounts Department</div>
+      <div>Approved by<br><br>___________________________<br>Producer</div>
+    </div>
+    ${b.notes?`<div style="padding:8px 12px;background:#fff8e6;border:1px solid #fbbf24;border-radius:4px;font-size:12px;margin-top:16px">Notes: ${esc(b.notes)}</div>`:''}`;
+  openPrintOverlay((b.department||'Bill')+' — '+(b.vendor||''), html);
+}
 function printBillTopsheet(id){
   // Close any open modal first
   document.getElementById('bill-modal').style.display='none';
@@ -20696,6 +20754,17 @@ function printBillTopsheet(id){
   // (_flexRoles/_flexRows) — print exactly what was entered, no re-derivation. ──
   if(b._flexRoles&&b._flexRows){
     printFlexBillTopsheet(b);
+    return;
+  }
+
+  // ── Hotels/Flights/Vehicles bills (from Generate Bill) are a flat list of
+  // one-time bookings/entries, not a recurring per-day crew rate — the
+  // day-wise pivot below (built for Actors Day Log-style bills, where the
+  // same "person" columns repeat with a rate every day) doesn't apply here
+  // and produces a nonsensical "Rate ₹/Day" pivot for what's really just an
+  // itemized list. Print those as a plain itemized bill instead. ──
+  if(['Hotels','Flights','Vehicles'].includes(b.department)){
+    printSimpleItemsBill(b);
     return;
   }
 
