@@ -1113,8 +1113,10 @@ body.auditor-mode #save-btn { display:none !important; }
         <div class="ct" style="margin:0;flex:none">📅 Date Range Filter</div>
         <div class="fld" style="flex:none"><label>From</label><input type="date" id="range-from" onchange="applyRangeFilter()"></div>
         <div class="fld" style="flex:none"><label>To</label><input type="date" id="range-to" onchange="applyRangeFilter()"></div>
+        <div class="fld" style="flex:none;min-width:160px"><label>Hotel</label><select id="htl-name-filter" onchange="applyHotelNameFilter()"><option value="">— All Hotels —</option></select></div>
         <button class="btn bs sm" onclick="clearRangeFilter()">✕ Clear</button>
         <button class="btn bg sm" onclick="printHotelsTopsheet()">🖨 Print Topsheet</button>
+        <button class="btn bg sm" onclick="generateHotelsBill()" style="background:var(--gn2,#166534)">🧾 Generate Bill</button>
         <button class="btn bs sm no-print" onclick="exportHotelsExcel()">⬇ Excel</button>
       <button class="btn bs sm" onclick="syncHotelsToEstimates()" title="Re-sync all hotel bookings to estimates">📤 Submit to Estimates</button>
         <span id="range-summary" class="xs2 dim"></span>
@@ -1168,6 +1170,7 @@ body.auditor-mode #save-btn { display:none !important; }
         <div class="fld" style="flex:none"><label>To</label><input type="date" id="flt-range-to" onchange="applyFltRangeFilter()"></div>
         <button class="btn bs sm" onclick="clearRangeFilter()">✕ Clear</button>
         <button class="btn bg sm" onclick="printFlightsTopsheet()">🖨 Print Topsheet</button>
+        <button class="btn bg sm" onclick="generateFlightsBill()" style="background:var(--gn2,#166534)">🧾 Generate Bill</button>
         <span id="flt-range-summary" class="xs2 dim"></span>
       </div>
     </div>
@@ -1338,6 +1341,18 @@ body.auditor-mode #save-btn { display:none !important; }
       <input type="date" id="veh-day-pick" onchange="vehSetDay(this.value)" class="btn bs sm" style="margin-left:8px">
       <button class="btn bs sm no-print" onclick="exportVehiclesExcel()">⬇ Excel</button>
       <button class="btn bs sm no-print" onclick="printPage()" style="margin-left:auto">&#9113; Print</button>
+    </div>
+    <!-- Date Range Filter (shared with Hotels/Flights — set on any page, applies to all) -->
+    <div class="card no-print" id="veh-range-card">
+      <div class="flex aic gap12 flex-wrap">
+        <div class="ct" style="margin:0;flex:none">📅 Date Range Filter</div>
+        <div class="fld" style="flex:none"><label>From</label><input type="date" id="veh-range-from" onchange="applyVehRangeFilter()"></div>
+        <div class="fld" style="flex:none"><label>To</label><input type="date" id="veh-range-to" onchange="applyVehRangeFilter()"></div>
+        <button class="btn bs sm" onclick="clearRangeFilter()">✕ Clear</button>
+        <button class="btn bg sm" onclick="printVehiclesTopsheet()">🖨 Print Topsheet</button>
+        <button class="btn bg sm" onclick="generateVehiclesBill()" style="background:var(--gn2,#166534)">🧾 Generate Bill</button>
+        <span id="veh-range-summary" class="xs2 dim"></span>
+      </div>
     </div>
     <div class="card no-print">
       <div class="ct">Add Vehicle Entry</div>
@@ -9510,6 +9525,19 @@ function renderDPR(d){
 // ══════════════════════════════════════════
 let _rangeFrom = '';
 let _rangeTo = '';
+let _hotelNameFilter = '';
+function applyHotelNameFilter(){
+  _hotelNameFilter=document.getElementById('htl-name-filter')?.value||'';
+  renderHotels();
+}
+function _populateHotelNameFilter(){
+  const sel=document.getElementById('htl-name-filter');
+  if(!sel)return;
+  const names=[...new Set((DB.hotels||[]).map(h=>h.name).filter(Boolean))].sort();
+  const cur=sel.value;
+  sel.innerHTML='<option value="">— All Hotels —</option>'+names.map(n=>`<option value="${n.replace(/"/g,'&quot;')}">${esc(n)}</option>`).join('');
+  if(names.includes(cur))sel.value=cur;
+}
 
 function applyRangeFilter(){
   _rangeFrom = document.getElementById('range-from')?.value || '';
@@ -9534,18 +9562,30 @@ function applyFltRangeFilter(){
   renderActLog();
   renderSalaryEntries();
 }
+function applyVehRangeFilter(){
+  _rangeFrom = document.getElementById('veh-range-from')?.value || '';
+  _rangeTo = document.getElementById('veh-range-to')?.value || '';
+  _syncRangeInputs();
+  renderHotels();
+  renderFlights();
+  renderVehicleLog();
+  renderActLog();
+  renderSalaryEntries();
+}
 function _syncRangeInputs(){
-  const pairs=[['range-from','range-to'],['flt-range-from','flt-range-to']];
+  const pairs=[['range-from','range-to'],['flt-range-from','flt-range-to'],['veh-range-from','veh-range-to']];
   pairs.forEach(([fId,tId])=>{
     const f=document.getElementById(fId),t=document.getElementById(tId);
     if(f)f.value=_rangeFrom; if(t)t.value=_rangeTo;
   });
   const summary=(_rangeFrom&&_rangeTo)?fmtD(_rangeFrom)+' → '+fmtD(_rangeTo):(_rangeFrom?'From '+fmtD(_rangeFrom):(_rangeTo?'Until '+fmtD(_rangeTo):''));
-  ['range-summary','flt-range-summary'].forEach(id=>{const el=document.getElementById(id);if(el)el.textContent=summary;});
+  ['range-summary','flt-range-summary','veh-range-summary'].forEach(id=>{const el=document.getElementById(id);if(el)el.textContent=summary;});
 }
 
 function clearRangeFilter(){
   _rangeFrom = ''; _rangeTo = '';
+  _hotelNameFilter = '';
+  const hnf=document.getElementById('htl-name-filter'); if(hnf)hnf.value='';
   _syncRangeInputs();
   renderHotels();
   renderFlights();
@@ -15409,7 +15449,9 @@ function renderHotels(){
     return;
   }
   let grandEst=0,grandAct=0,grandInRange=0;
-  const visibleHotels=(_rangeFrom||_rangeTo)?hotels.filter(h=>bookingOverlapsRange(h.checkIn,h.checkOut)):hotels;
+  _populateHotelNameFilter();
+  let visibleHotels=(_rangeFrom||_rangeTo)?hotels.filter(h=>bookingOverlapsRange(h.checkIn,h.checkOut)):hotels;
+  if(_hotelNameFilter)visibleHotels=visibleHotels.filter(h=>h.name===_hotelNameFilter);
   const rangeLbl=document.getElementById('htl-range-lbl');
   if(rangeLbl)rangeLbl.textContent=(_rangeFrom||_rangeTo)?'· '+visibleHotels.length+' in range':'';
   const groups=groupByPhase(visibleHotels,h=>h.phase);
@@ -19139,10 +19181,127 @@ function printExpGridBreakdown(title,icon,dateRows,cols,getCellAmount){
 // Prints a Hotels topsheet for whatever the shared date-range filter is
 // currently set to (bookings that overlap the range at all, not just ones
 // fully inside it — same rule renderHotels already uses via bookingOverlapsRange).
+// Generates a real bill/payment entry from Hotel bookings matching the
+// current date range (+ hotel name filter, if set) — same "consumed once
+// billed" pattern as Actors Day Log: entries get tagged billed:true/billId
+// so re-generating an overlapping range doesn't double-bill them.
+function generateHotelsBill(){
+  if(!_rangeFrom&&!_rangeTo){toast('Set a date range first (From / To above)','err');return;}
+  let list=(DB.hotels||[]).filter(h=>bookingOverlapsRange(h.checkIn,h.checkOut)&&!h.billed);
+  if(_hotelNameFilter)list=list.filter(h=>h.name===_hotelNameFilter);
+  if(!list.length){toast('No unbilled hotel bookings in that range'+(_hotelNameFilter?' for '+_hotelNameFilter:''),'err');return;}
+  const defaultVendor=_hotelNameFilter||(list.length===1?list[0].name:'');
+  const vendor=(prompt('Vendor / Payee name for this bill:',defaultVendor)||'').trim();
+  if(!vendor){toast('Vendor name is required','err');return;}
+  const sorted=[...list].sort((a,b)=>(a.checkIn||'').localeCompare(b.checkIn||''));
+  const items=sorted.map(h=>{
+    const nights=nightsInRange(h.checkIn,h.checkOut);
+    const amount=Math.round((h.rooms||1)*(h.rate||0)*nights*100)/100;
+    return{description:`${h.name} — ${h.guest||'Guest'} (${h.roomType||'Room'}, ${h.rooms||1} room${(h.rooms||1)>1?'s':''} × ${nights}n)`,
+      dept:'',sub:h.name,qty:h.rooms||1,rate:h.rate||0,amount,
+      _date:h.checkIn,_breakdown:'',_dayType:'',_remarks:h.notes||''};
+  });
+  const subtotal=Math.round(items.reduce((s,i)=>s+i.amount,0)*100)/100;
+  const dates=[...new Set(sorted.map(h=>h.checkIn))].sort();
+  const billId=uid();
+  const bill={id:billId,uploadedAt:new Date().toISOString(),vendor,billNo:'',billDate:tod(),schedId:'',
+    shootDate:dates[0],shootDateFrom:dates.length>1?dates[0]:null,shootDateTo:dates.length>1?dates[dates.length-1]:null,
+    department:'Hotels',subdept:_hotelNameFilter||'',items,subtotal,gst:0,total:subtotal,
+    status:'approved',approvedAt:new Date().toISOString(),paidAt:null,
+    imageData:null,imageType:null,notes:'Generated from Hotel Bookings',manpower:null};
+  if(!DB.bills)DB.bills=[];
+  DB.bills.push(bill);
+  sorted.forEach(h=>{h.billed=true;h.billId=billId;});
+  saveDB();
+  toast('✓ Bill created for '+fmt(subtotal)+' ('+sorted.length+' booking(s))');
+  renderHotels();
+  if(typeof renderBills==='function')renderBills();
+  if(typeof updateBillsBadge==='function')updateBillsBadge();
+}
+
+// Generates a real bill/payment entry from Flights matching the current
+// date range.
+function generateFlightsBill(){
+  if(!_rangeFrom&&!_rangeTo){toast('Set a date range first (From / To above)','err');return;}
+  const list=(DB.flights||[]).filter(f=>inRange(f.date)&&!f.billed);
+  if(!list.length){toast('No unbilled flights in that date range','err');return;}
+  const vendor=(prompt('Vendor / Payee name for this bill:','')||'').trim();
+  if(!vendor){toast('Vendor name is required','err');return;}
+  const sorted=[...list].sort((a,b)=>(a.date||'').localeCompare(b.date||''));
+  const items=sorted.map(f=>{
+    const amount=Math.round(((parseFloat(f.actCost)||0)+(parseFloat(f.luggage)||0))*100)/100;
+    return{description:`${f.pax} — ${f.airline||'Flight'} ${f.from||''}→${f.to||''} (${f.travelClass||'Economy'})`,
+      dept:f.dept||'',sub:f.pax,qty:f.count||1,rate:f.actCost||0,amount,
+      _date:f.date,_breakdown:'',_dayType:'',_remarks:f.notes||''};
+  });
+  const subtotal=Math.round(items.reduce((s,i)=>s+i.amount,0)*100)/100;
+  const dates=[...new Set(sorted.map(f=>f.date))].sort();
+  const billId=uid();
+  const bill={id:billId,uploadedAt:new Date().toISOString(),vendor,billNo:'',billDate:tod(),schedId:'',
+    shootDate:dates[0],shootDateFrom:dates.length>1?dates[0]:null,shootDateTo:dates.length>1?dates[dates.length-1]:null,
+    department:'Flights',subdept:'',items,subtotal,gst:0,total:subtotal,
+    status:'approved',approvedAt:new Date().toISOString(),paidAt:null,
+    imageData:null,imageType:null,notes:'Generated from Flight Bookings',manpower:null};
+  if(!DB.bills)DB.bills=[];
+  DB.bills.push(bill);
+  sorted.forEach(f=>{f.billed=true;f.billId=billId;});
+  saveDB();
+  toast('✓ Bill created for '+fmt(subtotal)+' ('+sorted.length+' flight(s))');
+  renderFlights();
+  if(typeof renderBills==='function')renderBills();
+  if(typeof updateBillsBadge==='function')updateBillsBadge();
+}
+
+// Generates a real bill/payment entry from Vehicle Log entries matching the
+// current date range. Uses each entry's Actual cost if one's been entered,
+// falling back to the Estimated total otherwise.
+function generateVehiclesBill(){
+  if(!_rangeFrom&&!_rangeTo){toast('Set a date range first (From / To above)','err');return;}
+  const dates=Object.keys(DB.vehicles||{}).filter(d=>inRange(d)).sort();
+  const flat=[];
+  dates.forEach(d=>{
+    const cs=parseFloat((DB.dayHeaders||{})[d]?.cs)||1;
+    (DB.vehicles[d]||[]).forEach(v=>{
+      if(v.billed)return;
+      const hireT=(v.hire||0)*(v.qty||1);
+      const battaT=(v.batta||0)*cs*(v.qty||1);
+      const fuelT=v.fuel||0;
+      const estTotal=hireT+battaT+fuelT;
+      const actTotal=(v.actHire||0)+(v.actBatta||0)+(v.actFuel||0);
+      flat.push({date:d,entry:v,amount:actTotal>0?actTotal:estTotal});
+    });
+  });
+  if(!flat.length){toast('No unbilled vehicle entries in that date range','err');return;}
+  const vendor=(prompt('Vendor / Payee name for this bill:','')||'').trim();
+  if(!vendor){toast('Vendor name is required','err');return;}
+  const sorted=[...flat].sort((a,b)=>a.date.localeCompare(b.date));
+  const items=sorted.map(x=>({
+    description:`${x.entry.type}${x.entry.vendorName?' — '+x.entry.vendorName:''}${x.entry.vehNumber?' ('+x.entry.vehNumber+')':''}`,
+    dept:'',sub:x.entry.type,qty:x.entry.qty||1,rate:0,amount:Math.round(x.amount*100)/100,
+    _date:x.date,_breakdown:'',_dayType:'',_remarks:x.entry.notes||''}));
+  const subtotal=Math.round(items.reduce((s,i)=>s+i.amount,0)*100)/100;
+  const uniqueDates=[...new Set(sorted.map(x=>x.date))].sort();
+  const billId=uid();
+  const bill={id:billId,uploadedAt:new Date().toISOString(),vendor,billNo:'',billDate:tod(),schedId:'',
+    shootDate:uniqueDates[0],shootDateFrom:uniqueDates.length>1?uniqueDates[0]:null,shootDateTo:uniqueDates.length>1?uniqueDates[uniqueDates.length-1]:null,
+    department:'Vehicles',subdept:'',items,subtotal,gst:0,total:subtotal,
+    status:'approved',approvedAt:new Date().toISOString(),paidAt:null,
+    imageData:null,imageType:null,notes:'Generated from Vehicles Log',manpower:null};
+  if(!DB.bills)DB.bills=[];
+  DB.bills.push(bill);
+  sorted.forEach(x=>{x.entry.billed=true;x.entry.billId=billId;});
+  saveDB();
+  toast('✓ Bill created for '+fmt(subtotal)+' ('+sorted.length+' entr'+(sorted.length===1?'y':'ies')+')');
+  renderVehicleLog();
+  if(typeof renderBills==='function')renderBills();
+  if(typeof updateBillsBadge==='function')updateBillsBadge();
+}
+
 function printHotelsTopsheet(){
   if(!_rangeFrom&&!_rangeTo){toast('Set a date range first (From / To above)','err');return;}
-  const list=(DB.hotels||[]).filter(h=>bookingOverlapsRange(h.checkIn,h.checkOut));
-  if(!list.length){toast('No hotel bookings overlap that date range','err');return;}
+  let list=(DB.hotels||[]).filter(h=>bookingOverlapsRange(h.checkIn,h.checkOut));
+  if(_hotelNameFilter)list=list.filter(h=>h.name===_hotelNameFilter);
+  if(!list.length){toast('No hotel bookings overlap that date range'+(_hotelNameFilter?' for '+_hotelNameFilter:''),'err');return;}
   const sorted=[...list].sort((a,b)=>(a.checkIn||'').localeCompare(b.checkIn||''));
   let grand=0;
   const rowsHtml=sorted.map(h=>{
@@ -19163,8 +19322,9 @@ function printHotelsTopsheet(){
     </tr>`;
   }).join('');
   const rangeLabel=(_rangeFrom&&_rangeTo)?fmtD(_rangeFrom)+' to '+fmtD(_rangeTo):(_rangeFrom?'From '+fmtD(_rangeFrom):'Until '+fmtD(_rangeTo));
+  const titleSuffix=_hotelNameFilter?' — '+_hotelNameFilter:'';
   const html=`
-    <h2 style="font-size:20px;margin:0 0 2px 0">Hotel Bookings Topsheet</h2>
+    <h2 style="font-size:20px;margin:0 0 2px 0">Hotel Bookings Topsheet${titleSuffix}</h2>
     <div style="font-size:12px;color:#888;margin-bottom:16px">Kalki 2 · Vyjayanthi Movies · ${rangeLabel} · ${sorted.length} booking(s)</div>
     <div style="overflow-x:auto">
     <table style="border-collapse:collapse;font-size:11px;margin-bottom:14px;width:100%">
@@ -19192,7 +19352,7 @@ function printHotelsTopsheet(){
       </tbody>
     </table>
     </div>`;
-  openPrintOverlay('Hotels Topsheet — '+rangeLabel, html);
+  openPrintOverlay('Hotels Topsheet'+titleSuffix+' — '+rangeLabel, html);
 }
 
 // Prints a Flights topsheet for the same shared date-range filter, matched
@@ -19250,6 +19410,82 @@ function printFlightsTopsheet(){
     </table>
     </div>`;
   openPrintOverlay('Flights Topsheet — '+rangeLabel, html);
+}
+
+// Prints a Vehicles topsheet for the shared date-range filter. DB.vehicles
+// is keyed by date (unlike Hotels/Flights' flat arrays), so this flattens
+// every date in range into one list, applying each day's Call Sheet
+// multiplier to Batta the same way renderVehicleLog does on screen.
+function printVehiclesTopsheet(){
+  if(!_rangeFrom&&!_rangeTo){toast('Set a date range first (From / To above)','err');return;}
+  const dates=Object.keys(DB.vehicles||{}).filter(d=>inRange(d)).sort();
+  const flat=[];
+  dates.forEach(d=>{
+    const cs=parseFloat((DB.dayHeaders||{})[d]?.cs)||1;
+    (DB.vehicles[d]||[]).forEach(v=>{
+      const hireT=(v.hire||0)*(v.qty||1);
+      const battaT=(v.batta||0)*cs*(v.qty||1);
+      const fuelT=v.fuel||0;
+      const actT=(v.actHire||0)+(v.actBatta||0)+(v.actFuel||0);
+      flat.push({date:d,type:v.type,vendorName:v.vendorName,vehNumber:v.vehNumber,qty:v.qty||1,
+        hireT,battaT,fuelT,estTotal:hireT+battaT+fuelT,actTotal:actT,notes:v.notes});
+    });
+  });
+  if(!flat.length){toast('No vehicle entries in that date range','err');return;}
+  let grandEst=0,grandAct=0;
+  const rowsHtml=flat.map(v=>{
+    grandEst+=v.estTotal;grandAct+=v.actTotal;
+    return`<tr>
+      <td style="padding:5px 8px;border:1px solid #ddd;white-space:nowrap">${fmtD(v.date)}</td>
+      <td style="padding:5px 8px;border:1px solid #ddd;font-weight:700">${esc(v.type)}</td>
+      <td style="padding:5px 8px;border:1px solid #ddd">${esc(v.vendorName||'—')}</td>
+      <td style="padding:5px 8px;border:1px solid #ddd">${esc(v.vehNumber||'—')}</td>
+      <td style="padding:5px 8px;border:1px solid #ddd;text-align:center">${v.qty}</td>
+      <td style="padding:5px 8px;border:1px solid #ddd;text-align:right">${fmt(v.hireT)}</td>
+      <td style="padding:5px 8px;border:1px solid #ddd;text-align:right">${fmt(v.battaT)}</td>
+      <td style="padding:5px 8px;border:1px solid #ddd;text-align:right">${fmt(v.fuelT)}</td>
+      <td style="padding:5px 8px;border:1px solid #ddd;text-align:right;font-weight:700;background:#f8fafc">${fmt(v.estTotal)}</td>
+      <td style="padding:5px 8px;border:1px solid #ddd;text-align:right;${v.actTotal?'font-weight:700;color:#166534':'color:#999'}">${v.actTotal?fmt(v.actTotal):'—'}</td>
+      <td style="padding:5px 8px;border:1px solid #ddd;font-size:10px;color:#666">${esc(v.notes||'')}</td>
+    </tr>`;
+  }).join('');
+  const rangeLabel=(_rangeFrom&&_rangeTo)?fmtD(_rangeFrom)+' to '+fmtD(_rangeTo):(_rangeFrom?'From '+fmtD(_rangeFrom):'Until '+fmtD(_rangeTo));
+  const html=`
+    <h2 style="font-size:20px;margin:0 0 2px 0">Vehicles Topsheet</h2>
+    <div style="font-size:12px;color:#888;margin-bottom:16px">Kalki 2 · Vyjayanthi Movies · ${rangeLabel} · ${flat.length} entr${flat.length===1?'y':'ies'} across ${dates.length} day(s)</div>
+    <div style="overflow-x:auto">
+    <table style="border-collapse:collapse;font-size:11px;margin-bottom:14px;width:100%">
+      <thead><tr style="background:#1e3a5f;color:#fff">
+        <th style="padding:6px 8px;text-align:left">Date</th>
+        <th style="padding:6px 8px;text-align:left">Type</th>
+        <th style="padding:6px 8px;text-align:left">Vendor</th>
+        <th style="padding:6px 8px;text-align:left">Veh. No.</th>
+        <th style="padding:6px 8px;text-align:center">Qty</th>
+        <th style="padding:6px 8px;text-align:right">Hire ₹</th>
+        <th style="padding:6px 8px;text-align:right">Batta ₹</th>
+        <th style="padding:6px 8px;text-align:right">Fuel ₹</th>
+        <th style="padding:6px 8px;text-align:right">Est. Total ₹</th>
+        <th style="padding:6px 8px;text-align:right">Actual ₹</th>
+        <th style="padding:6px 8px;text-align:left">Notes</th>
+      </tr></thead>
+      <tbody>${rowsHtml}
+        <tr style="background:#1e3a5f;color:#fff;font-weight:700">
+          <td colspan="8" style="padding:9px 8px;text-align:right">GRAND TOTAL</td>
+          <td style="padding:9px 8px;text-align:right">${fmt(grandEst)}</td>
+          <td style="padding:9px 8px;text-align:right">${grandAct?fmt(grandAct):'—'}</td>
+          <td></td>
+        </tr>
+        <tr><td colspan="11" style="padding:40px 0 10px 0;border:none">
+          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:24px;font-size:11px;color:#666">
+            <div>Prepared by<br><br>___________________________<br>Executive Producer</div>
+            <div>Verified by<br><br>___________________________<br>Accounts Department</div>
+            <div>Approved by<br><br>___________________________<br>Producer</div>
+          </div>
+        </td></tr>
+      </tbody>
+    </table>
+    </div>`;
+  openPrintOverlay('Vehicles Topsheet — '+rangeLabel, html);
 }
 
 function printHireBreakdown(items,dateCols){
