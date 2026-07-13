@@ -18762,7 +18762,15 @@ function fxPreview(){
   const gst=parseFloat(document.getElementById('fx-gst')?.value)||0;
   const total=parseFloat(document.getElementById('fx-total')?.value)||0;
   const notes=document.getElementById('fx-notes')?.value||'';
-  const dates=[...new Set(_fxRows.map(r=>r.date))].sort();
+  // Combine dates from every source — a bill might only use Production
+  // Expenses (or Mess/Hires) with nothing in the main role table, which was
+  // exactly the bug behind "Days: 0 row(s)" and an empty preview table.
+  const dates=[...new Set([
+    ..._fxRows.map(r=>r.date),
+    ..._fxMessDateRows.map(r=>r.date),
+    ..._fxProdDateRows.map(r=>r.date),
+    ..._fxHireDateCols.map(c=>c.date)
+  ].filter(Boolean))].sort();
 
   // Build a temporary bill-shaped object so the preview uses the exact same
   // dedicated-columns-per-role renderer as the saved/printed version.
@@ -18771,7 +18779,10 @@ function fxPreview(){
     shootDate:dates[0],shootDateFrom:dates.length>1?dates[0]:null,shootDateTo:dates.length>1?dates[dates.length-1]:null,
     subtotal:sub,gst,total,status:'draft',
     notes:notes||'',
-    _flexRoles:_fxRoles,_flexRows:_fxRows
+    _flexRoles:_fxRoles,_flexRows:_fxRows,
+    _flexMessCols:_fxMessCatCols,_flexMessRows:_fxMessDateRows,
+    _flexProdCols:_fxProdItemCols,_flexProdRows:_fxProdDateRows,
+    _flexHireItems:_fxHireItems,_flexHireDateCols:_fxHireDateCols
   };
   printFlexBillTopsheet(tempBill);
 }
@@ -19059,9 +19070,72 @@ function fxUpdateBill(){
 
 // Print a saved Flexible Multi-Role Topsheet bill exactly as it was entered —
 // uses the bill's own _flexRoles/_flexRows, not the generic item-based renderer.
+// Renders a date-rows × category/item-columns breakdown table for print —
+// used for both Mess (cells are formula strings) and Production Expenses
+// (cells are {qty,cs,rate} objects), which share this same orientation.
+function printExpGridBreakdown(title,icon,dateRows,cols,getCellAmount){
+  const activeRows=dateRows.filter(r=>r.date);
+  if(!activeRows.length||!cols.length)return'';
+  const sorted=[...activeRows].sort((a,b)=>(a.date||'').localeCompare(b.date||''));
+  const rowsHtml=sorted.map(r=>{
+    const cells=cols.map(c=>{
+      const amt=getCellAmount(r,c);
+      return`<td style="padding:5px 6px;border:1px solid #ddd;text-align:right">${amt?fmt(amt):'—'}</td>`;
+    }).join('');
+    const rowTotal=cols.reduce((s,c)=>s+(getCellAmount(r,c)||0),0);
+    const dateLabel=r.label?` (${r.label})`:'';
+    return`<tr><td style="padding:5px 8px;border:1px solid #ddd;font-weight:700;white-space:nowrap">${fmtD(r.date)}${dateLabel}</td>${cells}<td style="padding:5px 8px;border:1px solid #ddd;text-align:right;font-weight:700;background:#f8fafc">${fmt(rowTotal)}</td></tr>`;
+  }).join('');
+  const colTotals=cols.map(c=>sorted.reduce((s,r)=>s+(getCellAmount(r,c)||0),0));
+  const grand=colTotals.reduce((s,v)=>s+v,0);
+  return`<div style="margin-top:18px;font-weight:700;font-size:13px;margin-bottom:6px">${icon} ${title}</div>
+  <div style="overflow-x:auto"><table style="border-collapse:collapse;font-size:11px;margin-bottom:14px;width:100%">
+    <thead><tr style="background:#1e3a5f;color:#fff">
+      <th style="padding:6px 8px;text-align:left">Date</th>
+      ${cols.map(c=>`<th style="padding:6px 8px;text-align:right">${esc(c.label)}</th>`).join('')}
+      <th style="padding:6px 8px;text-align:right">Row Total</th>
+    </tr></thead>
+    <tbody>${rowsHtml}
+      <tr style="background:#f1f5f9;font-weight:700"><td style="padding:6px;border:1px solid #ddd">TOTAL</td>${colTotals.map(v=>`<td style="padding:6px;border:1px solid #ddd;text-align:right">${fmt(v)}</td>`).join('')}<td style="padding:6px;border:1px solid #ddd;text-align:right;color:#166534">${fmt(grand)}</td></tr>
+    </tbody>
+  </table></div>`;
+}
+// Renders an item-rows × date-columns breakdown table for print — Hires'
+// orientation is the transpose of Mess/Production Expenses (one fixed Rate
+// per item, applying across every date column; only Qty varies per date).
+function printHireBreakdown(items,dateCols){
+  const activeCols=dateCols.filter(c=>c.date);
+  if(!items.length||!activeCols.length)return'';
+  const sorted=[...activeCols].sort((a,b)=>(a.date||'').localeCompare(b.date||''));
+  const rowsHtml=items.map(item=>{
+    const cells=sorted.map(c=>{
+      const amt=fxHireCellAmount(item,c.id);
+      return`<td style="padding:5px 6px;border:1px solid #ddd;text-align:right">${amt?fmt(amt):'—'}</td>`;
+    }).join('');
+    const rowTotal=sorted.reduce((s,c)=>s+(fxHireCellAmount(item,c.id)||0),0);
+    return`<tr><td style="padding:5px 8px;border:1px solid #ddd;font-weight:700">${esc(item.label)}</td><td style="padding:5px 8px;border:1px solid #ddd;text-align:right">${fmt(item.rate)}</td>${cells}<td style="padding:5px 8px;border:1px solid #ddd;text-align:right;font-weight:700;background:#f8fafc">${fmt(rowTotal)}</td></tr>`;
+  }).join('');
+  const colTotals=sorted.map(c=>items.reduce((s,item)=>s+(fxHireCellAmount(item,c.id)||0),0));
+  const grand=colTotals.reduce((s,v)=>s+v,0);
+  return`<div style="margin-top:18px;font-weight:700;font-size:13px;margin-bottom:6px">🔧 Hires</div>
+  <div style="overflow-x:auto"><table style="border-collapse:collapse;font-size:11px;margin-bottom:14px;width:100%">
+    <thead><tr style="background:#1e3a5f;color:#fff">
+      <th style="padding:6px 8px;text-align:left">Item</th>
+      <th style="padding:6px 8px;text-align:right">Rate ₹</th>
+      ${sorted.map(c=>`<th style="padding:6px 8px;text-align:right">${fmtD(c.date)}</th>`).join('')}
+      <th style="padding:6px 8px;text-align:right">Row Total</th>
+    </tr></thead>
+    <tbody>${rowsHtml}
+      <tr style="background:#f1f5f9;font-weight:700"><td colspan="2" style="padding:6px;border:1px solid #ddd">TOTAL</td>${colTotals.map(v=>`<td style="padding:6px;border:1px solid #ddd;text-align:right">${fmt(v)}</td>`).join('')}<td style="padding:6px;border:1px solid #ddd;text-align:right;color:#166534">${fmt(grand)}</td></tr>
+    </tbody>
+  </table></div>`;
+}
 function printFlexBillTopsheet(b){
   const roles=b._flexRoles||[];
   const rows=b._flexRows||[];
+  const messCols=b._flexMessCols||[], messRows=b._flexMessRows||[];
+  const prodCols=b._flexProdCols||[], prodRows=b._flexProdRows||[];
+  const hireItems=b._flexHireItems||[], hireDateCols=b._flexHireDateCols||[];
   const sched=(DB.schedules||[]).find(s=>s.id===b.schedId);
   const isPaid=b.status==='paid';
   const paidDate=isPaid&&b.paidAt?new Date(b.paidAt).toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'}):'';
@@ -19155,22 +19229,14 @@ function printFlexBillTopsheet(b){
   }).join('');
 
   const colCount=5+activeRoles.length*3+3;
+  const totalDays=[...new Set([
+    ...rows.map(r=>r.date),
+    ...messRows.map(r=>r.date),
+    ...prodRows.map(r=>r.date),
+    ...hireDateCols.map(c=>c.date)
+  ].filter(Boolean))].length;
 
-  const html=`
-    ${isPaid?`<div style="display:inline-block;border:4px solid #ef4444;border-radius:6px;padding:3px 16px;color:#ef4444;font-size:32px;font-weight:900;font-family:serif;letter-spacing:3px;opacity:.85;transform:rotate(-8deg);margin-bottom:12px">PAID ${paidDate}</div><br>`:''}
-    <h2 style="font-size:20px;margin:0 0 2px 0">${b.vendor||'Vendor'} — ${b.subdept||b.department||'Topsheet'}</h2>
-    <div style="font-size:12px;color:#888;margin-bottom:16px">Kalki 2 · Vyjayanthi Movies · Flexible Multi-Role Topsheet</div>
-    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:14px;font-size:12px">
-      <div><span style="color:#888">Vendor:</span> <strong>${b.vendor||'—'}</strong></div>
-      <div><span style="color:#888">Bill No:</span> <strong>${b.billNo||'—'}</strong></div>
-      <div><span style="color:#888">Bill Date:</span> <strong>${fmtD(b.billDate)}</strong></div>
-      <div><span style="color:#888">Date Range:</span> <strong>${fmtD(b.shootDateFrom||b.shootDate)}${b.shootDateTo?' to '+fmtD(b.shootDateTo):''}</strong></div>
-      <div><span style="color:#888">Department:</span> <strong>${b.department||''}</strong>${b.subdept?` <span style="font-size:11px;color:#444"> — ${b.subdept}</span>`:''}</div>
-      <div><span style="color:#888">Schedule:</span> <strong>${sched?.name||'—'}</strong></div>
-      <div><span style="color:#888">Roles:</span> <strong>${roles.map(r=>r.label).join(', ')}</strong></div>
-      <div><span style="color:#888">Days:</span> <strong>${rows.length} row(s)</strong></div>
-    </div>
-    ${vendorBlock}
+  const roleTableHtml=rows.length?`
     <div style="overflow-x:auto">
     <table style="border-collapse:collapse;font-size:11px;margin-bottom:14px;width:100%;table-layout:auto">
       <thead>
@@ -19195,12 +19261,46 @@ function printFlexBillTopsheet(b){
           <td colspan="5" style="padding:6px;border:1px solid #ddd;text-align:right;font-size:11px">GRAND TOTAL</td>
           ${roleFooterCells}
           <td style="padding:6px;border:1px solid #ddd;border-left:2px solid #ccc;text-align:right">${fmt(rows.reduce((s,r)=>s+(parseFloat(r.otherCharges)||0),0))}</td>
-          <td style="padding:6px;border:1px solid #ddd;text-align:right;background:#e2e8f0">${fmt(b.subtotal)}</td>
+          <td style="padding:6px;border:1px solid #ddd;text-align:right;background:#e2e8f0">${fmt(rows.reduce((s,row)=>{let t=0;activeRoles.forEach(r=>{const rd=row.roleData?.[r.id]||{count:0,rate:0,allowance:0};const count=parseFloat(rd.count)||0,rate=parseFloat(rd.rate)||0,allow=parseFloat(rd.allowance)||0;let battas;if(r.payType==='Package'){battas=count>0?rate*(parseFloat(row.cs)||1):0;}else if(r.payType==='Flat'){battas=count>0?rate:0;}else{const csM=(r.payType==='Per Day')?1:(parseFloat(row.cs)||1);battas=count*rate*csM;}t+=battas+count*allow;});return s+t+(parseFloat(row.otherCharges)||0);},0))}</td>
           <td style="border:1px solid #ddd"></td>
         </tr>
-        ${b.gst?`<tr style="background:#f5f5f5;page-break-inside:avoid"><td colspan="${colCount-2}" style="padding:6px 8px;border:1px solid #ddd;text-align:right;color:#666">GST</td><td style="padding:6px 8px;border:1px solid #ddd;text-align:right">${fmt(b.gst)}</td><td></td></tr>`:''}
-        <tr style="background:#1e3a5f;color:#fff;page-break-inside:avoid"><td colspan="${colCount-2}" style="padding:9px 8px;text-align:right;font-weight:700">TOTAL</td><td style="padding:9px 8px;text-align:right;font-weight:700">${fmt(b.total)}</td><td></td></tr>
-        <tr style="page-break-inside:avoid"><td colspan="${colCount}" style="padding:40px 0 10px 0;border:none">
+      </tbody>
+    </table>
+    </div>`:'';
+
+  const messHtml=printExpGridBreakdown('Mess / Food Expenses','🍱',messRows,messCols,(r,c)=>fxEvalFormula(r.vals?.[c.id]));
+  const prodHtml=printExpGridBreakdown('Production Expenses','🧾',prodRows,prodCols,(r,c)=>fxProdCellAmount(r.vals?.[c.id],c.usesCS));
+  const hireHtml=printHireBreakdown(hireItems,hireDateCols);
+
+  const html=`
+    ${isPaid?`<div style="display:inline-block;border:4px solid #ef4444;border-radius:6px;padding:3px 16px;color:#ef4444;font-size:32px;font-weight:900;font-family:serif;letter-spacing:3px;opacity:.85;transform:rotate(-8deg);margin-bottom:12px">PAID ${paidDate}</div><br>`:''}
+    <h2 style="font-size:20px;margin:0 0 2px 0">${b.vendor||'Vendor'} — ${b.subdept||b.department||'Topsheet'}</h2>
+    <div style="font-size:12px;color:#888;margin-bottom:16px">Kalki 2 · Vyjayanthi Movies · Flexible Multi-Role Topsheet</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:14px;font-size:12px">
+      <div><span style="color:#888">Vendor:</span> <strong>${b.vendor||'—'}</strong></div>
+      <div><span style="color:#888">Bill No:</span> <strong>${b.billNo||'—'}</strong></div>
+      <div><span style="color:#888">Bill Date:</span> <strong>${fmtD(b.billDate)}</strong></div>
+      <div><span style="color:#888">Date Range:</span> <strong>${fmtD(b.shootDateFrom||b.shootDate)}${b.shootDateTo?' to '+fmtD(b.shootDateTo):''}</strong></div>
+      <div><span style="color:#888">Department:</span> <strong>${b.department||''}</strong>${b.subdept?` <span style="font-size:11px;color:#444"> — ${b.subdept}</span>`:''}</div>
+      <div><span style="color:#888">Schedule:</span> <strong>${sched?.name||'—'}</strong></div>
+      ${roles.length?`<div><span style="color:#888">Roles:</span> <strong>${roles.map(r=>r.label).join(', ')}</strong></div>`:''}
+      <div><span style="color:#888">Days:</span> <strong>${totalDays} day(s)</strong></div>
+    </div>
+    ${vendorBlock}
+    ${roleTableHtml}
+    ${messHtml}
+    ${prodHtml}
+    ${hireHtml}
+    <div style="overflow-x:auto">
+    <table style="border-collapse:collapse;font-size:11px;margin-bottom:14px;width:100%">
+      <tbody>
+        <tr style="background:#f1f5f9;font-weight:700;page-break-inside:avoid">
+          <td style="padding:6px 8px;border:1px solid #ddd;text-align:right">SUBTOTAL</td>
+          <td style="padding:6px 8px;border:1px solid #ddd;text-align:right;background:#e2e8f0;width:140px">${fmt(b.subtotal)}</td>
+        </tr>
+        ${b.gst?`<tr style="background:#f5f5f5;page-break-inside:avoid"><td style="padding:6px 8px;border:1px solid #ddd;text-align:right;color:#666">GST</td><td style="padding:6px 8px;border:1px solid #ddd;text-align:right">${fmt(b.gst)}</td></tr>`:''}
+        <tr style="background:#1e3a5f;color:#fff;page-break-inside:avoid"><td style="padding:9px 8px;text-align:right;font-weight:700">TOTAL</td><td style="padding:9px 8px;text-align:right;font-weight:700">${fmt(b.total)}</td></tr>
+        <tr style="page-break-inside:avoid"><td colspan="2" style="padding:40px 0 10px 0;border:none">
           <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:24px;font-size:11px;color:#666">
             <div>Prepared by<br><br>___________________________<br>Executive Producer</div>
             <div>Verified by<br><br>___________________________<br>Accounts Department</div>
