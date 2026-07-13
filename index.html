@@ -20205,6 +20205,7 @@ var _blpBillId=null;
 function openLinkPaymentModal(id){
   const bill=(DB.bills||[]).find(b=>b.id===id);
   if(!bill)return;
+  if(!Object.keys(S).length)ld(); // Bills Archive may be opened before Payments page ever loaded S
   _blpBillId=id;
   document.getElementById('blp-modal-title').textContent='Link Existing Payment — '+(bill.vendor||'Vendor');
   const vendorNorm=(bill.vendor||'').toLowerCase().trim();
@@ -21034,6 +21035,21 @@ function renderBills(){
   if(filter)bills=bills.filter(b=>b.status===filter);
   const container=document.getElementById('bills-groups');
   if(!container)return;
+  // Self-heal legacy bills whose schedId is a raw schedule id (e.g. "942tf5nj")
+  // rather than the modern "SCHED:942tf5nj" format. groupByPhase already
+  // auto-prefixes these for grouping/display, but the phase dropdown's
+  // options only use the "SCHED:" form — so without this, a bill correctly
+  // shown under "Schedule 02" would still show its own dropdown blank,
+  // since the raw id never matches any option's value.
+  const _legacyPhaseCodes=['ATL','PRE','POST','MKT','ADMIN'];
+  const _legacyAtlIds=['atl-artist','atl-director','atl-dop','atl-writer','atl-music','atl-playback'];
+  let _healed=false;
+  (DB.bills||[]).forEach(b=>{
+    if(b.schedId&&!_legacyPhaseCodes.includes(b.schedId)&&!_legacyAtlIds.includes(b.schedId)&&!b.schedId.startsWith('SCHED:')){
+      if((DB.schedules||[]).some(s=>s.id===b.schedId)){b.schedId='SCHED:'+b.schedId;_healed=true;}
+    }
+  });
+  if(_healed)saveDB();
   if(!bills.length){
     container.innerHTML='<div class="te" style="padding:20px">No bills yet</div>';
     updateBillsBadge();
