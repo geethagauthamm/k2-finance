@@ -1947,16 +1947,32 @@ body.auditor-mode #save-btn { display:none !important; }
 
     <div id="bill-paid-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:9500;align-items:center;justify-content:center">
       <div style="max-width:420px;width:95%;background:var(--sf);border:1px solid var(--bd);border-radius:12px;padding:20px 22px">
-        <div class="semi" style="font-size:15px;margin-bottom:4px" id="bill-paid-modal-title">Mark as Paid</div>
-        <div class="xs2 dim" style="margin-bottom:14px">Enter the actual payment details — this is what the PAID stamp will show, not today's date.</div>
+        <div class="semi" style="font-size:15px;margin-bottom:4px" id="bill-paid-modal-title">Record Payment</div>
+        <div class="xs2 dim" style="margin-bottom:10px" id="bpm-balance-note">Enter the actual payment details.</div>
+        <div class="fld mb10"><label>Amount Paid ₹</label><input type="number" id="bpm-amt"></div>
         <div class="fld mb10"><label>Payment Date</label><input type="date" id="bpm-date"></div>
         <div class="fld mb10"><label>UTR / Reference Number (optional)</label><input type="text" id="bpm-utr" placeholder="e.g. IOBAN26134442905"></div>
+        <div class="fld mb10"><label>Note (optional)</label><input type="text" id="bpm-note" placeholder="e.g. Advance for first 2 days"></div>
         <div class="flex gap8" style="justify-content:flex-end;margin-top:8px">
           <button class="btn bs" onclick="document.getElementById('bill-paid-modal').style.display='none'">Cancel</button>
-          <button class="btn bg" onclick="confirmMarkBillPaid()">✓ Confirm Paid</button>
+          <button class="btn bg" onclick="confirmBillPayment()">✓ Record Payment</button>
       </div>
     </div>
   </div>
+  </div>
+
+  <!-- Link an existing Payment Tracker entry onto a bill, so a payment made
+       for an earlier/smaller scope shows correctly against a later bill that
+       covers the fuller scope (e.g. paid for 2 days, billed for 4 days). -->
+  <div id="bill-link-payment-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:9500;align-items:center;justify-content:center">
+    <div style="max-width:560px;width:95%;max-height:80vh;overflow-y:auto;background:var(--sf);border:1px solid var(--bd);border-radius:12px;padding:20px 22px">
+      <div class="semi" style="font-size:15px;margin-bottom:4px" id="blp-modal-title">Link Existing Payment</div>
+      <div class="xs2 dim" style="margin-bottom:12px">Matching Payment Tracker entries for this vendor — pick the one that was already paid for part of this bill.</div>
+      <div id="blp-results"></div>
+      <div class="flex gap8" style="justify-content:flex-end;margin-top:14px">
+        <button class="btn bs" onclick="document.getElementById('bill-link-payment-modal').style.display='none'">Close</button>
+      </div>
+    </div>
   </div>
 
   <!-- INBOX -->
@@ -20116,43 +20132,135 @@ function resetBillUpload(){
 }
 
 let _bpmBillId=null;
+// Every payment record against a bill — whether typed in directly via
+// "Record Payment" or linked from an existing Payment Tracker entry — lives
+// in bill.paymentRecords. This lets a bill be paid in installments (e.g. a
+// bill covering 4 days when only 2 days were paid so far) instead of the old
+// all-or-nothing PAID stamp, and lets an already-made payment be linked onto
+// a bill created later for a fuller scope, so it doesn't look unpaid.
+function billPaidSoFar(bill){
+  return (bill.paymentRecords||[]).reduce((s,r)=>s+(parseFloat(r.amount)||0),0);
+}
+function billRemaining(bill){
+  return Math.max(0,Math.round(((bill.total||0)-billPaidSoFar(bill))*100)/100);
+}
 function openMarkBillPaidModal(id){
   const bill=(DB.bills||[]).find(b=>b.id===id);
   if(!bill)return;
   if(blockIfPayeeMissing(bill.vendor))return;
   _bpmBillId=id;
-  document.getElementById('bill-paid-modal-title').textContent='Mark as Paid — '+(bill.vendor||'Vendor');
+  const paidSoFar=billPaidSoFar(bill),remaining=billRemaining(bill);
+  document.getElementById('bill-paid-modal-title').textContent='Record Payment — '+(bill.vendor||'Vendor');
+  document.getElementById('bpm-balance-note').textContent=paidSoFar
+    ? `${fmt(paidSoFar)} already paid of ${fmt(bill.total)} total — ${fmt(remaining)} remaining.`
+    : `Total bill: ${fmt(bill.total)}. Enter the full amount, or a partial amount if this is an installment.`;
+  document.getElementById('bpm-amt').value=remaining||bill.total||'';
   document.getElementById('bpm-date').value=new Date().toISOString().slice(0,10);
   document.getElementById('bpm-utr').value='';
+  document.getElementById('bpm-note').value='';
   document.getElementById('bill-paid-modal').style.display='flex';
 }
-function confirmMarkBillPaid(){
+function confirmBillPayment(){
   const id=_bpmBillId;
   const bill=(DB.bills||[]).find(b=>b.id===id);
   if(!bill)return;
   if(blockIfPayeeMissing(bill.vendor)){document.getElementById('bill-paid-modal').style.display='none';return;}
+  const amt=parseFloat(document.getElementById('bpm-amt').value)||0;
+  if(!amt){toast('Enter an amount','err');return;}
   const payDate=document.getElementById('bpm-date').value||new Date().toISOString().slice(0,10);
   const utr=document.getElementById('bpm-utr').value.trim();
-  bill.status='paid';
+  const note=document.getElementById('bpm-note').value.trim();
+  if(!bill.paymentRecords)bill.paymentRecords=[];
+  bill.paymentRecords.push({id:uid(),amount:amt,date:payDate,utr:utr||'',note:note||''});
+  const totalPaid=billPaidSoFar(bill);
+  bill.status=totalPaid>=(bill.total||0)?'paid':'partial';
   bill.paidAt=new Date(payDate+'T00:00:00').toISOString();
   bill.paidUTR=utr||'';
-  if(bill.shootDate&&DB.actAdhoc?.[bill.shootDate])
+  if(bill.status==='paid'&&bill.shootDate&&DB.actAdhoc?.[bill.shootDate])
     DB.actAdhoc[bill.shootDate].forEach(r=>{if(r.billId===id)r._paid=true;});
   saveDB(); renderBills(); updateBillsBadge();
   document.getElementById('bill-paid-modal').style.display='none';
-  toast('✓ PAID stamp applied — actuals turned green');
+  toast(bill.status==='paid'?'✓ Fully paid — actuals turned green':'✓ Partial payment recorded — '+fmt(billRemaining(bill))+' remaining');
   document.getElementById('bill-modal').style.display='none';
   const _billPaidRows=(bill.items||[]).map(it=>'<tr><td>'+esc(it.description||'')+'</td><td style="text-align:right">'+(it.qty||1)+'</td><td style="text-align:right">'+fmt(it.amount)+'</td></tr>').join('');
-  const _billPaidReportHtml=notifBuildReportHtml('Bill Paid — '+(bill.vendor||'Vendor'),
-    '<p><strong>Bill No:</strong> '+esc(bill.billNo||'—')+' · <strong>Paid at:</strong> '+esc(new Date(bill.paidAt).toLocaleString('en-IN'))+(bill.paidUTR?' · <strong>UTR:</strong> '+esc(bill.paidUTR):'')+'</p>'
+  const _billPaidReportHtml=notifBuildReportHtml((bill.status==='paid'?'Bill Paid':'Partial Payment')+' — '+(bill.vendor||'Vendor'),
+    '<p><strong>Bill No:</strong> '+esc(bill.billNo||'—')+' · <strong>Paid at:</strong> '+esc(new Date(bill.paidAt).toLocaleString('en-IN'))+(bill.paidUTR?' · <strong>UTR:</strong> '+esc(bill.paidUTR):'')+' · <strong>This payment:</strong> '+fmt(amt)+' · <strong>Total paid:</strong> '+fmt(totalPaid)+' of '+fmt(bill.total)+'</p>'
     +'<table><thead><tr><th>Description</th><th style="text-align:right">Qty</th><th style="text-align:right">Amount</th></tr></thead><tbody>'
     +_billPaidRows+'</tbody><tfoot><tr class="tot"><td colspan="2">Total</td><td style="text-align:right">'+fmt(bill.total)+'</td></tr></tfoot></table>');
   notifSend('payments',{
-    subject:'Bill Paid — '+(bill.vendor||'Vendor')+' · '+fmt(bill.total),
-    message:'A bill payment has been marked PAID.\nProject: '+(DB.project?.name||'K2')+'\nVendor: '+(bill.vendor||'Unknown')+'\nAmount: '+fmt(bill.total)+'\nPaid at: '+new Date(bill.paidAt).toLocaleString('en-IN')+(bill.paidUTR?'\nUTR: '+bill.paidUTR:''),
+    subject:(bill.status==='paid'?'Bill Paid':'Partial Payment')+' — '+(bill.vendor||'Vendor')+' · '+fmt(amt),
+    message:'A payment has been recorded against a bill.\nProject: '+(DB.project?.name||'K2')+'\nVendor: '+(bill.vendor||'Unknown')+'\nThis payment: '+fmt(amt)+'\nTotal paid: '+fmt(totalPaid)+' of '+fmt(bill.total)+'\nPaid at: '+new Date(bill.paidAt).toLocaleString('en-IN')+(bill.paidUTR?'\nUTR: '+bill.paidUTR:''),
     reportHtml:_billPaidReportHtml,
-    reportFilename:'BillPaid_'+(bill.vendor||'vendor').replace(/[^a-z0-9]+/gi,'_')+'_'+id.toString().slice(0,6)+'.html'
+    reportFilename:'BillPayment_'+(bill.vendor||'vendor').replace(/[^a-z0-9]+/gi,'_')+'_'+id.toString().slice(0,6)+'.html'
   }).catch(e=>console.warn('notifSend payments failed',e));
+}
+
+// ── Link an existing Payment Tracker entry onto a bill ──────────────
+// For exactly the scenario this was built for: a payment was already made
+// for a smaller/earlier scope (e.g. 2 days), then a bill later covers a
+// fuller scope (e.g. 4 days) for the same vendor. Linking pulls that
+// existing payment in as a payment record on the bill, so the bill
+// correctly shows partial-paid instead of looking untouched.
+var _blpBillId=null;
+function openLinkPaymentModal(id){
+  const bill=(DB.bills||[]).find(b=>b.id===id);
+  if(!bill)return;
+  _blpBillId=id;
+  document.getElementById('blp-modal-title').textContent='Link Existing Payment — '+(bill.vendor||'Vendor');
+  const vendorNorm=(bill.vendor||'').toLowerCase().trim();
+  const alreadyLinked=new Set((bill.paymentRecords||[]).filter(r=>r.linkedEntryId).map(r=>r.linkedEntryId));
+  const matches=[];
+  Object.keys(S||{}).forEach(dayKey=>{
+    (S[dayKey]&&S[dayKey].entries||[]).forEach(e=>{
+      if((e.vendor||'').toLowerCase().trim()===vendorNorm&&!alreadyLinked.has(e.id)){
+        matches.push({dayKey,entry:e});
+      }
+    });
+  });
+  matches.sort((a,b)=>a.dayKey.localeCompare(b.dayKey));
+  const el=document.getElementById('blp-results');
+  if(!matches.length){
+    el.innerHTML='<div class="te" style="padding:16px">No unlinked Payment Tracker entries found for "'+esc(bill.vendor||'')+'".</div>';
+  }else{
+    el.innerHTML=matches.map(m=>{
+      const amt=m.entry.payAmt||m.entry.amt||0;
+      return`<div style="border:1px solid var(--bd);border-radius:6px;padding:8px 12px;margin-bottom:6px;display:flex;justify-content:space-between;align-items:center;gap:10px">
+        <div>
+          <div class="xs2" style="font-weight:600">${fmtD(m.dayKey)} — ${esc(m.entry.desc||m.entry.cat||'')}</div>
+          <div class="xs3 dim">${fmt(amt)}${m.entry.payUTR?' · UTR '+esc(m.entry.payUTR):''} · ${esc(m.entry.payStatus==='pay-paid'?'Paid':'Not yet paid')}</div>
+        </div>
+        <button class="btn bg xs" onclick="linkPaymentToBill('${id}','${m.dayKey}','${m.entry.id}')">🔗 Link</button>
+      </div>`;
+    }).join('');
+  }
+  document.getElementById('bill-link-payment-modal').style.display='flex';
+}
+function linkPaymentToBill(billId,dayKey,entryId){
+  const bill=(DB.bills||[]).find(b=>b.id===billId);
+  if(!bill)return;
+  const entry=(S[dayKey]&&S[dayKey].entries||[]).find(e=>String(e.id)===String(entryId));
+  if(!entry){toast('Could not find that payment entry','err');return;}
+  const amt=parseFloat(entry.payAmt||entry.amt)||0;
+  if(!bill.paymentRecords)bill.paymentRecords=[];
+  bill.paymentRecords.push({id:uid(),amount:amt,date:entry.payDate||dayKey,utr:entry.payUTR||'',
+    note:'Linked from Payment Tracker: '+(entry.desc||entry.cat||''),linkedEntryId:entry.id,linkedEntryDayKey:dayKey});
+  const totalPaid=billPaidSoFar(bill);
+  bill.status=totalPaid>=(bill.total||0)?'paid':'partial';
+  saveDB();
+  toast('✓ Linked — '+fmt(amt)+' now shown as paid against this bill');
+  document.getElementById('bill-link-payment-modal').style.display='none';
+  renderBills(); updateBillsBadge();
+}
+function unlinkBillPaymentRecord(billId,recordId){
+  const bill=(DB.bills||[]).find(b=>b.id===billId);
+  if(!bill)return;
+  if(!confirm('Remove this payment record from the bill? (The original Payment Tracker entry, if linked, is not affected.)'))return;
+  bill.paymentRecords=(bill.paymentRecords||[]).filter(r=>r.id!==recordId);
+  const totalPaid=billPaidSoFar(bill);
+  bill.status=totalPaid<=0?'approved':(totalPaid>=(bill.total||0)?'paid':'partial');
+  saveDB();
+  toast('Removed');
+  renderBills(); updateBillsBadge();
 }
 
 
@@ -20932,9 +21040,12 @@ function renderBills(){
     return;
   }
   const rowHtml=(b)=>{
-    const isPaid=b.status==='paid';const isApproved=b.status==='approved';
+    const isPaid=b.status==='paid';const isApproved=b.status==='approved';const isPartial=b.status==='partial';
+    const paidSoFar=billPaidSoFar(b),remaining=billRemaining(b);
     const st=isPaid
       ?`<span class="tag" style="background:rgba(34,197,94,.12);color:#22c55e;font-size:10px;border:1px solid rgba(34,197,94,.3)">💳 PAID</span>`
+      :isPartial
+      ?`<span class="tag" style="background:rgba(59,130,246,.12);color:#3b82f6;font-size:10px;border:1px solid rgba(59,130,246,.3)" title="${fmt(paidSoFar)} paid, ${fmt(remaining)} remaining">◐ Partial — ${fmt(paidSoFar)}/${fmt(b.total)}</span>`
       :isApproved
       ?`<span class="tag" style="background:rgba(46,204,138,.1);color:var(--gn);font-size:10px">✓ Approved</span>`
       :`<span class="tag" style="background:rgba(232,169,69,.1);color:var(--go);font-size:10px">⏳ Pending</span>`;
@@ -20971,11 +21082,15 @@ function renderBills(){
       <td class="tr mono semi" style="color:${isPaid?'#22c55e':'var(--gn)'}">${fmt(b.total)}</td>
       <td>${st}</td>
       <td class="xs2 dim">${fmtD(b.shootDate)}</td>
+      <td class="no-print" style="padding:4px 6px">
+        <select class="btn bs xs" style="font-size:10px;max-width:150px" onchange="setBillPhase('${b.id}',this.value)">${getPhaseOptionsHtml(b.schedId)}</select>
+      </td>
       ${scanCell}
       <td class="no-print" style="white-space:nowrap">
         <button class="btn bs xs" onclick="viewBill('${b.id}')" style="font-size:10px">View</button>
         ${hasTopsheet?`<button class="btn bs xs" onclick="fxEditBill('${b.id}')" style="font-size:10px;margin-left:4px;color:var(--bl);border-color:var(--bl)" title="Edit topsheet">✎ Edit</button>`:''}
-        ${isApproved?`<button class="btn bg xs" onclick="openMarkBillPaidModal('${b.id}')" style="font-size:10px;margin-left:4px;background:#ef4444">💳 PAID</button>`:''}
+        ${(isApproved||isPartial)?`<button class="btn bg xs" onclick="openMarkBillPaidModal('${b.id}')" style="font-size:10px;margin-left:4px;background:#ef4444">💳 ${isPartial?'Pay More':'PAID'}</button>`:''}
+        ${(isApproved||isPartial)?`<button class="btn bs xs" onclick="openLinkPaymentModal('${b.id}')" style="font-size:10px;margin-left:4px;color:#3b82f6;border-color:#3b82f6" title="Link an existing Payment Tracker entry already paid for part of this bill">🔗 Link Payment</button>`:''}
         ${isApproved?`<button class="btn bs xs" onclick="sendBillToPayments('${b.id}')" style="font-size:10px;margin-left:4px;color:var(--go)">→ Pay</button>`:''}
         ${hasTopsheet?`<button class="btn bs xs" onclick="alPromptFlexBill((DB.bills||[]).find(x=>x.id==='${b.id}'))" style="font-size:10px;margin-left:4px;color:var(--pu);border-color:var(--pu)">🔗 Link</button>`:''}
       </td>
@@ -21019,17 +21134,31 @@ function renderBills(){
             <th style="white-space:nowrap">Date</th><th>Vendor</th><th>Category</th><th>Sub-Category</th>
             <th class="tr" style="white-space:nowrap">Amount ₹</th><th class="tr" style="white-space:nowrap">GST ₹</th><th class="tr" style="white-space:nowrap;color:var(--gn)">Total ₹</th>
             <th>Status</th><th style="white-space:nowrap">Shoot Date</th>
+            <th class="no-print" style="white-space:nowrap;width:130px">Phase</th>
             <th style="white-space:nowrap;width:80px">📎 Scans</th>
             <th class="no-print" style="white-space:nowrap">Actions</th>
           </tr></thead>
           <tbody>${rowsHtml}</tbody>
-          <tfoot><tr class="tfoot-row"><td colspan="6" class="tr semi xs2">GROUP TOTAL</td><td class="tr mono semi" style="color:var(--gn)">${fmt(gTotal)}</td><td colspan="4"></td></tr></tfoot>
+          <tfoot><tr class="tfoot-row"><td colspan="6" class="tr semi xs2">GROUP TOTAL</td><td class="tr mono semi" style="color:var(--gn)">${fmt(gTotal)}</td><td colspan="5"></td></tr></tfoot>
         </table>
         </div>
       </div>
     </div>`;
   }).join('');
   updateBillsBadge();
+}
+// Lets any bill (however it was created — scan upload, Flexible Topsheet,
+// or Generate Bill from Hotels/Flights/Vehicles) be assigned or reassigned
+// to a phase/schedule directly from Bills Archive. Previously there was no
+// way to do this at all after a bill was created — it just sat in
+// "Unassigned" permanently unless schedId happened to be set at creation.
+function setBillPhase(billId,val){
+  const b=(DB.bills||[]).find(x=>x.id===billId);
+  if(!b)return;
+  b.schedId=val||'';
+  saveDB();
+  toast(val?'✓ Assigned to '+phaseLabel(val):'Moved back to Unassigned');
+  renderBills();
 }
 function toggleBillGroup(id){
   const body=document.getElementById('body_'+id);
