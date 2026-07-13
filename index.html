@@ -21209,9 +21209,6 @@ function renderBills(){
       <td class="tr mono semi" style="color:${isPaid?'#22c55e':'var(--gn)'}">${fmt(b.total)}</td>
       <td>${st}</td>
       <td class="xs2 dim">${fmtD(b.shootDate)}</td>
-      <td class="no-print" style="padding:4px 6px">
-        ${!b.schedId?`<select class="btn bs xs" style="font-size:10px;max-width:150px" onchange="setBillPhase('${b.id}',this.value)">${getPhaseOptionsHtml(b.schedId)}</select>`:''}
-      </td>
       ${scanCell}
       <td class="no-print" style="white-space:nowrap">
         <button class="btn bs xs" onclick="viewBill('${b.id}')" style="font-size:10px">View</button>
@@ -21261,12 +21258,11 @@ function renderBills(){
             <th style="white-space:nowrap">Date</th><th>Vendor</th><th>Category</th><th>Sub-Category</th>
             <th class="tr" style="white-space:nowrap">Amount ₹</th><th class="tr" style="white-space:nowrap">GST ₹</th><th class="tr" style="white-space:nowrap;color:var(--gn)">Total ₹</th>
             <th>Status</th><th style="white-space:nowrap">Shoot Date</th>
-            <th class="no-print" style="white-space:nowrap;width:130px">Phase</th>
             <th style="white-space:nowrap;width:80px">📎 Scans</th>
             <th class="no-print" style="white-space:nowrap">Actions</th>
           </tr></thead>
           <tbody>${rowsHtml}</tbody>
-          <tfoot><tr class="tfoot-row"><td colspan="6" class="tr semi xs2">GROUP TOTAL</td><td class="tr mono semi" style="color:var(--gn)">${fmt(gTotal)}</td><td colspan="5"></td></tr></tfoot>
+          <tfoot><tr class="tfoot-row"><td colspan="6" class="tr semi xs2">GROUP TOTAL</td><td class="tr mono semi" style="color:var(--gn)">${fmt(gTotal)}</td><td colspan="4"></td></tr></tfoot>
         </table>
         </div>
       </div>
