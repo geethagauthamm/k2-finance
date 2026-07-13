@@ -1374,6 +1374,7 @@ body.auditor-mode #save-btn { display:none !important; }
         <div class="fld" style="padding-top:18px"><button class="btn bg" onclick="addVehicle()">+ Add</button></div>
       </div>
       <div class="flex aic gap12">
+        <div class="fld" style="max-width:180px;flex:1"><label>Vehicle Number</label><input type="text" id="veh-number" placeholder="TS 09 AB 1234"></div>
         <div class="fld" style="max-width:300px;flex:1"><label>Notes</label><input type="text" id="veh-notes" placeholder="Purpose, route..."></div>
         <div class="fld" style="max-width:220px;flex:1"><label>Phase</label><select id="veh-phase"><option value="">— Select Phase —</option></select></div>
       </div>
@@ -1394,7 +1395,7 @@ body.auditor-mode #save-btn { display:none !important; }
         <span id="veh-cs-badge" class="xs2 dim" style="font-weight:600"></span>
       </div>
       <div class="tw"><table><thead><tr>
-        <th class="tr" style="width:28px">#</th><th>Type</th><th>Vendor</th><th>Qty</th>
+        <th class="tr" style="width:28px">#</th><th>Type</th><th>Vendor</th><th>Veh. No.</th><th>Qty</th>
         <th class="tr">Hire/day</th><th class="tr">Hire Total</th>
         <th class="tr">Batta/CS</th><th class="tr">Batta Total</th>
         <th class="tr">Fuel Est</th><th class="tr">Grand Total</th>
@@ -10430,9 +10431,9 @@ function addVehicle(){
   const total=(hire+batta*cs)*qty+fuel;
   if(!DB.vehicles)DB.vehicles={};
   if(!DB.vehicles[date])DB.vehicles[date]=[];
-  DB.vehicles[date].push({id:uid(),type,vendorName:document.getElementById('veh-vendor-name')?.value||'',qty,hire,batta,fuel,total,notes:document.getElementById('veh-notes')?.value||'',phase,actHire:0,actBatta:0,actFuel:0});
+  DB.vehicles[date].push({id:uid(),type,vendorName:document.getElementById('veh-vendor-name')?.value||'',vehNumber:(document.getElementById('veh-number')?.value||'').trim(),qty,hire,batta,fuel,total,notes:document.getElementById('veh-notes')?.value||'',phase,actHire:0,actBatta:0,actFuel:0});
   saveDB();renderVehicleLog();renderEstTable();renderVehiclesMaster();
-  ['veh-type','veh-vendor-name','veh-hire','veh-batta','veh-fuel','veh-notes'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
+  ['veh-type','veh-vendor-name','veh-number','veh-hire','veh-batta','veh-fuel','veh-notes'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
   document.getElementById('veh-qty').value=1;
   document.getElementById('veh-total').value='';
   const vehPhaseEl=document.getElementById('veh-phase');if(vehPhaseEl)vehPhaseEl.value='';
@@ -10448,6 +10449,11 @@ function delVehicle(date,id){
 function saveVehActual(date,id,field,val){
   const v=(DB.vehicles||{})[date]?.find(x=>x.id===id);
   if(v){v[field]=Math.round((parseFloat(val)||0)*100)/100;saveDB();}
+}
+// For plain text fields (e.g. Vehicle Number) — no numeric rounding, just trims and saves.
+function saveVehField(date,id,field,val){
+  const v=(DB.vehicles||{})[date]?.find(x=>x.id===id);
+  if(v){v[field]=(val||'').trim();saveDB();}
 }
 
 
@@ -10859,15 +10865,15 @@ function exportVehiclesExcel(){
   if(!vehs.length){toast('No vehicles for this day','err');return;}
   const hdr=(DB.dayHeaders||{})[d]||{};
   const cs=parseFloat(hdr.cs)||1;
-  const data=[['#','Type','Vendor/Driver','Qty','Hire/Day','Hire Total','Batta/CS','Batta Total','Fuel Est','Grand Total','Act Hire','Act Batta','Act Fuel','Notes']];
+  const data=[['#','Type','Vendor/Driver','Vehicle Number','Qty','Hire/Day','Hire Total','Batta/CS','Batta Total','Fuel Est','Grand Total','Act Hire','Act Batta','Act Fuel','Notes']];
   vehs.forEach((v,i)=>{
     const hireT=(v.hire||0)*(v.qty||1);
     const battaT=(v.batta||0)*cs*(v.qty||1);
     const fuel=v.fuel||0;
-    data.push([i+1,v.type||v.vehicleType,v.vendor||'',v.qty||1,v.hire||0,hireT,v.batta||0,battaT,fuel,hireT+battaT+fuel,v.actHire||'',v.actBatta||'',v.actFuel||'',v.notes||'']);
+    data.push([i+1,v.type||v.vehicleType,v.vendorName||v.vendor||'',v.vehNumber||'',v.qty||1,v.hire||0,hireT,v.batta||0,battaT,fuel,hireT+battaT+fuel,v.actHire||'',v.actBatta||'',v.actFuel||'',v.notes||'']);
   });
   const ws=XLSX.utils.aoa_to_sheet(data);
-  ws['!cols']=[{wch:4},{wch:14},{wch:16},{wch:5},{wch:10},{wch:10},{wch:10},{wch:10},{wch:10},{wch:12},{wch:10},{wch:10},{wch:10},{wch:20}];
+  ws['!cols']=[{wch:4},{wch:14},{wch:16},{wch:14},{wch:5},{wch:10},{wch:10},{wch:10},{wch:10},{wch:10},{wch:12},{wch:10},{wch:10},{wch:10},{wch:20}];
   const wb=XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb,ws,'Vehicles');
   xlsxDownload(wb,'K2_Vehicles_'+d);
@@ -11059,7 +11065,7 @@ function renderVehicleLog(){
   const tb=document.getElementById('veh-log-body');
   const tf=document.getElementById('veh-log-foot');
   if(!tb)return;
-  if(!vehs.length){tb.innerHTML='<tr><td colspan="14" class="te">No vehicles added for this date</td></tr>';if(tf)tf.innerHTML='';return;}
+  if(!vehs.length){tb.innerHTML='<tr><td colspan="15" class="te">No vehicles added for this date</td></tr>';if(tf)tf.innerHTML='';return;}
   let tHire=0,tBatta=0,tFuel=0,tTotal=0,tAH=0,tAB=0,tAF=0;
   tb.innerHTML=vehs.map(v=>{
     const hireT=(v.hire||0)*(v.qty||1);
@@ -11073,6 +11079,7 @@ function renderVehicleLog(){
       <td class="tr dim xs2" style="width:28px">${_vnum}</td>
       <td class="semi">${v.type}</td>
       <td class="dim xs2">${v.vendorName||'—'}</td>
+      <td class="dim xs2"><input class="act-inline" type="text" value="${(v.vehNumber||'').replace(/"/g,'&quot;')}" placeholder="Veh. No." style="width:100px" onchange="saveVehField('${d}','${v.id}','vehNumber',this.value)"></td>
       <td>${v.qty}</td>
       <td class="tn tr">${fmt(v.hire)}</td>
       <td class="tn tr blue">${fmt(hireT)}</td>
@@ -11088,7 +11095,7 @@ function renderVehicleLog(){
     </tr>`;
   }).join('');
   if(tf)tf.innerHTML=`<tr class="veh-total-row">
-    <td colspan="3" style="padding:8px">Total — ${vehs.length} vehicle(s)</td>
+    <td colspan="4" style="padding:8px">Total — ${vehs.length} vehicle(s)</td>
     <td></td><td class="tn tr blue">${fmt(tHire)}</td>
     <td></td><td class="tn tr blue">${fmt(tBatta)}</td>
     <td class="tn tr">${fmt(tFuel)}</td>
