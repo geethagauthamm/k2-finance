@@ -1154,6 +1154,7 @@ body.auditor-mode #save-btn { display:none !important; }
         <div class="pvbox" style="min-width:120px"><div class="pvl">Total Cost</div><div class="pvv" id="htl-total" style="color:var(--gn)">—</div></div>
         <div class="fld" style="flex:1"><label>Notes</label><input type="text" id="htl-notes" placeholder="Remarks..."></div>
         <div class="fld" style="flex:1"><label>Phase</label><select id="htl-phase"><option value="">— Select Phase —</option></select></div>
+        <div class="fld" style="max-width:150px"><label>Advance Paid ₹</label><input type="number" id="htl-advance" placeholder="if any"></div>
       </div>
     </div>
   </div>
@@ -1209,10 +1210,15 @@ body.auditor-mode #save-btn { display:none !important; }
         <div class="fld"><label>Reason for Travel</label><input type="text" id="flt-reason" placeholder="Schedule / Recce..."></div>
         <div class="fld"><label>Approved By</label><input type="text" id="flt-approved" placeholder="EP / Producer..."></div>
       </div>
-      <div class="fg mb8" style="grid-template-columns:2fr 1fr auto">
+      <div class="fg mb8" style="grid-template-columns:1.4fr 2fr 1fr auto">
+        <div class="fld"><label>Vendor / Agency (if paid via agency, not airline)</label><input type="text" id="flt-vendor" placeholder="Leave blank to use Airline"></div>
         <div class="fld"><label>Comments</label><input type="text" id="flt-notes" placeholder="PNR, remarks, special instructions..."></div>
         <div class="fld"><label>Count (Pax)</label><input type="number" id="flt-count" value="1" min="1" oninput="fltCalcTotal()"></div>
         <div class="fld" style="padding-top:18px"><button class="btn bg" onclick="addFlight()">+ Add</button></div>
+      </div>
+      <div class="fg mb8" style="grid-template-columns:1fr 3fr">
+        <div class="fld"><label>Advance Paid ₹</label><input type="number" id="flt-advance" placeholder="if any"></div>
+        <div></div>
       </div>
       <div class="xs2 dim" id="flt-total-preview" style="margin-top:-2px;margin-bottom:4px"></div>
     </div>
@@ -1392,6 +1398,7 @@ body.auditor-mode #save-btn { display:none !important; }
         <div class="fld" style="max-width:180px;flex:1"><label>Vehicle Number</label><input type="text" id="veh-number" placeholder="TS 09 AB 1234"></div>
         <div class="fld" style="max-width:300px;flex:1"><label>Notes</label><input type="text" id="veh-notes" placeholder="Purpose, route..."></div>
         <div class="fld" style="max-width:220px;flex:1"><label>Phase</label><select id="veh-phase"><option value="">— Select Phase —</option></select></div>
+        <div class="fld" style="max-width:150px"><label>Advance Paid ₹</label><input type="number" id="veh-advance" placeholder="if any"></div>
       </div>
     </div>
     <div class="card no-print">
@@ -10302,6 +10309,13 @@ function addHotel(){
 
   DB.hotels.push({id:uid(),name,roomType:(document.getElementById('htl-room')?.value||'').trim(),guest,rooms,rate,checkIn:ci,checkOut:co,nights,total,notes,phase,actCost:0});
 
+  const advanceAmt=parseFloat(document.getElementById('htl-advance')?.value)||0;
+  let advanceMsg='';
+  if(advanceAmt){
+    const rec=recordAdvancePayment(name,advanceAmt,ci,'Advance against Requisition',name+(guest?' ('+guest+')':'')+' — Hotel Advance');
+    advanceMsg=rec?' · Advance ₹'+fmt(advanceAmt)+' recorded':' · Advance NOT recorded ('+name+' needs a Vendor/Artist record first)';
+  }
+
   // Add to estimates day-by-day
   let d=new Date(ci+'T00:00:00');
   const end=new Date(co+'T00:00:00');
@@ -10329,11 +10343,11 @@ function addHotel(){
   }
 
   saveDB();renderHotels();
-  ['htl-name','htl-room','htl-guest','htl-rate','htl-checkin','htl-checkout','htl-notes'].forEach(x=>{const el=document.getElementById(x);if(el)el.value='';});
+  ['htl-name','htl-room','htl-guest','htl-rate','htl-checkin','htl-checkout','htl-notes','htl-advance'].forEach(x=>{const el=document.getElementById(x);if(el)el.value='';});
   document.getElementById('htl-rooms').value='1';
   const htlPhaseEl=document.getElementById('htl-phase');if(htlPhaseEl)htlPhaseEl.value='';
   document.getElementById('htl-preview').textContent='';
-  toast('✓ '+name+' added — '+nights+' nights, ₹'+fmt(total)+' split across '+added+' days');
+  toast('✓ '+name+' added — '+nights+' nights, ₹'+fmt(total)+' split across '+added+' days'+advanceMsg);
 }
 
 function resyncHotelsToEstimates(){
@@ -10482,18 +10496,31 @@ function addVehicle(){
   const batta=parseFloat(document.getElementById('veh-batta')?.value)||0;
   const fuel=parseFloat(document.getElementById('veh-fuel')?.value)||0;
   const phase=document.getElementById('veh-phase')?.value||'';
+  const vendorName=document.getElementById('veh-vendor-name')?.value||'';
   const hdr=(DB.dayHeaders||{})[date]||{};
   const cs=parseFloat(hdr.cs)||1;
   const total=(hire+batta*cs)*qty+fuel;
   if(!DB.vehicles)DB.vehicles={};
   if(!DB.vehicles[date])DB.vehicles[date]=[];
-  DB.vehicles[date].push({id:uid(),type,vendorName:document.getElementById('veh-vendor-name')?.value||'',vehNumber:(document.getElementById('veh-number')?.value||'').trim(),qty,hire,batta,fuel,total,notes:document.getElementById('veh-notes')?.value||'',phase,actHire:0,actBatta:0,actFuel:0});
+  DB.vehicles[date].push({id:uid(),type,vendorName,vehNumber:(document.getElementById('veh-number')?.value||'').trim(),qty,hire,batta,fuel,total,notes:document.getElementById('veh-notes')?.value||'',phase,actHire:0,actBatta:0,actFuel:0});
+
+  const advanceAmt=parseFloat(document.getElementById('veh-advance')?.value)||0;
+  let advanceMsg='';
+  if(advanceAmt){
+    if(!vendorName.trim()){
+      advanceMsg=' · Advance NOT recorded (enter a Vendor/Driver name first)';
+    }else{
+      const rec=recordAdvancePayment(vendorName,advanceAmt,date,'Advance against Requisition',type+' — Vehicle Advance');
+      advanceMsg=rec?' · Advance ₹'+fmt(advanceAmt)+' recorded':' · Advance NOT recorded ('+vendorName+' needs a Vendor/Artist record first)';
+    }
+  }
+
   saveDB();renderVehicleLog();renderEstTable();renderVehiclesMaster();
-  ['veh-type','veh-vendor-name','veh-number','veh-hire','veh-batta','veh-fuel','veh-notes'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
+  ['veh-type','veh-vendor-name','veh-number','veh-hire','veh-batta','veh-fuel','veh-notes','veh-advance'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
   document.getElementById('veh-qty').value=1;
   document.getElementById('veh-total').value='';
   const vehPhaseEl=document.getElementById('veh-phase');if(vehPhaseEl)vehPhaseEl.value='';
-  toast(`✓ ${qty}× ${type} added — ${fmt(total)}`);
+  toast(`✓ ${qty}× ${type} added — ${fmt(total)}`+advanceMsg);
 }
 
 function delVehicle(date,id){
@@ -12696,7 +12723,14 @@ function saveActor(){
 function addInst(aid){
   const a=DB.actorContracts.find(x=>x.id===aid);if(!a)return;
   const amt=parseFloat(document.getElementById('ia-a-'+aid).value)||0;if(!amt){toast('Amount required','err');return;}
-  a.instalments.push({id:uid(),date:document.getElementById('ia-d-'+aid).value,amount:amt,mode:document.getElementById('ia-m-'+aid).value,status:document.getElementById('ia-s-'+aid).value,notes:document.getElementById('ia-n-'+aid).value});
+  const date=document.getElementById('ia-d-'+aid).value;
+  const status=document.getElementById('ia-s-'+aid).value;
+  a.instalments.push({id:uid(),date,amount:amt,mode:document.getElementById('ia-m-'+aid).value,status,notes:document.getElementById('ia-n-'+aid).value});
+  // Paid installments are real money already moved for this artist — record
+  // them as an advance too (same system Hotels/Flights/Vehicles use), so
+  // when an actual bill comes in for them later, it auto-links instead of
+  // this installment sitting invisibly on the contract record only.
+  if(status==='Paid')recordAdvancePayment(a.name,amt,date,'ATL / Talent',a.name+' — Artist Installment');
   saveDB();renderActors();toast(fmt(amt)+' added');
 }
 function delInst(aid,iid){const a=DB.actorContracts.find(x=>x.id===aid);if(a)a.instalments=a.instalments.filter(i=>i.id!==iid);saveDB();renderActors();}
@@ -15633,18 +15667,27 @@ function addFlight(){
   const reason=(document.getElementById('flt-reason')?.value||'').trim();
   const approved=(document.getElementById('flt-approved')?.value||'').trim();
   const notes=(document.getElementById('flt-notes')?.value||'').trim();
-  const entry={id:uid(),bookdate,date,pax,dept,phase,airline,from,to,travelClass,mmt,ticket,actCost:actual,luggage,meals,seat,reason,approved,notes,count,actualPerPax,
+  const vendor=(document.getElementById('flt-vendor')?.value||'').trim()||airline;
+  const entry={id:uid(),bookdate,date,pax,dept,phase,airline,vendor,from,to,travelClass,mmt,ticket,actCost:actual,luggage,meals,seat,reason,approved,notes,count,actualPerPax,
     // legacy compat
     estCost:mmt};
   if(!DB.flights)DB.flights=[];
   DB.flights.push(entry);
+
+  const advanceAmt=parseFloat(document.getElementById('flt-advance')?.value)||0;
+  let advanceMsg='';
+  if(advanceAmt){
+    const rec=recordAdvancePayment(vendor,advanceAmt,date,'Advance against Requisition',pax+' — Flight Advance ('+(airline||'')+' '+(from||'')+'→'+(to||'')+')');
+    advanceMsg=rec?' · Advance ₹'+fmt(advanceAmt)+' recorded':' · Advance NOT recorded ('+vendor+' needs a Vendor/Artist record first)';
+  }
+
   saveDB();renderFlights();
-  ['flt-airline','flt-pax','flt-from','flt-to','flt-notes','flt-mmt','flt-ticket','flt-actual','flt-luggage','flt-meals','flt-seat','flt-reason','flt-approved','flt-dept','flt-bookdate'].forEach(x=>{const el=document.getElementById(x);if(el)el.value='';});
+  ['flt-airline','flt-vendor','flt-pax','flt-from','flt-to','flt-notes','flt-mmt','flt-ticket','flt-actual','flt-luggage','flt-meals','flt-seat','flt-reason','flt-approved','flt-dept','flt-bookdate','flt-advance'].forEach(x=>{const el=document.getElementById(x);if(el)el.value='';});
   document.getElementById('flt-count').value='1';
   document.getElementById('flt-class').value='';
   document.getElementById('flt-phase').value='';
   document.getElementById('flt-total-preview').textContent='';
-  toast('✓ Flight added for '+fmtD(date)+(count>1&&actual>0?' ('+count+' pax, ₹'+fm(actual)+' total actual)':''));
+  toast('✓ Flight added for '+fmtD(date)+(count>1&&actual>0?' ('+count+' pax, ₹'+fm(actual)+' total actual)':'')+advanceMsg);
 }
 
 function editFlight(id){
@@ -19228,8 +19271,9 @@ function generateHotelsBill(){
   if(!DB.bills)DB.bills=[];
   DB.bills.push(bill);
   sorted.forEach(h=>{h.billed=true;h.billId=billId;});
+  const linkedCount=autoLinkAdvancesForVendor(bill);
   saveDB();
-  toast('✓ Bill created for '+fmt(subtotal)+' ('+sorted.length+' booking(s))');
+  toast('✓ Bill created for '+fmt(subtotal)+' ('+sorted.length+' booking(s))'+(linkedCount?' · '+linkedCount+' advance payment(s) auto-linked':''));
   renderHotels();
   if(typeof renderBills==='function')renderBills();
   if(typeof updateBillsBadge==='function')updateBillsBadge();
@@ -19261,8 +19305,9 @@ function generateFlightsBill(){
   if(!DB.bills)DB.bills=[];
   DB.bills.push(bill);
   sorted.forEach(f=>{f.billed=true;f.billId=billId;});
+  const linkedCount=autoLinkAdvancesForVendor(bill);
   saveDB();
-  toast('✓ Bill created for '+fmt(subtotal)+' ('+sorted.length+' flight(s))');
+  toast('✓ Bill created for '+fmt(subtotal)+' ('+sorted.length+' flight(s))'+(linkedCount?' · '+linkedCount+' advance payment(s) auto-linked':''));
   renderFlights();
   if(typeof renderBills==='function')renderBills();
   if(typeof updateBillsBadge==='function')updateBillsBadge();
@@ -19306,8 +19351,9 @@ function generateVehiclesBill(){
   if(!DB.bills)DB.bills=[];
   DB.bills.push(bill);
   sorted.forEach(x=>{x.entry.billed=true;x.entry.billId=billId;});
+  const linkedCount=autoLinkAdvancesForVendor(bill);
   saveDB();
-  toast('✓ Bill created for '+fmt(subtotal)+' ('+sorted.length+' entr'+(sorted.length===1?'y':'ies')+')');
+  toast('✓ Bill created for '+fmt(subtotal)+' ('+sorted.length+' entr'+(sorted.length===1?'y':'ies')+')'+(linkedCount?' · '+linkedCount+' advance payment(s) auto-linked':''));
   renderVehicleLog();
   if(typeof renderBills==='function')renderBills();
   if(typeof updateBillsBadge==='function')updateBillsBadge();
@@ -20209,11 +20255,13 @@ function openLinkPaymentModal(id){
   _blpBillId=id;
   document.getElementById('blp-modal-title').textContent='Link Existing Payment — '+(bill.vendor||'Vendor');
   const vendorNorm=(bill.vendor||'').toLowerCase().trim();
-  const alreadyLinked=new Set((bill.paymentRecords||[]).filter(r=>r.linkedEntryId).map(r=>r.linkedEntryId));
   const matches=[];
   Object.keys(S||{}).forEach(dayKey=>{
-    (S[dayKey]&&S[dayKey].entries||[]).forEach(e=>{
-      if((e.vendor||'').toLowerCase().trim()===vendorNorm&&!alreadyLinked.has(e.id)){
+    if(!Array.isArray(S[dayKey]?.entries))return; // skip non-day keys like _cats
+    S[dayKey].entries.forEach(e=>{
+      // Excludes entries already linked to ANY bill (not just this one) — a
+      // single payment must never be attachable to two different bills.
+      if((e.vendor||'').toLowerCase().trim()===vendorNorm&&!e.linkedBillId){
         matches.push({dayKey,entry:e});
       }
     });
@@ -20227,7 +20275,7 @@ function openLinkPaymentModal(id){
       const amt=m.entry.payAmt||m.entry.amt||0;
       return`<div style="border:1px solid var(--bd);border-radius:6px;padding:8px 12px;margin-bottom:6px;display:flex;justify-content:space-between;align-items:center;gap:10px">
         <div>
-          <div class="xs2" style="font-weight:600">${fmtD(m.dayKey)} — ${esc(m.entry.desc||m.entry.cat||'')}</div>
+          <div class="xs2" style="font-weight:600">${fmtD(m.dayKey)} — ${esc(m.entry.desc||m.entry.cat||'')}${m.entry.isAdvance?' <span class="tag ts xs3">Advance</span>':''}</div>
           <div class="xs3 dim">${fmt(amt)}${m.entry.payUTR?' · UTR '+esc(m.entry.payUTR):''} · ${esc(m.entry.payStatus==='pay-paid'?'Paid':'Not yet paid')}</div>
         </div>
         <button class="btn bg xs" onclick="linkPaymentToBill('${id}','${m.dayKey}','${m.entry.id}')">🔗 Link</button>
@@ -20245,12 +20293,74 @@ function linkPaymentToBill(billId,dayKey,entryId){
   if(!bill.paymentRecords)bill.paymentRecords=[];
   bill.paymentRecords.push({id:uid(),amount:amt,date:entry.payDate||dayKey,utr:entry.payUTR||'',
     note:'Linked from Payment Tracker: '+(entry.desc||entry.cat||''),linkedEntryId:entry.id,linkedEntryDayKey:dayKey});
+  entry.linkedBillId=billId; // mark globally spent so it can't be linked to a second bill
+  sv();
   const totalPaid=billPaidSoFar(bill);
   bill.status=totalPaid>=(bill.total||0)?'paid':'partial';
   saveDB();
   toast('✓ Linked — '+fmt(amt)+' now shown as paid against this bill');
   document.getElementById('bill-link-payment-modal').style.display='none';
   renderBills(); updateBillsBadge();
+}
+// Automatically links any unlinked ADVANCE payments for this bill's vendor —
+// called right after a bill is created (Generate Bill from Hotels/Flights/
+// Vehicles, or a bill approved from a scan) so an advance paid before the
+// final bill existed doesn't sit there needing to be found and linked by
+// hand. Manual "Link Payment" still exists for anything this misses (e.g. a
+// slightly different vendor spelling) or for non-advance payments.
+function autoLinkAdvancesForVendor(bill){
+  if(!bill||!bill.vendor)return 0;
+  if(!Object.keys(S).length)ld();
+  const vendorNorm=bill.vendor.toLowerCase().trim();
+  let linkedCount=0,linkedTotal=0;
+  Object.keys(S||{}).forEach(dayKey=>{
+    if(!Array.isArray(S[dayKey]?.entries))return; // skip non-day keys like _cats
+    S[dayKey].entries.forEach(e=>{
+      if(e.isAdvance&&!e.linkedBillId&&(e.vendor||'').toLowerCase().trim()===vendorNorm){
+        const amt=parseFloat(e.payAmt||e.amt)||0;
+        if(!bill.paymentRecords)bill.paymentRecords=[];
+        bill.paymentRecords.push({id:uid(),amount:amt,date:e.payDate||dayKey,utr:e.payUTR||'',
+          note:'Advance auto-linked: '+(e.desc||e.cat||''),linkedEntryId:e.id,linkedEntryDayKey:dayKey});
+        e.linkedBillId=bill.id;
+        linkedCount++;linkedTotal+=amt;
+      }
+    });
+  });
+  if(linkedCount){
+    sv();
+    const totalPaid=billPaidSoFar(bill);
+    bill.status=totalPaid>=(bill.total||0)?'paid':'partial';
+  }
+  return linkedCount;
+}
+// Creates a fully-recorded ADVANCE entry in Payment Tracker — used when an
+// advance is paid before any bill/final amount exists yet (Hotels, Flights,
+// Vehicles, Actors/Staff all funnel through this same helper). By the time
+// someone types an advance amount the money has already moved, so this
+// skips the pending-approval workflow and goes straight in as paid — it
+// just needs to be on the books, ready for autoLinkAdvancesForVendor to
+// find and attach once the real bill shows up.
+function recordAdvancePayment(vendor,amount,date,category,sourceLabel){
+  vendor=(vendor||'').trim();
+  const amt=parseFloat(amount)||0;
+  if(!vendor||!amt)return null;
+  if(blockIfPayeeMissing(vendor))return null;
+  if(!Object.keys(S).length)ld();
+  const day=date||tod();
+  ensureDay(day);
+  const entry={
+    id:uid(),vendor,inv:'',cat:category||'Advance',desc:'Advance — '+(sourceLabel||''),
+    invDate:day,dueDate:day,amt:amt,
+    producerStatus:'approved',producerComment:'',producerApprovedAmt:null,
+    accStatus:'acc-approved',accComment:'',accApprovedAmt:null,
+    payStatus:'pay-paid',payUTR:'',payDate:day,payAmt:amt,payUnpaidReason:'',payComment:'',
+    comments:[{date:new Date().toLocaleDateString('en-IN'),text:'Advance recorded — '+(sourceLabel||''),status:'approved'}],
+    dayKey:day,isAdvance:true
+  };
+  if(!S[day].entries)S[day].entries=[];
+  S[day].entries.push(entry);
+  sv();
+  return{dayKey:day,entryId:entry.id};
 }
 function unlinkBillPaymentRecord(billId,recordId){
   const bill=(DB.bills||[]).find(b=>b.id===billId);
@@ -20507,11 +20617,12 @@ function approveBill(id){
   const b=(DB.bills||[]).find(x=>x.id===id);if(!b)return;
   b.status='approved';
   b.approvedAt=new Date().toISOString();
+  const linkedCount=autoLinkAdvancesForVendor(b);
   saveDB();
   viewBill(id);
   if(typeof renderBills==='function')renderBills();
   if(typeof renderSchedSummary==='function'&&document.getElementById('ss-tbody'))renderSchedSummary();
-  toast('✓ Bill approved — will now show in Schedule Summary Report');
+  toast('✓ Bill approved — will now show in Schedule Summary Report'+(linkedCount?' · '+linkedCount+' advance payment(s) auto-linked':''));
 }
 
 function updateBillSchedule(id,phase){
@@ -21099,7 +21210,7 @@ function renderBills(){
       <td>${st}</td>
       <td class="xs2 dim">${fmtD(b.shootDate)}</td>
       <td class="no-print" style="padding:4px 6px">
-        <select class="btn bs xs" style="font-size:10px;max-width:150px" onchange="setBillPhase('${b.id}',this.value)">${getPhaseOptionsHtml(b.schedId)}</select>
+        ${!b.schedId?`<select class="btn bs xs" style="font-size:10px;max-width:150px" onchange="setBillPhase('${b.id}',this.value)">${getPhaseOptionsHtml(b.schedId)}</select>`:''}
       </td>
       ${scanCell}
       <td class="no-print" style="white-space:nowrap">
