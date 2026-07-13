@@ -1114,6 +1114,7 @@ body.auditor-mode #save-btn { display:none !important; }
         <div class="fld" style="flex:none"><label>From</label><input type="date" id="range-from" onchange="applyRangeFilter()"></div>
         <div class="fld" style="flex:none"><label>To</label><input type="date" id="range-to" onchange="applyRangeFilter()"></div>
         <button class="btn bs sm" onclick="clearRangeFilter()">✕ Clear</button>
+        <button class="btn bg sm" onclick="printHotelsTopsheet()">🖨 Print Topsheet</button>
         <button class="btn bs sm no-print" onclick="exportHotelsExcel()">⬇ Excel</button>
       <button class="btn bs sm" onclick="syncHotelsToEstimates()" title="Re-sync all hotel bookings to estimates">📤 Submit to Estimates</button>
         <span id="range-summary" class="xs2 dim"></span>
@@ -1159,6 +1160,17 @@ body.auditor-mode #save-btn { display:none !important; }
   <!-- FLIGHTS PAGE -->
   <div class="page" id="page-flights">
     <div class="print-header"><h1>Flight Bookings</h1></div>
+    <!-- Date Range Filter (shared with Hotels — set on either page, applies to both) -->
+    <div class="card no-print" id="flt-range-card">
+      <div class="flex aic gap12 flex-wrap">
+        <div class="ct" style="margin:0;flex:none">📅 Date Range Filter</div>
+        <div class="fld" style="flex:none"><label>From</label><input type="date" id="flt-range-from" onchange="applyFltRangeFilter()"></div>
+        <div class="fld" style="flex:none"><label>To</label><input type="date" id="flt-range-to" onchange="applyFltRangeFilter()"></div>
+        <button class="btn bs sm" onclick="clearRangeFilter()">✕ Clear</button>
+        <button class="btn bg sm" onclick="printFlightsTopsheet()">🖨 Print Topsheet</button>
+        <span id="flt-range-summary" class="xs2 dim"></span>
+      </div>
+    </div>
     <div class="card no-print">
       <div class="ct">Add Flight Booking</div>
       <div class="fg mb8" style="grid-template-columns:1fr 1fr 1fr 1fr">
@@ -9501,25 +9513,39 @@ let _rangeTo = '';
 function applyRangeFilter(){
   _rangeFrom = document.getElementById('range-from')?.value || '';
   _rangeTo = document.getElementById('range-to')?.value || '';
-  const lbl = document.getElementById('range-summary');
-  if(lbl){
-    if(_rangeFrom && _rangeTo) lbl.textContent = fmtD(_rangeFrom)+' → '+fmtD(_rangeTo);
-    else if(_rangeFrom) lbl.textContent = 'From '+fmtD(_rangeFrom);
-    else if(_rangeTo) lbl.textContent = 'Until '+fmtD(_rangeTo);
-    else lbl.textContent = '';
-  }
+  _syncRangeInputs();
   renderHotels();
   renderFlights();
   renderVehicleLog();
   renderActLog();
   renderSalaryEntries();
 }
+// Flights page has its own copy of the same filter bar — either one can set
+// the shared range, and both stay in sync so "pick a range once, get both
+// topsheets" works regardless of which page you set it from.
+function applyFltRangeFilter(){
+  _rangeFrom = document.getElementById('flt-range-from')?.value || '';
+  _rangeTo = document.getElementById('flt-range-to')?.value || '';
+  _syncRangeInputs();
+  renderHotels();
+  renderFlights();
+  renderVehicleLog();
+  renderActLog();
+  renderSalaryEntries();
+}
+function _syncRangeInputs(){
+  const pairs=[['range-from','range-to'],['flt-range-from','flt-range-to']];
+  pairs.forEach(([fId,tId])=>{
+    const f=document.getElementById(fId),t=document.getElementById(tId);
+    if(f)f.value=_rangeFrom; if(t)t.value=_rangeTo;
+  });
+  const summary=(_rangeFrom&&_rangeTo)?fmtD(_rangeFrom)+' → '+fmtD(_rangeTo):(_rangeFrom?'From '+fmtD(_rangeFrom):(_rangeTo?'Until '+fmtD(_rangeTo):''));
+  ['range-summary','flt-range-summary'].forEach(id=>{const el=document.getElementById(id);if(el)el.textContent=summary;});
+}
 
 function clearRangeFilter(){
   _rangeFrom = ''; _rangeTo = '';
-  const rf = document.getElementById('range-from'); if(rf) rf.value = '';
-  const rt = document.getElementById('range-to'); if(rt) rt.value = '';
-  const lbl = document.getElementById('range-summary'); if(lbl) lbl.textContent = '';
+  _syncRangeInputs();
   renderHotels();
   renderFlights();
   renderVehicleLog();
@@ -19103,6 +19129,122 @@ function printExpGridBreakdown(title,icon,dateRows,cols,getCellAmount){
 // Renders an item-rows × date-columns breakdown table for print — Hires'
 // orientation is the transpose of Mess/Production Expenses (one fixed Rate
 // per item, applying across every date column; only Qty varies per date).
+// Prints a Hotels topsheet for whatever the shared date-range filter is
+// currently set to (bookings that overlap the range at all, not just ones
+// fully inside it — same rule renderHotels already uses via bookingOverlapsRange).
+function printHotelsTopsheet(){
+  if(!_rangeFrom&&!_rangeTo){toast('Set a date range first (From / To above)','err');return;}
+  const list=(DB.hotels||[]).filter(h=>bookingOverlapsRange(h.checkIn,h.checkOut));
+  if(!list.length){toast('No hotel bookings overlap that date range','err');return;}
+  const sorted=[...list].sort((a,b)=>(a.checkIn||'').localeCompare(b.checkIn||''));
+  let grand=0;
+  const rowsHtml=sorted.map(h=>{
+    const nights=nightsInRange(h.checkIn,h.checkOut);
+    const total=Math.round((h.rooms||1)*(h.rate||0)*nights*100)/100;
+    grand+=total;
+    return`<tr>
+      <td style="padding:5px 8px;border:1px solid #ddd;font-weight:700">${esc(h.name)}</td>
+      <td style="padding:5px 8px;border:1px solid #ddd">${esc(h.guest||'—')}</td>
+      <td style="padding:5px 8px;border:1px solid #ddd">${esc(h.roomType||'—')}</td>
+      <td style="padding:5px 8px;border:1px solid #ddd;text-align:center">${h.rooms||1}</td>
+      <td style="padding:5px 8px;border:1px solid #ddd;text-align:right">${fmt(h.rate||0)}</td>
+      <td style="padding:5px 8px;border:1px solid #ddd;white-space:nowrap">${fmtD(h.checkIn)}</td>
+      <td style="padding:5px 8px;border:1px solid #ddd;white-space:nowrap">${fmtD(h.checkOut)}</td>
+      <td style="padding:5px 8px;border:1px solid #ddd;text-align:center">${nights}</td>
+      <td style="padding:5px 8px;border:1px solid #ddd;text-align:right;font-weight:700;background:#f8fafc">${fmt(total)}</td>
+      <td style="padding:5px 8px;border:1px solid #ddd;font-size:10px;color:#666">${esc(h.notes||'')}</td>
+    </tr>`;
+  }).join('');
+  const rangeLabel=(_rangeFrom&&_rangeTo)?fmtD(_rangeFrom)+' to '+fmtD(_rangeTo):(_rangeFrom?'From '+fmtD(_rangeFrom):'Until '+fmtD(_rangeTo));
+  const html=`
+    <h2 style="font-size:20px;margin:0 0 2px 0">Hotel Bookings Topsheet</h2>
+    <div style="font-size:12px;color:#888;margin-bottom:16px">Kalki 2 · Vyjayanthi Movies · ${rangeLabel} · ${sorted.length} booking(s)</div>
+    <div style="overflow-x:auto">
+    <table style="border-collapse:collapse;font-size:11px;margin-bottom:14px;width:100%">
+      <thead><tr style="background:#1e3a5f;color:#fff">
+        <th style="padding:6px 8px;text-align:left">Hotel</th>
+        <th style="padding:6px 8px;text-align:left">Guest</th>
+        <th style="padding:6px 8px;text-align:left">Room Type</th>
+        <th style="padding:6px 8px;text-align:center">Rooms</th>
+        <th style="padding:6px 8px;text-align:right">Rate/Night ₹</th>
+        <th style="padding:6px 8px;text-align:left">Check-In</th>
+        <th style="padding:6px 8px;text-align:left">Check-Out</th>
+        <th style="padding:6px 8px;text-align:center">Nights</th>
+        <th style="padding:6px 8px;text-align:right">Total ₹</th>
+        <th style="padding:6px 8px;text-align:left">Notes</th>
+      </tr></thead>
+      <tbody>${rowsHtml}
+        <tr style="background:#1e3a5f;color:#fff;font-weight:700"><td colspan="8" style="padding:9px 8px;text-align:right">GRAND TOTAL</td><td style="padding:9px 8px;text-align:right">${fmt(grand)}</td><td></td></tr>
+        <tr><td colspan="10" style="padding:40px 0 10px 0;border:none">
+          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:24px;font-size:11px;color:#666">
+            <div>Prepared by<br><br>___________________________<br>Executive Producer</div>
+            <div>Verified by<br><br>___________________________<br>Accounts Department</div>
+            <div>Approved by<br><br>___________________________<br>Producer</div>
+          </div>
+        </td></tr>
+      </tbody>
+    </table>
+    </div>`;
+  openPrintOverlay('Hotels Topsheet — '+rangeLabel, html);
+}
+
+// Prints a Flights topsheet for the same shared date-range filter, matched
+// against travel date (not booking date).
+function printFlightsTopsheet(){
+  if(!_rangeFrom&&!_rangeTo){toast('Set a date range first (From / To above)','err');return;}
+  const list=(DB.flights||[]).filter(f=>inRange(f.date));
+  if(!list.length){toast('No flights in that date range','err');return;}
+  const sorted=[...list].sort((a,b)=>(a.date||'').localeCompare(b.date||''));
+  let grand=0;
+  const rowsHtml=sorted.map(f=>{
+    const total=Math.round(((parseFloat(f.actCost)||0)+(parseFloat(f.luggage)||0))*100)/100;
+    grand+=total;
+    return`<tr>
+      <td style="padding:5px 8px;border:1px solid #ddd;white-space:nowrap">${fmtD(f.date)}</td>
+      <td style="padding:5px 8px;border:1px solid #ddd;font-weight:700">${esc(f.pax)}</td>
+      <td style="padding:5px 8px;border:1px solid #ddd">${esc(f.dept||'—')}</td>
+      <td style="padding:5px 8px;border:1px solid #ddd">${esc(f.airline||'—')}</td>
+      <td style="padding:5px 8px;border:1px solid #ddd;text-align:center;white-space:nowrap">${esc(f.from||'—')} → ${esc(f.to||'—')}</td>
+      <td style="padding:5px 8px;border:1px solid #ddd">${esc(f.travelClass||'—')}</td>
+      <td style="padding:5px 8px;border:1px solid #ddd;text-align:center">${f.count||1}</td>
+      <td style="padding:5px 8px;border:1px solid #ddd;text-align:right">${f.luggage?fmt(f.luggage):'—'}</td>
+      <td style="padding:5px 8px;border:1px solid #ddd;text-align:right;font-weight:700;background:#f8fafc">${fmt(total)}</td>
+      <td style="padding:5px 8px;border:1px solid #ddd;font-size:10px;color:#666">${esc(f.notes||'')}</td>
+    </tr>`;
+  }).join('');
+  const rangeLabel=(_rangeFrom&&_rangeTo)?fmtD(_rangeFrom)+' to '+fmtD(_rangeTo):(_rangeFrom?'From '+fmtD(_rangeFrom):'Until '+fmtD(_rangeTo));
+  const html=`
+    <h2 style="font-size:20px;margin:0 0 2px 0">Flight Bookings Topsheet</h2>
+    <div style="font-size:12px;color:#888;margin-bottom:16px">Kalki 2 · Vyjayanthi Movies · ${rangeLabel} · ${sorted.length} flight(s)</div>
+    <div style="overflow-x:auto">
+    <table style="border-collapse:collapse;font-size:11px;margin-bottom:14px;width:100%">
+      <thead><tr style="background:#1e3a5f;color:#fff">
+        <th style="padding:6px 8px;text-align:left">Date</th>
+        <th style="padding:6px 8px;text-align:left">Passenger</th>
+        <th style="padding:6px 8px;text-align:left">Dept</th>
+        <th style="padding:6px 8px;text-align:left">Airline</th>
+        <th style="padding:6px 8px;text-align:center">Route</th>
+        <th style="padding:6px 8px;text-align:left">Class</th>
+        <th style="padding:6px 8px;text-align:center">Pax</th>
+        <th style="padding:6px 8px;text-align:right">Luggage ₹</th>
+        <th style="padding:6px 8px;text-align:right">Total ₹</th>
+        <th style="padding:6px 8px;text-align:left">Notes</th>
+      </tr></thead>
+      <tbody>${rowsHtml}
+        <tr style="background:#1e3a5f;color:#fff;font-weight:700"><td colspan="8" style="padding:9px 8px;text-align:right">GRAND TOTAL</td><td style="padding:9px 8px;text-align:right">${fmt(grand)}</td><td></td></tr>
+        <tr><td colspan="10" style="padding:40px 0 10px 0;border:none">
+          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:24px;font-size:11px;color:#666">
+            <div>Prepared by<br><br>___________________________<br>Executive Producer</div>
+            <div>Verified by<br><br>___________________________<br>Accounts Department</div>
+            <div>Approved by<br><br>___________________________<br>Producer</div>
+          </div>
+        </td></tr>
+      </tbody>
+    </table>
+    </div>`;
+  openPrintOverlay('Flights Topsheet — '+rangeLabel, html);
+}
+
 function printHireBreakdown(items,dateCols){
   const activeCols=dateCols.filter(c=>c.date);
   if(!items.length||!activeCols.length)return'';
