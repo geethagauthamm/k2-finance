@@ -1354,11 +1354,13 @@ body.auditor-mode #save-btn { display:none !important; }
         <div class="ct" style="margin:0;flex:none">📅 Date Range Filter</div>
         <div class="fld" style="flex:none"><label>From</label><input type="date" id="veh-range-from" onchange="applyVehRangeFilter()"></div>
         <div class="fld" style="flex:none"><label>To</label><input type="date" id="veh-range-to" onchange="applyVehRangeFilter()"></div>
+        <div class="fld" style="flex:none;min-width:150px"><label>Bill For</label><select id="veh-component-filter"><option value="all">All (Hire + Batta + Fuel)</option><option value="hire">Hire only</option><option value="batta">Batta only</option><option value="fuel">Fuel only</option></select></div>
         <button class="btn bs sm" onclick="clearRangeFilter()">✕ Clear</button>
         <button class="btn bg sm" onclick="printVehiclesTopsheet()">🖨 Print Topsheet</button>
         <button class="btn bg sm" onclick="generateVehiclesBill()" style="background:var(--gn2,#166534)">🧾 Generate Bill</button>
         <span id="veh-range-summary" class="xs2 dim"></span>
       </div>
+      <div class="xs2 dim" style="margin-top:6px">If Hire goes to a rental vendor and Batta goes to the driver, generate two separate bills from the same entries — pick "Hire only" for one, "Batta only" for the other. Each portion tracks its own billed status, so doing both won't double-count.</div>
     </div>
     <div class="card no-print">
       <div class="ct">Add Vehicle Entry</div>
@@ -19318,26 +19320,33 @@ function generateFlightsBill(){
 // falling back to the Estimated total otherwise.
 function generateVehiclesBill(){
   if(!_rangeFrom&&!_rangeTo){toast('Set a date range first (From / To above)','err');return;}
+  const component=document.getElementById('veh-component-filter')?.value||'all';
   const dates=Object.keys(DB.vehicles||{}).filter(d=>inRange(d)).sort();
   const flat=[];
   dates.forEach(d=>{
     const cs=parseFloat((DB.dayHeaders||{})[d]?.cs)||1;
     (DB.vehicles[d]||[]).forEach(v=>{
-      if(v.billed)return;
-      const hireT=(v.hire||0)*(v.qty||1);
-      const battaT=(v.batta||0)*cs*(v.qty||1);
-      const fuelT=v.fuel||0;
-      const estTotal=hireT+battaT+fuelT;
-      const actTotal=(v.actHire||0)+(v.actBatta||0)+(v.actFuel||0);
-      flat.push({date:d,entry:v,amount:actTotal>0?actTotal:estTotal});
+      if(v.billed)return; // legacy: entry was fully billed before per-component tracking existed
+      const hireT=(v.actHire>0)?v.actHire:(v.hire||0)*(v.qty||1);
+      const battaT=(v.actBatta>0)?v.actBatta:(v.batta||0)*cs*(v.qty||1);
+      const fuelT=(v.actFuel>0)?v.actFuel:(v.fuel||0);
+      const wantHire=(component==='all'||component==='hire')&&!v.hireBilled;
+      const wantBatta=(component==='all'||component==='batta')&&!v.battaBilled;
+      const wantFuel=(component==='all'||component==='fuel')&&!v.fuelBilled;
+      let amount=0;const label=[];
+      if(wantHire&&hireT){amount+=hireT;label.push('Hire');}
+      if(wantBatta&&battaT){amount+=battaT;label.push('Batta');}
+      if(wantFuel&&fuelT){amount+=fuelT;label.push('Fuel');}
+      if(!amount)return;
+      flat.push({date:d,entry:v,amount,label:label.join(' + '),wantHire,wantBatta,wantFuel});
     });
   });
-  if(!flat.length){toast('No unbilled vehicle entries in that date range','err');return;}
-  const vendor=(prompt('Vendor / Payee name for this bill:','')||'').trim();
+  if(!flat.length){toast('No unbilled vehicle entries'+(component!=='all'?' for '+component:'')+' in that date range','err');return;}
+  const vendor=(prompt('Vendor / Payee name for this bill'+(component!=='all'?' ('+component+' portion)':'')+':','')||'').trim();
   if(!vendor){toast('Vendor name is required','err');return;}
   const sorted=[...flat].sort((a,b)=>a.date.localeCompare(b.date));
   const items=sorted.map(x=>({
-    description:`${x.entry.type}${x.entry.vendorName?' — '+x.entry.vendorName:''}${x.entry.vehNumber?' ('+x.entry.vehNumber+')':''}`,
+    description:`${x.entry.type}${x.entry.vendorName?' — '+x.entry.vendorName:''}${x.entry.vehNumber?' ('+x.entry.vehNumber+')':''} — ${x.label}`,
     dept:'',sub:x.entry.type,qty:x.entry.qty||1,rate:0,amount:Math.round(x.amount*100)/100,
     _date:x.date,_breakdown:'',_dayType:'',_remarks:x.entry.notes||''}));
   const subtotal=Math.round(items.reduce((s,i)=>s+i.amount,0)*100)/100;
@@ -19345,12 +19354,17 @@ function generateVehiclesBill(){
   const billId=uid();
   const bill={id:billId,uploadedAt:new Date().toISOString(),vendor,billNo:'',billDate:tod(),schedId:'',
     shootDate:uniqueDates[0],shootDateFrom:uniqueDates.length>1?uniqueDates[0]:null,shootDateTo:uniqueDates.length>1?uniqueDates[uniqueDates.length-1]:null,
-    department:'Vehicles',subdept:'',items,subtotal,gst:0,total:subtotal,
+    department:'Vehicles',subdept:component!=='all'?(component.charAt(0).toUpperCase()+component.slice(1)):'',items,subtotal,gst:0,total:subtotal,
     status:'approved',approvedAt:new Date().toISOString(),paidAt:null,
-    imageData:null,imageType:null,notes:'Generated from Vehicles Log',manpower:null};
+    imageData:null,imageType:null,notes:'Generated from Vehicles Log'+(component!=='all'?' ('+component+' portion)':''),manpower:null};
   if(!DB.bills)DB.bills=[];
   DB.bills.push(bill);
-  sorted.forEach(x=>{x.entry.billed=true;x.entry.billId=billId;});
+  sorted.forEach(x=>{
+    if(x.wantHire){x.entry.hireBilled=true;x.entry.hireBillId=billId;}
+    if(x.wantBatta){x.entry.battaBilled=true;x.entry.battaBillId=billId;}
+    if(x.wantFuel){x.entry.fuelBilled=true;x.entry.fuelBillId=billId;}
+    if(x.entry.hireBilled&&x.entry.battaBilled&&x.entry.fuelBilled){x.entry.billed=true;x.entry.billId=billId;}
+  });
   const linkedCount=autoLinkAdvancesForVendor(bill);
   saveDB();
   toast('✓ Bill created for '+fmt(subtotal)+' ('+sorted.length+' entr'+(sorted.length===1?'y':'ies')+')'+(linkedCount?' · '+linkedCount+' advance payment(s) auto-linked':''));
