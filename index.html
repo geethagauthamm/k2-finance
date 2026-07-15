@@ -1984,6 +1984,27 @@ body.auditor-mode #save-btn { display:none !important; }
     </div>
   </div>
 
+  <!-- Edit Remarks — a single view/edit place for all three note sources that
+       feed into a topsheet row's Remarks column (deviation notes from
+       Call/Pack/CS changes, Other Charges note, and manual remarks), so
+       nothing needs to go through blind prompt() popups that can't be
+       reviewed or corrected afterward. -->
+  <div id="fx-remarks-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:9500;align-items:center;justify-content:center">
+    <div style="max-width:520px;width:95%;background:var(--sf);border:1px solid var(--bd);border-radius:12px;padding:20px 22px">
+      <div class="semi" style="font-size:15px;margin-bottom:2px">Edit Remarks — <span id="fxrm-date-label"></span></div>
+      <div class="xs2 dim" style="margin-bottom:14px">These combine into the Remarks column shown on screen and on the printed topsheet.</div>
+      <div class="fld mb10"><label>Call/Pack/CS deviation notes (one per field — edit or clear individually below)</label>
+        <div id="fxrm-deviation-fields"></div>
+      </div>
+      <div class="fld mb10"><label>Other Charges note</label><textarea id="fxrm-other" rows="2" style="width:100%;box-sizing:border-box"></textarea></div>
+      <div class="fld mb10"><label>Manual remark</label><textarea id="fxrm-manual" rows="2" style="width:100%;box-sizing:border-box"></textarea></div>
+      <div class="flex gap8" style="justify-content:flex-end;margin-top:8px">
+        <button class="btn bs" onclick="document.getElementById('fx-remarks-modal').style.display='none'">Cancel</button>
+        <button class="btn bg" onclick="fxSaveRemarksModal()">✓ Save</button>
+      </div>
+    </div>
+  </div>
+
   <!-- INBOX -->
   <div class="page" id="page-inbox">
     <div class="print-header"><h1 id="inbox-title">Inbox</h1></div>
@@ -18025,12 +18046,42 @@ function fxOtherChargesChanged(idx,val){
   fxRenderTable();
 }
 
-function fxEditManualRemark(idx){
+let _fxRemarksModalIdx=null;
+const FX_DEVIATION_FIELDS=[['callTime','Call Time'],['packTime','Pack Up Time'],['cs','No. of CS']];
+function fxOpenRemarksModal(idx){
   const row=_fxRows[idx];
-  const note=prompt('Manual remark for this row:',row.remarks||'');
-  if(note===null)return;
-  row.remarks=note.trim();
+  if(!row)return;
+  _fxRemarksModalIdx=idx;
+  document.getElementById('fxrm-date-label').textContent=row.date?fmtD(row.date):'';
+  document.getElementById('fxrm-deviation-fields').innerHTML=FX_DEVIATION_FIELDS.map(([field,label])=>{
+    const val=fxGetDeviationNote(row,field);
+    return`<div class="flex aic gap8" style="margin-bottom:6px">
+      <span class="xs2 dim" style="width:90px;flex:none">${label}</span>
+      <input type="text" id="fxrm-dev-${field}" value="${(val||'').replace(/"/g,'&quot;')}" placeholder="no note" style="flex:1;box-sizing:border-box;background:var(--sf2);border:1px solid var(--bd2);border-radius:4px;padding:4px 6px;font-size:11px">
+      <button onclick="document.getElementById('fxrm-dev-${field}').value=''" title="Clear" style="background:none;border:none;color:var(--rd);cursor:pointer;font-size:12px">✕</button>
+    </div>`;
+  }).join('');
+  document.getElementById('fxrm-other').value=row.otherChargesNote||'';
+  document.getElementById('fxrm-manual').value=row.remarks||'';
+  document.getElementById('fx-remarks-modal').style.display='flex';
+}
+function fxSaveRemarksModal(){
+  const idx=_fxRemarksModalIdx;
+  const row=_fxRows[idx];
+  if(!row)return;
+  FX_DEVIATION_FIELDS.forEach(([field])=>{
+    const val=document.getElementById('fxrm-dev-'+field)?.value.trim()||'';
+    fxSetDeviationNote(row,field,val);
+  });
+  row.otherChargesNote=document.getElementById('fxrm-other')?.value.trim()||'';
+  row.remarks=document.getElementById('fxrm-manual')?.value.trim()||'';
+  document.getElementById('fx-remarks-modal').style.display='none';
   fxRenderTable();
+  if(typeof fxSaveDraft==='function')fxSaveDraft();
+  toast('✓ Remarks updated');
+}
+function fxEditManualRemark(idx){
+  fxOpenRemarksModal(idx);
 }
 
 function fxRenderRoles(){
@@ -18166,16 +18217,37 @@ function fxCheckDeviance(idx,field,newVal){
   if(!snap)return; // no call sheet on file for this date — nothing to deviate from
   const snapVal=snap[field];
   if(snapVal==null||snapVal==='')return; // call sheet didn't specify this field
-  if(String(newVal)===String(snapVal))return; // matches — no deviance
+  if(String(newVal)===String(snapVal)){
+    // Back to matching the call sheet — remove any stale note for this field.
+    fxSetDeviationNote(row,field,null);
+    return;
+  }
   const fieldLabel={callTime:'Call Time',packTime:'Pack Up Time',cs:'No. of CS'}[field]||field;
-  const reason=prompt(`⚠ ${fieldLabel} for ${fmtD(row.date)} (${newVal}) differs from the Call Sheet (${snapVal}).\n\nReason for this deviation:`,row.deviationNote||'');
+  const existing=fxGetDeviationNote(row,field);
+  const reason=prompt(`⚠ ${fieldLabel} for ${fmtD(row.date)} (${newVal}) differs from the Call Sheet (${snapVal}).\n\nReason for this deviation:`,existing||'');
   if(reason===null){
     // Revert to call sheet value if they cancel
     row[field]=snapVal;
     fxRenderTable();
     return;
   }
-  row.deviationNote=(row.deviationNote?row.deviationNote+'; ':'')+`${fieldLabel}: ${reason.trim()}`;
+  fxSetDeviationNote(row,field,reason.trim());
+}
+// row.deviationNote holds one note per field as "Label: text" segments joined
+// by "; " — these helpers read/replace a single field's segment in place
+// instead of blindly appending a new one every time that field is re-edited,
+// which is what caused duplicate/bulky remarks before.
+function fxGetDeviationNote(row,field){
+  const fieldLabel={callTime:'Call Time',packTime:'Pack Up Time',cs:'No. of CS'}[field]||field;
+  const segs=(row.deviationNote||'').split('; ').filter(Boolean);
+  const seg=segs.find(s=>s.startsWith(fieldLabel+': '));
+  return seg?seg.slice(fieldLabel.length+2):'';
+}
+function fxSetDeviationNote(row,field,text){
+  const fieldLabel={callTime:'Call Time',packTime:'Pack Up Time',cs:'No. of CS'}[field]||field;
+  const segs=(row.deviationNote||'').split('; ').filter(Boolean).filter(s=>!s.startsWith(fieldLabel+': '));
+  if(text)segs.push(`${fieldLabel}: ${text}`);
+  row.deviationNote=segs.join('; ');
 }
 
 function fxRowCalc(idx){
@@ -18264,7 +18336,7 @@ function fxRenderTable(){
       <td style="padding:4px 6px;word-wrap:break-word;white-space:normal;min-width:220px;font-size:10px" title="${remarksDisplay.replace(/"/g,'&quot;')}">
         <input type="text" value="${remarksDisplay==='—'?'':remarksDisplay.replace(/"/g,'&quot;')}" readonly placeholder="Auto from deviations/charges"
           style="width:160px;box-sizing:border-box;background:${hasDeviation?'rgba(239,68,68,.08)':'var(--sf3)'};border:1px solid ${hasDeviation?'var(--rd)':'var(--bd2)'};border-radius:4px;padding:3px;font-size:10px;color:${hasDeviation?'var(--rd)':'var(--tx2)'}">
-        <button onclick="fxEditManualRemark(${idx})" title="Add/edit manual remark" style="background:none;border:none;color:var(--bl);cursor:pointer;font-size:10px;padding:0 2px">✎</button>
+        <button onclick="fxEditManualRemark(${idx})" title="Edit remarks (deviation notes, other charges note, manual remark)" style="background:none;border:none;color:var(--bl);cursor:pointer;font-size:10px;padding:0 2px">✎</button>
       </td>
       <td class="no-print" style="white-space:nowrap"><button onclick="fxDelRow(${idx})" style="background:none;border:none;color:var(--rd);cursor:pointer;font-size:13px">✕</button></td>
     </tr>`;
