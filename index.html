@@ -175,6 +175,15 @@ table{width:100%;border-collapse:collapse;font-size:12px;}
   .gold,.green,.red,.blue,.orange,.purple{color:#000!important;}
   .tag{border:1px solid #aaa!important;background:#eee!important;color:#333!important;}
   .cat-hdr-row td,.tfoot-row td{background:#f0f0f0!important;color:#000!important;}
+  /* position:fixed elements can get re-rendered on every page for
+     multi-page print jobs in some browsers, duplicating the whole
+     topsheet across pages — switch to normal document flow for print. */
+  #print-overlay{position:static!important;inset:auto!important;}
+  /* The underlying page behind the overlay is still marked .active and
+     forced visible above — hide it specifically while the print overlay
+     itself is open (see openPrintOverlay/closePrintOverlay), so its
+     content doesn't also get printed alongside the topsheet. */
+  body.print-overlay-open .page{display:none!important;}
   @page{margin:12mm;size:A4 landscape;}
 }
 
@@ -20737,6 +20746,7 @@ function updateBillSchedule(id,phase){
 function closePrintOverlay(){
   document.getElementById('print-overlay').style.display='none';
   document.body.style.overflow='';
+  document.body.classList.remove('print-overlay-open');
 }
 
 
@@ -20768,6 +20778,7 @@ function openPrintOverlay(title, html, extraBtns){
   btnsEl.innerHTML=extraBtns||'';
   document.getElementById('print-overlay').style.display='';
   document.body.style.overflow='hidden';
+  document.body.classList.add('print-overlay-open');
   document.getElementById('print-overlay').scrollTop=0;
 }
 
