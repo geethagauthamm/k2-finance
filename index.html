@@ -158,6 +158,9 @@ table{width:100%;border-collapse:collapse;font-size:12px;}
 ::-webkit-scrollbar{width:3px;height:3px;}::-webkit-scrollbar-thumb{background:var(--bd2);border-radius:3px;}
 .print-header{display:none;font-family:"Syne",sans-serif;margin-bottom:16px;padding-bottom:10px;border-bottom:2px solid #ccc;}
 .print-header h1{font-size:18px;font-weight:800;color:#000;}.print-header p{font-size:11px;color:#555;margin-top:2px;}
+@media screen{
+  #print-overlay-body{max-width:1100px;margin:0 auto;}
+}
 @media print{
   td{white-space:normal!important;word-break:break-word!important;}
   th{white-space:normal!important;}
@@ -22224,7 +22227,7 @@ function arRenderPayables(){
     <button onclick="closePrintOverlay()" style="padding:7px 18px;background:#eee;color:#333;border:none;border-radius:5px;font-size:13px;cursor:pointer">✕ Close</button>
     <div id="print-overlay-btns" style="display:flex;gap:8px;margin-left:8px"></div>
   </div>
-  <div id="print-overlay-body" style="padding:30px;max-width:1100px;margin:0 auto;color:#1a1a1a;font-family:-apple-system,Segoe UI,sans-serif"></div>
+  <div id="print-overlay-body" style="padding:30px;color:#1a1a1a;font-family:-apple-system,Segoe UI,sans-serif"></div>
 </div>
 
 <!-- FLEXIBLE MULTI-ROLE TOPSHEET MODAL -->
