@@ -17504,7 +17504,7 @@ function renderSchedSummary(){
 
   // Gather all approved bills
   const bills=(DB.bills||[]).filter(b=>{
-    if(b.status!=='approved'&&b.status!=='paid')return false;
+    if(b.status!=='approved'&&b.status!=='paid'&&b.status!=='partial')return false;
     const d=b.shootDate||b.shootDateFrom||'';
     if(fromF&&d<fromF)return false;
     if(toF&&d>toF)return false;
@@ -20325,6 +20325,7 @@ function confirmBillPayment(){
   bill.paymentRecords.push({id:uid(),amount:amt,date:payDate,utr:utr||'',note:note||''});
   const totalPaid=billPaidSoFar(bill);
   bill.status=totalPaid>=(bill.total||0)?'paid':'partial';
+  bill.partialPaidAmt=totalPaid; // Dashboard's phase totals (billActualPaid/phaseFinanceTotals) read this field
   bill.paidAt=new Date(payDate+'T00:00:00').toISOString();
   bill.paidUTR=utr||'';
   if(bill.status==='paid'&&bill.shootDate&&DB.actAdhoc?.[bill.shootDate])
@@ -20402,6 +20403,7 @@ function linkPaymentToBill(billId,dayKey,entryId){
   sv();
   const totalPaid=billPaidSoFar(bill);
   bill.status=totalPaid>=(bill.total||0)?'paid':'partial';
+  bill.partialPaidAmt=totalPaid; // Dashboard's phase totals read this field directly
   saveDB();
   toast('✓ Linked — '+fmt(amt)+' now shown as paid against this bill');
   document.getElementById('bill-link-payment-modal').style.display='none';
@@ -20435,6 +20437,7 @@ function autoLinkAdvancesForVendor(bill){
     sv();
     const totalPaid=billPaidSoFar(bill);
     bill.status=totalPaid>=(bill.total||0)?'paid':'partial';
+    bill.partialPaidAmt=totalPaid;
   }
   return linkedCount;
 }
@@ -20474,6 +20477,7 @@ function unlinkBillPaymentRecord(billId,recordId){
   bill.paymentRecords=(bill.paymentRecords||[]).filter(r=>r.id!==recordId);
   const totalPaid=billPaidSoFar(bill);
   bill.status=totalPaid<=0?'approved':(totalPaid>=(bill.total||0)?'paid':'partial');
+  bill.partialPaidAmt=totalPaid;
   saveDB();
   toast('Removed');
   renderBills(); updateBillsBadge();
