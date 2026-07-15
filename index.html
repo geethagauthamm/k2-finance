@@ -184,6 +184,10 @@ table{width:100%;border-collapse:collapse;font-size:12px;}
      itself is open (see openPrintOverlay/closePrintOverlay), so its
      content doesn't also get printed alongside the topsheet. */
   body.print-overlay-open .page{display:none!important;}
+  /* #print-overlay-body has an inline max-width:1100px;margin:0 auto for
+     nice on-screen viewing — during print this leaves uneven left/right
+     space depending on page size, so let it fill the printable width. */
+  #print-overlay-body{max-width:none!important;margin:0!important;padding:10px!important;}
   @page{margin:12mm;size:A4 landscape;}
 }
 
