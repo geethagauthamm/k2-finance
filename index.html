@@ -20758,13 +20758,15 @@ function printOverlayClean(){
     <title>K2 Production Finance — Topsheet</title>
     <style>
       *{box-sizing:border-box;-webkit-print-color-adjust:exact;print-color-adjust:exact}
-      body{font-family:-apple-system,Segoe UI,sans-serif;color:#1a1a1a;margin:0;padding:20px}
-      table{border-collapse:collapse;font-size:10px;width:100%}
+      html,body{margin:0;padding:0;width:100%}
+      body{font-family:-apple-system,Segoe UI,sans-serif;color:#1a1a1a;padding:16px 20px}
+      table{border-collapse:collapse;font-size:10px;width:100%;margin:0}
       thead{display:table-header-group}
       tbody tr{page-break-inside:avoid}
       th,td{padding:4px 6px}
       h2{margin:0 0 4px 0}
-      @page{size:A4 landscape;margin:12mm}
+      div{max-width:none!important;margin-left:0!important;margin-right:0!important}
+      @page{size:A4 landscape;margin:10mm}
     </style>
   </head><body>${body}</body></html>`);
   win.document.close();
