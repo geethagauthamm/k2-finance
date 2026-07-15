@@ -187,6 +187,12 @@ table{width:100%;border-collapse:collapse;font-size:12px;}
      itself is open (see openPrintOverlay/closePrintOverlay), so its
      content doesn't also get printed alongside the topsheet. */
   body.print-overlay-open .page{display:none!important;}
+  /* Centering a fixed max-width box with margin:auto depends on knowing
+     the exact page width, which varies (portrait vs landscape, A4 vs
+     Letter) — that's what kept causing uneven left/right space. Simplest
+     reliable fix: drop the centering math entirely and just fill the
+     printable area with consistent padding on both sides. */
+  #print-overlay-body{width:100%!important;max-width:100%!important;margin-left:0!important;margin-right:0!important;padding:16px!important;box-sizing:border-box!important;}
   @page{margin:12mm;size:A4 landscape;}
 }
 
