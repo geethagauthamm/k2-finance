@@ -1974,6 +1974,24 @@ body.auditor-mode #save-btn { display:none !important; }
       </div>
     </div>
 
+    <div id="sal-bank-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:9500;align-items:center;justify-content:center">
+      <div style="max-width:480px;width:95%;background:var(--sf);border:1px solid var(--bd);border-radius:12px;padding:20px 22px;max-height:85vh;overflow-y:auto">
+        <div class="semi" style="font-size:15px;margin-bottom:4px" id="sbm-title">Bank Details</div>
+        <div class="xs2 dim" style="margin-bottom:14px">One-time setup — reused automatically on the Salary Statement and anywhere else this staff member's payment details are needed.</div>
+        <div class="fld mb10"><label>Bank Name</label><input type="text" id="sbm-bank" placeholder="e.g. HDFC Bank"></div>
+        <div class="fld mb10"><label>Account Holder Name</label><input type="text" id="sbm-acname" placeholder="As per bank records"></div>
+        <div class="fld mb10"><label>Account Number</label><input type="text" id="sbm-acno" placeholder="e.g. 50100037960169"></div>
+        <div class="fld mb10"><label>IFSC</label><input type="text" id="sbm-ifsc" placeholder="e.g. HDFC0002604" style="text-transform:uppercase"></div>
+        <div class="fld mb10"><label>PAN Number</label><input type="text" id="sbm-pan" placeholder="e.g. BLJPT4475P" style="text-transform:uppercase"></div>
+        <div class="fld mb10"><label>Aadhar Number</label><input type="text" id="sbm-aadhar" placeholder="12-digit number"></div>
+        <div class="fld mb10"><label>Phone</label><input type="text" id="sbm-phone" placeholder="+91 ..."></div>
+        <div class="flex gap8" style="justify-content:flex-end;margin-top:8px">
+          <button class="btn bs" onclick="document.getElementById('sal-bank-modal').style.display='none'">Cancel</button>
+          <button class="btn bg" onclick="saveSalBankDetails()">✓ Save</button>
+        </div>
+      </div>
+    </div>
+
     <div id="bill-paid-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:9500;align-items:center;justify-content:center">
       <div style="max-width:420px;width:95%;background:var(--sf);border:1px solid var(--bd);border-radius:12px;padding:20px 22px">
         <div class="semi" style="font-size:15px;margin-bottom:4px" id="bill-paid-modal-title">Record Payment</div>
@@ -4676,6 +4694,7 @@ function checkPaymentReminders(){
       <div class="flex aic gap12 flex-wrap">
         <div class="fld mb0"><label>Month</label><input type="month" id="sal-month" onchange="renderSalaries()" style="font-size:13px"></div>
         <button class="btn bs sm" onclick="markAllSalariesPaid()">&#10003; Mark All Paid</button>
+        <button class="btn bg sm" onclick="printSalaryStatement()">🖨 Salary Statement</button>
         <span id="sal-month-summary" class="xs2 dim" style="margin-left:auto"></span>
       </div>
     </div>
@@ -14754,6 +14773,37 @@ function delSalaryMember(id){
   toast('Removed');
 }
 
+let _sbmStaffId=null;
+function openSalBankModal(staffId){
+  const s=(DB.salaries||[]).find(x=>x.id===staffId);
+  if(!s)return;
+  _sbmStaffId=staffId;
+  document.getElementById('sbm-title').textContent='Bank Details — '+s.name;
+  document.getElementById('sbm-bank').value=s.bankName||'';
+  document.getElementById('sbm-acname').value=s.accountName||s.name||'';
+  document.getElementById('sbm-acno').value=s.accountNo||'';
+  document.getElementById('sbm-ifsc').value=s.ifsc||'';
+  document.getElementById('sbm-pan').value=s.pan||'';
+  document.getElementById('sbm-aadhar').value=s.aadhar||'';
+  document.getElementById('sbm-phone').value=s.phone||'';
+  document.getElementById('sal-bank-modal').style.display='flex';
+}
+function saveSalBankDetails(){
+  const s=(DB.salaries||[]).find(x=>x.id===_sbmStaffId);
+  if(!s)return;
+  s.bankName=document.getElementById('sbm-bank').value.trim();
+  s.accountName=document.getElementById('sbm-acname').value.trim();
+  s.accountNo=document.getElementById('sbm-acno').value.trim();
+  s.ifsc=document.getElementById('sbm-ifsc').value.trim().toUpperCase();
+  s.pan=document.getElementById('sbm-pan').value.trim().toUpperCase();
+  s.aadhar=document.getElementById('sbm-aadhar').value.trim();
+  s.phone=document.getElementById('sbm-phone').value.trim();
+  saveDB();
+  document.getElementById('sal-bank-modal').style.display='none';
+  toast('✓ Bank details saved for '+s.name);
+  renderSalaries();
+}
+
 function getSalMonth(){
   return document.getElementById('sal-month')?.value||new Date().toISOString().slice(0,7);
 }
@@ -14887,6 +14937,7 @@ function renderSalaries(){
         style="width:110px;font-size:11px"></td>
       <td class="xs2 dim">${s.notes||'—'}${override?.reason?`<br><span style="color:var(--or)">↳ ${override.reason}</span>`:''}</td>
       <td class="no-print" style="white-space:nowrap">
+        <button class="btn bs xs" data-sid="${s.id}" onclick="openSalBankModal(this.dataset.sid)" title="${s.accountNo?'Bank details on file':'No bank details yet'}" style="${s.accountNo?'':'color:var(--rd);border-color:var(--rd)'}">🏦${s.accountNo?'':' !'}</button>
         ${s.quitDate?`<button class="btn bs xs" data-sid="${s.id}" onclick="unmarkStaffQuit(this.dataset.sid)" title="Restore to active payroll">↺</button>`:`<button class="btn bs xs" data-sid="${s.id}" onclick="markStaffQuit(this.dataset.sid)" title="Mark as quit">Quit</button>`}
         <button class="btn br xs" data-sid="${s.id}" onclick="delSalaryMember(this.dataset.sid)">✕</button>
       </td>
@@ -14952,6 +15003,66 @@ function checkSalaryReminder(){
       +unpaid.map(s=>'• '+s.name+' ('+(s.desig||s.dept||'Staff')+') — ₹'+fmt(getSalaryDue(s.id,month))).join('\n')
       +'\n\nProject: '+(DB.project?.name||'K2')
   }).catch(e=>console.warn('notifSend salary reminder failed',e));
+}
+
+// Printable Salary Statement for the currently selected month — everything
+// the Producer needs to actually process payments: amount due (including
+// any override + reason), status, and bank details on file.
+function printSalaryStatement(){
+  const month=getSalMonth();
+  const monthLabel=new Date(month+'-01').toLocaleDateString('en-IN',{month:'long',year:'numeric'});
+  const staff=(DB.salaries||[]).filter(s=>isStaffActiveInMonth(s,month));
+  if(!staff.length){toast('No active staff for '+monthLabel,'err');return;}
+  const payments=(DB.salaryPayments||{})[month]||[];
+
+  let grand=0,missingBank=0;
+  const rows=staff.map((s,i)=>{
+    const due=getSalaryDue(s.id,month);
+    const override=(DB.salaryOverrides||{})[month]?.[s.id];
+    grand+=due;
+    const pay=payments.find(p=>p.staffId===s.id)||{status:'pending'};
+    const statusLabel=pay.status==='paid'?'✓ Paid':pay.status==='hold'?'On Hold':pay.status==='partial'?'Partial':'Pending';
+    const hasBank=!!s.accountNo;
+    if(!hasBank)missingBank++;
+    return`<tr>
+      <td style="padding:6px 8px;border:1px solid #ddd;text-align:center">${i+1}</td>
+      <td style="padding:6px 8px;border:1px solid #ddd;font-weight:700">${esc(s.name)}</td>
+      <td style="padding:6px 8px;border:1px solid #ddd">${esc(s.desig||'—')}</td>
+      <td style="padding:6px 8px;border:1px solid #ddd">${esc(s.dept||'—')}</td>
+      <td style="padding:6px 8px;border:1px solid #ddd;text-align:right;font-weight:700">${fmt(due)}${override?`<br><span style="font-size:9px;color:#c2410c;font-weight:400">${esc(override.reason||'Override')}</span>`:''}</td>
+      <td style="padding:6px 8px;border:1px solid #ddd;text-align:center">${statusLabel}</td>
+      <td style="padding:6px 8px;border:1px solid #ddd;font-size:10px">${hasBank?`${esc(s.bankName||'')}<br>A/C: ${esc(s.accountNo)}<br>IFSC: ${esc(s.ifsc||'—')}`:'<span style="color:#dc2626">⚠ Not on file</span>'}</td>
+      <td style="padding:6px 8px;border:1px solid #ddd;font-size:10px">${esc(s.pan||'—')}</td>
+    </tr>`;
+  }).join('');
+
+  const html=`
+    <h2 style="font-size:20px;margin:0 0 2px 0">Salary Statement — ${monthLabel}</h2>
+    <div style="font-size:12px;color:#888;margin-bottom:16px">${esc(DB.project?.name||'K2')} · ${esc(DB.project?.company||'')} · ${staff.length} active staff member(s)</div>
+    ${missingBank?`<div style="padding:8px 12px;background:#fef2f2;border:1px solid #dc2626;border-radius:4px;font-size:12px;margin-bottom:14px;color:#dc2626">⚠ ${missingBank} staff member(s) missing bank details — payments cannot be processed for them until added.</div>`:''}
+    <div style="overflow-x:auto">
+    <table style="border-collapse:collapse;font-size:11px;margin-bottom:14px;width:100%">
+      <thead><tr style="background:#1e3a5f;color:#fff">
+        <th style="padding:6px 8px;width:30px">#</th>
+        <th style="padding:6px 8px;text-align:left">Name</th>
+        <th style="padding:6px 8px;text-align:left">Designation</th>
+        <th style="padding:6px 8px;text-align:left">Department</th>
+        <th style="padding:6px 8px;text-align:right">Amount Due ₹</th>
+        <th style="padding:6px 8px;text-align:center">Status</th>
+        <th style="padding:6px 8px;text-align:left">Bank Details</th>
+        <th style="padding:6px 8px;text-align:left">PAN</th>
+      </tr></thead>
+      <tbody>${rows}
+        <tr style="background:#1e3a5f;color:#fff;font-weight:700"><td colspan="4" style="padding:9px 8px;text-align:right">GRAND TOTAL</td><td style="padding:9px 8px;text-align:right">${fmt(grand)}</td><td colspan="3"></td></tr>
+      </tbody>
+    </table>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:24px;font-size:11px;color:#666;margin-top:40px">
+      <div>Prepared by<br><br>___________________________<br>Executive Producer</div>
+      <div>Verified by<br><br>___________________________<br>Accounts Department</div>
+      <div>Approved for Payment<br><br>___________________________<br>Producer</div>
+    </div>`;
+  openPrintOverlay('Salary Statement — '+monthLabel,html);
 }
 
 function renderSalAllMembers(){
