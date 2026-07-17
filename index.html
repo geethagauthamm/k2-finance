@@ -1772,6 +1772,7 @@ body.auditor-mode #save-btn { display:none !important; }
           <div class="fld" style="margin:0"><label>To</label><input type="date" id="ss-to" onchange="renderSchedSummary()"></div>
           <button class="btn bs sm" onclick="renderSchedSummary()">↻ Refresh</button>
           <button class="btn bs sm" onclick="printPage()">⎙ Print</button>
+          <button class="btn bg sm" onclick="exportSchedSummaryExcel()">⬇ Export Excel (by department)</button>
         </div>
       </div>
     </div>
@@ -17502,16 +17503,20 @@ function renderSchedSummary(){
   const toF=document.getElementById('ss-to')?.value||'';
   const con=document.getElementById('ss-container');if(!con)return;
 
-  // Gather all approved bills
+  // Gather all bills matching the schedule/date filters — scope intentionally
+  // matches Dashboard's phase totals exactly (every bill tagged to the
+  // schedule, regardless of approval status), so the two reports agree.
   const bills=(DB.bills||[]).filter(b=>{
-    if(b.status!=='approved'&&b.status!=='paid'&&b.status!=='partial')return false;
     const d=b.shootDate||b.shootDateFrom||'';
     if(fromF&&d<fromF)return false;
     if(toF&&d>toF)return false;
     if(schedId){
       if(b.schedId){
-        // Bill has an explicit schedule tag — trust it, ignore date-range guessing entirely
-        return b.schedId===schedId;
+        // Bill has an explicit schedule tag — trust it, ignore date-range guessing entirely.
+        // b.schedId may be raw ("s1") or prefixed ("SCHED:s1") depending on when it was
+        // set/migrated; the dropdown's value is always the raw schedule id, so strip
+        // any prefix before comparing rather than assuming one format.
+        return b.schedId.replace(/^SCHED:/,'')===schedId;
       }
       // Legacy bill with no schedId — fall back to date-range matching (best-effort only)
       const sch=(DB.schedules||[]).find(s=>s.id===schedId);
@@ -17521,7 +17526,7 @@ function renderSchedSummary(){
   });
 
   if(!bills.length&&!schedId){
-    con.innerHTML='<div class="card te" style="padding:24px">No approved bills found for the selected period.</div>';
+    con.innerHTML='<div class="card te" style="padding:24px">No bills found for the selected period.</div>';
     return;
   }
 
@@ -17698,6 +17703,144 @@ function renderSchedSummary(){
 }
 
 let _ssDragVendor=null;
+
+// Exports whatever's currently filtered on Schedule Summary Report (same
+// schedule/date filters as the on-screen view) into one Excel workbook:
+// a Summary tab (per-vendor totals within each department, then grand
+// total), followed by one tab per department with full bill-level detail.
+// Turns one bill into Excel rows that mirror its printed topsheet exactly —
+// a vendor/date header line, then either the full per-day/per-role table
+// (role-based bills) or the line-item list (simple generated bills), then a
+// total line and a spacer. The role math here is deliberately identical to
+// printFlexBillTopsheet's, so the numbers always match what would print.
+function billToExcelRows(bill){
+  const rows=[];
+  const rangeLabel=bill.shootDateFrom?fmtD(bill.shootDateFrom)+' to '+fmtD(bill.shootDateTo):fmtD(bill.shootDate);
+  rows.push([bill.vendor||'Vendor',bill.department||'',bill.subdept||'','Bill No: '+(bill.billNo||'—'),rangeLabel,'Total ₹'+fmt(bill.total||0),'Status: '+(bill.status||'')]);
+
+  if(bill._flexRoles&&bill._flexRows&&bill._flexRows.length){
+    const roles=bill._flexRoles.filter(r=>r.label);
+    const header=['Date','Day Type','Call','Pack','CS'];
+    roles.forEach(r=>header.push(r.label+' — No.',r.label+' — Battas ₹',r.label+' — Allow ₹'));
+    header.push('Other ₹','Row Total ₹','Remarks');
+    rows.push(header);
+
+    let grand=0;
+    [...bill._flexRows].sort((a,b)=>(a.date||'').localeCompare(b.date||'')).forEach(row=>{
+      let rowTotal=0;
+      const roleVals=[];
+      roles.forEach(r=>{
+        const rd=row.roleData?.[r.id]||{count:0,rate:0,allowance:0};
+        const count=parseFloat(rd.count)||0,rate=parseFloat(rd.rate)||0,allow=parseFloat(rd.allowance)||0;
+        let battas;
+        if(r.payType==='Package'){battas=count>0?rate*(parseFloat(row.cs)||1):0;}
+        else if(r.payType==='Flat'){battas=count>0?rate:0;}
+        else{const csM=(r.payType==='Per Day')?1:(parseFloat(row.cs)||1);battas=Math.round(count*rate*csM*100)/100;}
+        const allowTotal=Math.round(count*allow*100)/100;
+        rowTotal+=battas+allowTotal;
+        roleVals.push(count||0,battas||0,allowTotal||0);
+      });
+      const otherCharges=parseFloat(row.otherCharges)||0;
+      rowTotal=Math.round((rowTotal+otherCharges)*100)/100;
+      grand+=rowTotal;
+      const remarks=[row.deviationNote,row.otherChargesNote,row.remarks].filter(Boolean).join(' · ');
+      rows.push([fmtD(row.date),row.dayType||'',row.callTime||'',row.packTime||'',row.cs||1,...roleVals,otherCharges,rowTotal,remarks]);
+    });
+    const totalRow=['','','','','GRAND TOTAL'];
+    roles.forEach(()=>totalRow.push('','',''));
+    totalRow.push('',Math.round(grand*100)/100,'');
+    rows.push(totalRow);
+  } else if(bill.items&&bill.items.length){
+    rows.push(['Date','Description','Qty','Rate ₹','Amount ₹']);
+    [...bill.items].sort((a,b)=>(a._date||'').localeCompare(b._date||'')).forEach(it=>{
+      rows.push([it._date?fmtD(it._date):'',it.description||'',it.qty||1,it.rate||0,it.amount||0]);
+    });
+    rows.push(['','','','TOTAL',bill.total||0]);
+  } else {
+    rows.push(['(No line-item detail saved for this bill)']);
+  }
+  rows.push([]); // spacer row between bills
+  return rows;
+}
+function exportSchedSummaryExcel(){
+  const schedId=document.getElementById('ss-sched')?.value||'';
+  const fromF=document.getElementById('ss-from')?.value||'';
+  const toF=document.getElementById('ss-to')?.value||'';
+  const schedName=schedId?((DB.schedules||[]).find(s=>s.id===schedId)?.name||'Schedule'):'All_Schedules';
+
+  // Same filter logic as renderSchedSummary(), kept in sync deliberately —
+  // the export should always match whatever's currently on screen.
+  const bills=(DB.bills||[]).filter(b=>{
+    const d=b.shootDate||b.shootDateFrom||'';
+    if(fromF&&d<fromF)return false;
+    if(toF&&d>toF)return false;
+    if(schedId){
+      if(b.schedId)return b.schedId.replace(/^SCHED:/,'')===schedId;
+      const sch=(DB.schedules||[]).find(s=>s.id===schedId);
+      if(sch&&sch.startDate&&sch.endDate&&d&&(d<sch.startDate||d>sch.endDate))return false;
+    }
+    return true;
+  });
+
+  if(!bills.length){toast('No bills found for the selected filters','err');return;}
+
+  const byDept={};
+  bills.forEach(b=>{
+    const dept=b.department||'Miscellaneous';
+    if(!byDept[dept])byDept[dept]=[];
+    byDept[dept].push(b);
+  });
+
+  const wb=XLSX.utils.book_new();
+
+  // ── Summary sheet first: per-vendor totals within each department, then grand total ──
+  const summaryRows=[['Department','Vendor','Total ₹','Paid ₹','Balance ₹']];
+  let grandTotal=0,grandPaid=0;
+  Object.keys(byDept).sort().forEach(dept=>{
+    const byVendor={};
+    byDept[dept].forEach(b=>{
+      const v=b.vendor||'Unknown';
+      if(!byVendor[v])byVendor[v]={total:0,paid:0};
+      byVendor[v].total+=b.total||0;
+      byVendor[v].paid+=billActualPaid(b);
+    });
+    let deptTotal=0,deptPaid=0;
+    Object.keys(byVendor).sort().forEach(v=>{
+      const{total,paid}=byVendor[v];
+      summaryRows.push([dept,v,total,paid,total-paid]);
+      deptTotal+=total;deptPaid+=paid;
+    });
+    summaryRows.push([dept+' — Subtotal','',deptTotal,deptPaid,deptTotal-deptPaid]);
+    summaryRows.push(['','','','','']);
+    grandTotal+=deptTotal;grandPaid+=deptPaid;
+  });
+  summaryRows.push(['GRAND TOTAL','',grandTotal,grandPaid,grandTotal-grandPaid]);
+  const summarySheet=XLSX.utils.aoa_to_sheet(summaryRows);
+  summarySheet['!cols']=[{wch:22},{wch:26},{wch:14},{wch:14},{wch:14}];
+  XLSX.utils.book_append_sheet(wb,summarySheet,'Summary');
+
+  // ── One sheet per department — each bill's FULL topsheet breakdown,
+  // stacked one after another, not just a single summary row. Role-based
+  // bills reproduce the exact per-day/per-role table (same battas math as
+  // printFlexBillTopsheet); simple bills (Hotels/Flights/Vehicles-generated)
+  // reproduce their line items. ──
+  const usedNames=new Set(['Summary']);
+  Object.keys(byDept).sort().forEach(dept=>{
+    let rows=[];
+    byDept[dept].forEach(b=>{ rows=rows.concat(billToExcelRows(b)); });
+    const sheet=XLSX.utils.aoa_to_sheet(rows);
+    sheet['!cols']=Array.from({length:20},()=>({wch:14}));
+    // Excel sheet names: max 31 chars, and can't contain \ / ? * [ ] :
+    let baseName=dept.replace(/[\\\/\?\*\[\]:]/g,'').slice(0,31)||'Department';
+    let uniqueName=baseName,i=2;
+    while(usedNames.has(uniqueName)){uniqueName=baseName.slice(0,28)+'_'+i;i++;}
+    usedNames.add(uniqueName);
+    XLSX.utils.book_append_sheet(wb,sheet,uniqueName);
+  });
+
+  const filename='Schedule_Summary_'+schedName.replace(/[^a-z0-9]+/gi,'_')+'_'+tod();
+  xlsxDownload(wb,filename);
+}
 
 function ssDragStart(e){
   _ssDragVendor=e.currentTarget.dataset.vendor;
@@ -18167,9 +18310,20 @@ function fxAddRow(){
   const cs=csGetForDate?csGetForDate(lastDate):null;
   _fxRows.push({date:lastDate,callTime:cs?.callTime||'',packTime:cs?.packTime||'',cs:cs?.cs||1,dayType:cs?.dayType||'Shoot',splitTag:'',roleData,otherCharges:0,otherChargesNote:'',deviationNote:'',remarks:'',
     _csSnapshot:cs?{callTime:cs.callTime,packTime:cs.packTime,cs:cs.cs}:null});
+  _fxRows.sort((a,b)=>(a.date||'').localeCompare(b.date||''));
   fxRenderTable();
 }
 function fxDelRow(idx){_fxRows.splice(idx,1);fxRenderTable();}
+function fxMoveRowToPosition(idx,targetPosStr){
+  const n=_fxRows.length;
+  let targetIdx=parseInt(targetPosStr,10)-1; // convert 1-indexed input to 0-indexed
+  if(isNaN(targetIdx)){fxRenderTable();return;} // invalid entry — just re-render to reset the input back to its actual position
+  targetIdx=Math.max(0,Math.min(n-1,targetIdx));
+  if(targetIdx===idx)return;
+  const [row]=_fxRows.splice(idx,1);
+  _fxRows.splice(targetIdx,0,row);
+  fxRenderTable();
+}
 
 function fxGenerateRange(){
   const from=document.getElementById('fx-range-from')?.value;
@@ -18225,6 +18379,7 @@ function fxDateChanged(idx,val){
   }
   _fxRows[idx]._csSnapshot=cs?{callTime:cs.callTime,packTime:cs.packTime,cs:cs.cs}:null;
   _fxRows[idx].deviationNote=''; // reset — fresh date means fresh comparison
+  _fxRows.sort((a,b)=>(a.date||'').localeCompare(b.date||'')); // keep rows in chronological order automatically
   fxRenderTable();
 }
 
@@ -18357,7 +18512,13 @@ function fxRenderTable(){
           style="width:160px;box-sizing:border-box;background:${hasDeviation?'rgba(239,68,68,.08)':'var(--sf3)'};border:1px solid ${hasDeviation?'var(--rd)':'var(--bd2)'};border-radius:4px;padding:3px;font-size:10px;color:${hasDeviation?'var(--rd)':'var(--tx2)'}">
         <button onclick="fxEditManualRemark(${idx})" title="Edit remarks (deviation notes, other charges note, manual remark)" style="background:none;border:none;color:var(--bl);cursor:pointer;font-size:10px;padding:0 2px">✎</button>
       </td>
-      <td class="no-print" style="white-space:nowrap"><button onclick="fxDelRow(${idx})" style="background:none;border:none;color:var(--rd);cursor:pointer;font-size:13px">✕</button></td>
+      <td class="no-print" style="white-space:nowrap">
+        <input type="number" value="${idx+1}" min="1" max="${_fxRows.length}" title="Row position — type a number and press Enter to move this row there"
+          style="width:38px;box-sizing:border-box;font-size:10px;text-align:center;background:var(--sf3);border:1px solid var(--bd2);border-radius:4px;padding:2px"
+          onkeydown="if(event.key==='Enter'){fxMoveRowToPosition(${idx},this.value);this.blur();}"
+          onblur="if(parseInt(this.value)!==${idx+1})fxMoveRowToPosition(${idx},this.value);">
+        <button onclick="fxDelRow(${idx})" style="background:none;border:none;color:var(--rd);cursor:pointer;font-size:13px">✕</button>
+      </td>
     </tr>`;
   }).join('')||'<tr><td colspan="30" style="text-align:center;padding:16px;color:var(--tx3)">No rows yet — generate from a date range above, or click ＋ Add Single Date Row</td></tr>';
 
