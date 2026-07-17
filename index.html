@@ -4641,6 +4641,7 @@ function checkPaymentReminders(){
   <!-- MONTHLY SALARIES -->
   <div class="page" id="page-salaries">
     <div class="print-header"><h1>Monthly Salaries</h1></div>
+    <div id="sal-reminder-banner"></div>
 
     <!-- Project Salary Summary -->
     <div class="card no-print" id="sal-project-summary-card">
@@ -14421,6 +14422,7 @@ function init(){
   fillDropdowns();
   renderDash();
   updateFileStatus(_fileHandle?.name||'No file', false);
+  setTimeout(()=>{try{checkSalaryReminder();}catch(e){console.warn('checkSalaryReminder failed',e);}},1500);
 }
 // Also call renderDayWise when schedule page re-renders
 const _origRenderScheduleList=renderScheduleList;
@@ -14756,6 +14758,61 @@ function getSalMonth(){
   return document.getElementById('sal-month')?.value||new Date().toISOString().slice(0,7);
 }
 
+// Returns the amount actually due for a staff member in a given month —
+// their per-month override if one was set (with a reason, e.g. raise/bonus/
+// deduction), otherwise their default monthly rate.
+function getSalaryDue(staffId,month){
+  const staff=(DB.salaries||[]).find(s=>s.id===staffId);
+  const override=(DB.salaryOverrides||{})[month]?.[staffId];
+  return override?override.amount:(staff?.rate||0);
+}
+function setSalaryOverride(staffId){
+  const month=getSalMonth();
+  const staff=(DB.salaries||[]).find(s=>s.id===staffId);
+  if(!staff)return;
+  const existing=(DB.salaryOverrides||{})[month]?.[staffId];
+  const amtStr=prompt(`Override amount for ${staff.name} — ${new Date(month+'-01').toLocaleDateString('en-IN',{month:'long',year:'numeric'})}\n(Default rate: ₹${fmt(staff.rate)}. Leave blank to remove any existing override.)`,existing?existing.amount:staff.rate);
+  if(amtStr===null)return;
+  if(amtStr.trim()===''){
+    if((DB.salaryOverrides||{})[month])delete DB.salaryOverrides[month][staffId];
+    saveDB();renderSalaries();toast('Override removed — using default rate');
+    return;
+  }
+  const amt=parseFloat(amtStr)||0;
+  const reason=prompt('Reason for this override (e.g. "Diwali bonus", "Half month — joined late", "Salary revision"):','');
+  if(reason===null)return;
+  if(!DB.salaryOverrides)DB.salaryOverrides={};
+  if(!DB.salaryOverrides[month])DB.salaryOverrides[month]={};
+  DB.salaryOverrides[month][staffId]={amount:amt,reason:reason.trim()};
+  saveDB();renderSalaries();
+  toast('✓ Override set: ₹'+fmt(amt)+(reason.trim()?' — '+reason.trim():''));
+}
+
+// A staff member counts as active for a given month unless they quit
+// before that month started — their quit month itself still counts (so
+// a final month's pay isn't silently dropped), everything after doesn't.
+function isStaffActiveInMonth(s,month){
+  if(!s.quitDate)return true;
+  return s.quitDate.slice(0,7)>=month;
+}
+function markStaffQuit(id){
+  const s=(DB.salaries||[]).find(x=>x.id===id);
+  if(!s)return;
+  const date=prompt('Last working date for '+s.name+' (YYYY-MM-DD):',new Date().toISOString().slice(0,10));
+  if(date===null)return;
+  if(!/^\d{4}-\d{2}-\d{2}$/.test(date)){toast('Enter a valid date as YYYY-MM-DD','err');return;}
+  s.quitDate=date;
+  saveDB();renderSalaries();
+  toast('✓ Marked as quit from '+fmtD(date)+' — excluded from payroll from next month onward');
+}
+function unmarkStaffQuit(id){
+  const s=(DB.salaries||[]).find(x=>x.id===id);
+  if(!s)return;
+  s.quitDate=null;
+  saveDB();renderSalaries();
+  toast('✓ Restored to active payroll');
+}
+
 function setSalPayment(staffId,field,val){
   const month=getSalMonth();
   if(!DB.salaryPayments)DB.salaryPayments={};
@@ -14770,6 +14827,7 @@ function markAllSalariesPaid(){
   const month=getSalMonth();
   const today=new Date().toISOString().slice(0,10);
   (DB.salaries||[]).forEach(s=>{
+    if(!isStaffActiveInMonth(s,month))return; // quit before this month — not part of this month's payroll
     if(!DB.salaryPayments)DB.salaryPayments={};
     if(!DB.salaryPayments[month])DB.salaryPayments[month]=[];
     let rec=DB.salaryPayments[month].find(p=>p.staffId===s.id);
@@ -14793,35 +14851,45 @@ function renderSalaries(){
 
   let totalDue=0,totalPaid=0;
   body.innerHTML=staff.map((s,i)=>{
+    const active=isStaffActiveInMonth(s,month);
+    const due=getSalaryDue(s.id,month);
+    const override=(DB.salaryOverrides||{})[month]?.[s.id];
     const pay=payments.find(p=>p.staffId===s.id)||{status:'pending',payDate:'',notes:''};
     const isPaid=pay.status==='paid';
     const isHold=pay.status==='hold';
-    totalDue+=s.rate;
-    if(isPaid)totalPaid+=s.rate;
+    if(active){
+      totalDue+=due;
+      if(isPaid)totalPaid+=due;
+    }
     const statusColor=isPaid?'var(--gn)':isHold?'var(--or)':'var(--rd)';
     const statusLabel=isPaid?'✓ Paid':isHold?'On Hold':'Pending';
-    return`<tr style="${isPaid?'opacity:0.7':''}">
+    return`<tr style="${isPaid?'opacity:0.7':''}${!active?';opacity:0.45':''}">
       <td class="tr dim xs2">${i+1}</td>
-      <td class="semi">${s.name}</td>
+      <td class="semi">${s.name}${s.quitDate?` <span class="tag xs3" style="background:rgba(239,68,68,.12);color:var(--rd);border:1px solid var(--rd)" title="Last working date: ${fmtD(s.quitDate)}">Quit ${fmtD(s.quitDate)}</span>`:''}</td>
       <td class="xs2">${s.desig||'—'}</td>
       <td><span class="tag ts xs2">${s.dept}</span></td>
       <td class="tr mono blue semi">${fmt(s.rate)}</td>
       <td class="xs2 dim">${s.startDate?fmtD(s.startDate):'—'}</td>
-      <td class="tr mono semi">${fmt(s.rate)}</td>
+      <td class="tr mono semi" style="${override?'color:var(--or)':''}">
+        ${!active?'<span class="dim">—</span>':`<span onclick="setSalaryOverride('${s.id}')" style="cursor:pointer" title="${override?'Override: '+(override.reason||'no reason given')+' — click to change':'Click to override this months amount'}">${fmt(due)}${override?' ✎':''}</span>`}
+      </td>
       <td>
-        <select class="xs2" data-sid="${s.id}" onchange="setSalPayment(this.dataset.sid,'status',this.value)"
+        ${!active?'<span class="tag xs2 dim">Not on payroll</span>':`<select class="xs2" data-sid="${s.id}" onchange="setSalPayment(this.dataset.sid,'status',this.value)"
           style="font-size:11px;padding:3px 6px;border-radius:4px;border:1px solid ${statusColor};color:${statusColor};background:transparent;cursor:pointer">
           <option value="pending"${pay.status==='pending'?' selected':''}>Pending</option>
           <option value="paid"${pay.status==='paid'?' selected':''}>✓ Paid</option>
           <option value="hold"${pay.status==='hold'?' selected':''}>On Hold</option>
           <option value="partial"${pay.status==='partial'?' selected':''}>Partial</option>
-        </select>
+        </select>`}
       </td>
-      <td><input type="date" class="act-inline" value="${pay.payDate||''}" data-sid="${s.id}"
+      <td><input type="date" class="act-inline" value="${pay.payDate||''}" data-sid="${s.id}" ${!active?'disabled':''}
         onchange="setSalPayment(this.dataset.sid,'payDate',this.value)"
         style="width:110px;font-size:11px"></td>
-      <td class="xs2 dim">${s.notes||'—'}</td>
-      <td class="no-print"><button class="btn br xs" data-sid="${s.id}" onclick="delSalaryMember(this.dataset.sid)">✕</button></td>
+      <td class="xs2 dim">${s.notes||'—'}${override?.reason?`<br><span style="color:var(--or)">↳ ${override.reason}</span>`:''}</td>
+      <td class="no-print" style="white-space:nowrap">
+        ${s.quitDate?`<button class="btn bs xs" data-sid="${s.id}" onclick="unmarkStaffQuit(this.dataset.sid)" title="Restore to active payroll">↺</button>`:`<button class="btn bs xs" data-sid="${s.id}" onclick="markStaffQuit(this.dataset.sid)" title="Mark as quit">Quit</button>`}
+        <button class="btn br xs" data-sid="${s.id}" onclick="delSalaryMember(this.dataset.sid)">✕</button>
+      </td>
     </tr>`;
   }).join('');
 
@@ -14834,8 +14902,56 @@ function renderSalaries(){
   </tr>`;
 
   const tl=document.getElementById('sal-total-lbl');
-  if(tl)tl.textContent=staff.length+' staff · ₹'+fmt(totalDue)+'/month · Paid: ₹'+fmt(totalPaid);
+  if(tl)tl.textContent=staff.filter(s=>isStaffActiveInMonth(s,month)).length+' active staff · ₹'+fmt(totalDue)+'/month · Paid: ₹'+fmt(totalPaid);
+  renderSalReminderBanner(month);
   renderSalAllMembers();
+}
+
+// In-app banner shown on the Salaries page — reappears every visit until
+// everyone's paid, but only relevant once the payment window (15th) opens.
+function renderSalReminderBanner(month){
+  const el=document.getElementById('sal-reminder-banner');
+  if(!el)return;
+  const today=new Date();
+  const curMonth=today.toISOString().slice(0,7);
+  // Only show for the CURRENT month once we've hit the 15th — not for past/future months being viewed
+  if(month!==curMonth||today.getDate()<15){el.innerHTML='';return;}
+  const staff=DB.salaries||[];
+  const payments=(DB.salaryPayments||{})[month]||[];
+  const unpaid=staff.filter(s=>isStaffActiveInMonth(s,month)&&(payments.find(p=>p.staffId===s.id)?.status||'pending')!=='paid');
+  if(!unpaid.length){el.innerHTML='';return;}
+  el.innerHTML=`<div class="card no-print" style="border:1px solid var(--rd);background:rgba(239,68,68,.08);margin-bottom:12px">
+    <div class="flex aic gap10 jb">
+      <div class="xs2" style="color:var(--rd)">⚠ It's past the 15th — <strong>${unpaid.length} staff member${unpaid.length>1?'s':''}</strong> still unpaid for ${new Date(month+'-01').toLocaleDateString('en-IN',{month:'long',year:'numeric'})}: ${unpaid.map(s=>esc(s.name)).join(', ')}</div>
+      <button class="btn bg xs" onclick="markAllSalariesPaid()">✓ Mark All Paid</button>
+    </div>
+  </div>`;
+}
+
+// Called once at app load — sends an actual notification (same channel as
+// bill payment alerts) the first time anyone opens the app on/after the
+// 15th with unpaid staff for the current month. Guarded so it only fires
+// once per month, not on every page load/session.
+function checkSalaryReminder(){
+  const today=new Date();
+  if(today.getDate()<15)return;
+  const month=today.toISOString().slice(0,7);
+  if(!DB.salaryReminderSent)DB.salaryReminderSent={};
+  if(DB.salaryReminderSent[month])return; // already sent this month
+  const staff=DB.salaries||[];
+  if(!staff.length)return;
+  const payments=(DB.salaryPayments||{})[month]||[];
+  const unpaid=staff.filter(s=>isStaffActiveInMonth(s,month)&&(payments.find(p=>p.staffId===s.id)?.status||'pending')!=='paid');
+  if(!unpaid.length)return;
+  DB.salaryReminderSent[month]=true; // mark first, so a failed send doesn't retry-spam every load
+  saveDB();
+  const monthLabel=today.toLocaleDateString('en-IN',{month:'long',year:'numeric'});
+  notifSend('payments',{
+    subject:'Salary reminder — '+unpaid.length+' unpaid for '+monthLabel,
+    message:'It\'s past the 15th of '+monthLabel+' and the following staff are still unpaid:\n\n'
+      +unpaid.map(s=>'• '+s.name+' ('+(s.desig||s.dept||'Staff')+') — ₹'+fmt(getSalaryDue(s.id,month))).join('\n')
+      +'\n\nProject: '+(DB.project?.name||'K2')
+  }).catch(e=>console.warn('notifSend salary reminder failed',e));
 }
 
 function renderSalAllMembers(){
