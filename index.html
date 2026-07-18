@@ -4703,6 +4703,10 @@ function checkPaymentReminders(){
         <div class="ct" style="margin:0">Salary Register — <span id="sal-month-lbl" style="color:var(--go)"></span></div>
         <span id="sal-total-lbl" class="xs2 dim"></span>
       </div>
+      <div class="flex gap8 mb10 no-print">
+        <button class="btn sm" id="sal-tab-active" onclick="setSalViewTab('active')">Active Staff</button>
+        <button class="btn bs sm" id="sal-tab-inactive" onclick="setSalViewTab('inactive')">Inactive (Quit)</button>
+      </div>
       <div class="tw"><table><thead><tr>
         <th>#</th><th>Name</th><th>Designation</th><th>Dept</th>
         <th class="tr">Monthly Rate</th><th>Start Date</th>
@@ -14887,17 +14891,30 @@ function markAllSalariesPaid(){
   saveDB();renderSalaries();toast('All marked as paid');
 }
 
+let _salViewTab='active';
+function setSalViewTab(tab){
+  _salViewTab=tab;
+  const a=document.getElementById('sal-tab-active'),i=document.getElementById('sal-tab-inactive');
+  if(a)a.className=tab==='active'?'btn sm':'btn bs sm';
+  if(i)i.className=tab==='inactive'?'btn sm':'btn bs sm';
+  renderSalaries();
+}
+
 function renderSalaries(){
   const month=getSalMonth();
   const lbl=document.getElementById('sal-month-lbl');
   if(lbl)lbl.textContent=month?new Date(month+'-01').toLocaleDateString('en-IN',{month:'long',year:'numeric'}):'—';
   const dp=document.getElementById('sal-month');if(dp&&!dp.value)dp.value=new Date().toISOString().slice(0,7);
-  const staff=DB.salaries||[];
+  const allStaff=DB.salaries||[];
+  const staff=allStaff.filter(s=>_salViewTab==='inactive'?!!s.quitDate:!s.quitDate);
+  const inactiveCount=allStaff.filter(s=>!!s.quitDate).length;
+  const iTab=document.getElementById('sal-tab-inactive');
+  if(iTab)iTab.textContent='Inactive (Quit)'+(inactiveCount?' ('+inactiveCount+')':'');
   const payments=(DB.salaryPayments||{})[month]||[];
   const body=document.getElementById('sal-body');
   const foot=document.getElementById('sal-foot');
   if(!body)return;
-  if(!staff.length){body.innerHTML='<tr><td colspan="11" class="te">No staff added yet</td></tr>';if(foot)foot.innerHTML='';return;}
+  if(!staff.length){body.innerHTML=`<tr><td colspan="11" class="te">${_salViewTab==='inactive'?'No inactive staff':'No active staff added yet'}</td></tr>`;if(foot)foot.innerHTML='';return;}
 
   let totalDue=0,totalPaid=0;
   body.innerHTML=staff.map((s,i)=>{
