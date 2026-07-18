@@ -14773,6 +14773,7 @@ function addSalaryMember(){
 function delSalaryMember(id){
   if(!confirm('Remove this staff member?'))return;
   DB.salaries=(DB.salaries||[]).filter(s=>s.id!==id);
+  tombstone('salaries',id); // without this, the next cloud sync restores it from the stale snapshot
   saveDB();renderSalaries();renderSalAllMembers();
   toast('Removed');
 }
@@ -14906,8 +14907,8 @@ function renderSalaries(){
   if(lbl)lbl.textContent=month?new Date(month+'-01').toLocaleDateString('en-IN',{month:'long',year:'numeric'}):'—';
   const dp=document.getElementById('sal-month');if(dp&&!dp.value)dp.value=new Date().toISOString().slice(0,7);
   const allStaff=DB.salaries||[];
-  const staff=allStaff.filter(s=>_salViewTab==='inactive'?!!s.quitDate:!s.quitDate);
-  const inactiveCount=allStaff.filter(s=>!!s.quitDate).length;
+  const staff=allStaff.filter(s=>_salViewTab==='inactive'?!isStaffActiveInMonth(s,month):isStaffActiveInMonth(s,month));
+  const inactiveCount=allStaff.filter(s=>!isStaffActiveInMonth(s,month)).length;
   const iTab=document.getElementById('sal-tab-inactive');
   if(iTab)iTab.textContent='Inactive (Quit)'+(inactiveCount?' ('+inactiveCount+')':'');
   const payments=(DB.salaryPayments||{})[month]||[];
@@ -14932,7 +14933,9 @@ function renderSalaries(){
     const statusLabel=isPaid?'✓ Paid':isHold?'On Hold':'Pending';
     return`<tr style="${isPaid?'opacity:0.7':''}${!active?';opacity:0.45':''}">
       <td class="tr dim xs2">${i+1}</td>
-      <td class="semi">${s.name}${s.quitDate?` <span class="tag xs3" style="background:rgba(239,68,68,.12);color:var(--rd);border:1px solid var(--rd)" title="Last working date: ${fmtD(s.quitDate)}">Quit ${fmtD(s.quitDate)}</span>`:''}</td>
+      <td class="semi">${s.name}
+        <span class="tag xs3" style="background:${active?'rgba(46,204,138,.12)':'rgba(148,163,184,.15)'};color:${active?'var(--gn)':'var(--tx3)'};border:1px solid ${active?'var(--gn)':'var(--tx3)'}" title="${active?'On payroll for this month':'Not on payroll for this month'}">${active?'Active':'Inactive'}</span>
+        ${s.quitDate?` <span class="tag xs3" style="background:rgba(239,68,68,.12);color:var(--rd);border:1px solid var(--rd)" title="Last working date: ${fmtD(s.quitDate)}">Quit ${fmtD(s.quitDate)}</span>`:''}</td>
       <td class="xs2">${s.desig||'—'}</td>
       <td><span class="tag ts xs2">${s.dept}</span></td>
       <td class="tr mono blue semi">${fmt(s.rate)}</td>
