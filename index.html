@@ -21220,12 +21220,33 @@ function printOverlayClean(){
       th,td{padding:4px 6px}
       h2{margin:0 0 4px 0}
       div{max-width:none!important;margin-left:0!important;margin-right:0!important}
+      #scale-wrapper{transform-origin:top left}
       @page{size:A4 landscape;margin:10mm}
     </style>
-  </head><body>${body}</body></html>`);
+  </head><body><div id="scale-wrapper">${body}</div></body></html>`);
   win.document.close();
   win.focus();
-  setTimeout(()=>{win.print();},400);
+  setTimeout(()=>{
+    // "Fit to page" for short topsheets — a 1-day bill left on its own looks
+    // like it's floating in mostly-blank paper. Measure the actual rendered
+    // content against an approximate A4-landscape content area (after 10mm
+    // margins, in CSS px) and scale it up to better fill the sheet — but
+    // only when it's noticeably short, and never distort by exceeding
+    // either the page's width or height limit.
+    try{
+      const wrapper=win.document.getElementById('scale-wrapper');
+      if(wrapper){
+        const naturalH=wrapper.scrollHeight;
+        const naturalW=wrapper.scrollWidth;
+        const targetH=700,targetW=1040;
+        if(naturalH>0&&naturalW>0&&naturalH<targetH*0.85){
+          const scale=Math.min(targetH/naturalH,targetW/naturalW,1.8);
+          if(scale>1.05)wrapper.style.transform='scale('+scale+')';
+        }
+      }
+    }catch(e){console.warn('fit-to-page scaling skipped',e);}
+    win.print();
+  },400);
 }
 function openPrintOverlay(title, html, extraBtns){
   document.getElementById('print-overlay-title').textContent=title||'Topsheet';
