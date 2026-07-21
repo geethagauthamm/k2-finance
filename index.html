@@ -21827,13 +21827,15 @@ function renderBills(){
       <td>${st}</td>
       <td class="xs2 dim">${fmtD(b.shootDate)}</td>
       ${scanCell}
-      <td class="no-print" style="white-space:nowrap">
+      <td class="no-print" style="max-width:220px">
+        <div style="display:flex;flex-wrap:wrap;gap:4px">
         <button class="btn bs xs" onclick="viewBill('${b.id}')" style="font-size:10px">View</button>
-        ${hasTopsheet?`<button class="btn bs xs" onclick="fxEditBill('${b.id}')" style="font-size:10px;margin-left:4px;color:var(--bl);border-color:var(--bl)" title="Edit topsheet">✎ Edit</button>`:''}
-        ${(isApproved||isPartial)?`<button class="btn bg xs" onclick="openMarkBillPaidModal('${b.id}')" style="font-size:10px;margin-left:4px;background:#ef4444">💳 ${isPartial?'Pay More':'PAID'}</button>`:''}
-        ${(isApproved||isPartial)?`<button class="btn bs xs" onclick="openLinkPaymentModal('${b.id}')" style="font-size:10px;margin-left:4px;color:#3b82f6;border-color:#3b82f6" title="Link an existing Payment Tracker entry already paid for part of this bill">🔗 Link Payment</button>`:''}
-        ${isApproved?`<button class="btn bs xs" onclick="sendBillToPayments('${b.id}')" style="font-size:10px;margin-left:4px;color:var(--go)">→ Pay</button>`:''}
-        ${hasTopsheet?`<button class="btn bs xs" onclick="alPromptFlexBill((DB.bills||[]).find(x=>x.id==='${b.id}'))" style="font-size:10px;margin-left:4px;color:var(--pu);border-color:var(--pu)">🔗 Link</button>`:''}
+        ${hasTopsheet?`<button class="btn bs xs" onclick="fxEditBill('${b.id}')" style="font-size:10px;color:var(--bl);border-color:var(--bl)" title="Edit topsheet">✎ Edit</button>`:''}
+        ${(isApproved||isPartial)?`<button class="btn bg xs" onclick="openMarkBillPaidModal('${b.id}')" style="font-size:10px;background:#ef4444">💳 ${isPartial?'Pay More':'PAID'}</button>`:''}
+        ${(isApproved||isPartial)?`<button class="btn bs xs" onclick="openLinkPaymentModal('${b.id}')" style="font-size:10px;color:#3b82f6;border-color:#3b82f6" title="Link an existing Payment Tracker entry already paid for part of this bill">🔗 Link Payment</button>`:''}
+        ${isApproved?`<button class="btn bs xs" onclick="sendBillToPayments('${b.id}')" style="font-size:10px;color:var(--go)">→ Pay</button>`:''}
+        ${hasTopsheet?`<button class="btn bs xs" onclick="alPromptFlexBill((DB.bills||[]).find(x=>x.id==='${b.id}'))" style="font-size:10px;color:var(--pu);border-color:var(--pu)">🔗 Link</button>`:''}
+        </div>
       </td>
     </tr>`;
   };
