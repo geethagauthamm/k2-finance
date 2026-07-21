@@ -4661,11 +4661,16 @@ function checkPaymentReminders(){
     <div class="print-header"><h1>Monthly Salaries</h1></div>
     <div id="sal-reminder-banner"></div>
 
-    <!-- Project Salary Summary -->
-    <div class="card no-print" id="sal-project-summary-card">
+    <!-- Project Salary Summary — hidden by default, only shown on request via
+         the Ledger / Full Statement button (see openSalLedger below), not
+         displayed inline on every visit to this page. -->
+    <div class="card no-print" id="sal-project-summary-card" style="display:none">
       <div class="flex aic jb mb10">
         <div class="ct" style="margin:0">📊 Project Salary Summary — All Staff, All Months</div>
-        <button class="btn bs sm" onclick="renderSalProjectSummary()">↻ Refresh</button>
+        <div class="flex gap8">
+          <button class="btn bs sm" onclick="renderSalProjectSummary()">↻ Refresh</button>
+          <button class="btn bs sm" onclick="document.getElementById('sal-project-summary-card').style.display='none'">✕ Close</button>
+        </div>
       </div>
       <div id="sal-project-summary-body">
         <div style="color:var(--tx3);font-size:12px;padding:8px">Click Refresh to load totals paid per staff member across the full project.</div>
@@ -4695,6 +4700,7 @@ function checkPaymentReminders(){
         <div class="fld mb0"><label>Month</label><input type="month" id="sal-month" onchange="renderSalaries()" style="font-size:13px"></div>
         <button class="btn bs sm" onclick="markAllSalariesPaid()">&#10003; Mark All Paid</button>
         <button class="btn bg sm" onclick="printSalaryStatement()">🖨 Salary Statement</button>
+        <button class="btn bs sm" onclick="openSalLedger()">📊 Ledger (All Months)</button>
         <span id="sal-month-summary" class="xs2 dim" style="margin-left:auto"></span>
       </div>
     </div>
@@ -13471,6 +13477,14 @@ function renderVendorPayHistory(){
 // ─────────────────────────────────────────────────────────
 //  SALARY PAGE — Project Summary
 // ─────────────────────────────────────────────────────────
+// Reveals the Project Salary Summary (breakup across every month) — only
+// shown here on request, not displayed inline by default.
+function openSalLedger(){
+  const card=document.getElementById('sal-project-summary-card');
+  if(card)card.style.display='';
+  renderSalProjectSummary();
+  card?.scrollIntoView?.({behavior:'smooth',block:'start'});
+}
 function renderSalProjectSummary(){
   const el=document.getElementById('sal-project-summary-body');
   if(!el)return;
@@ -13490,7 +13504,15 @@ function renderSalProjectSummary(){
   Object.values(payments).forEach(salPay=>{
     Object.keys(salPay||{}).forEach(m=>allMonths.add(m));
   });
-  const months=[...allMonths].sort();
+  const months=[...allMonths].sort((a,b)=>{
+    // "YYYY-MM" keys sort correctly as plain strings (fixed-width, ISO order) —
+    // but some legacy entries here are bare numeric month-indices ("0","1",
+    // "10"...), which string-sort wrong ("10" before "2"). Compare numerically
+    // when both sides are pure numbers, otherwise fall back to string order.
+    const aNum=/^\d+$/.test(a),bNum=/^\d+$/.test(b);
+    if(aNum&&bNum)return parseFloat(a)-parseFloat(b);
+    return a.localeCompare(b);
+  });
 
   let html=`<div style="overflow-x:auto"><table style="border-collapse:collapse;font-size:11px;width:100%">
     <thead><tr style="background:var(--sf3)">
