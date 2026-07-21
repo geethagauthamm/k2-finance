@@ -17973,6 +17973,7 @@ function billToExcelRows(bill){
     rows.push(header);
 
     let grand=0;
+    const flatCharged=new Set(); // roles whose one-time Flat charge has already been counted
     [...bill._flexRows].sort((a,b)=>(a.date||'').localeCompare(b.date||'')).forEach(row=>{
       let rowTotal=0;
       const roleVals=[];
@@ -17981,7 +17982,9 @@ function billToExcelRows(bill){
         const count=parseFloat(rd.count)||0,rate=parseFloat(rd.rate)||0,allow=parseFloat(rd.allowance)||0;
         let battas;
         if(r.payType==='Package'){battas=count>0?rate*(parseFloat(row.cs)||1):0;}
-        else if(r.payType==='Flat'){battas=count>0?rate:0;}
+        else if(r.payType==='Flat'){
+          if(count>0&&!flatCharged.has(r.id)){battas=rate;flatCharged.add(r.id);}else{battas=0;}
+        }
         else{const csM=(r.payType==='Per Day')?1:(parseFloat(row.cs)||1);battas=Math.round(count*rate*csM*100)/100;}
         const allowTotal=Math.round(count*allow*100)/100;
         rowTotal+=battas+allowTotal;
@@ -18686,9 +18689,13 @@ function fxRowCalc(idx){
       return;
     }
     if(r.payType==='Flat'){
-      // True one-time flat charge — rate only, NOT multiplied by CS or headcount.
-      // For lump-sum items like a one-off making/purchase charge.
-      if(count>0)total+=(parseFloat(rd.rate)||0);
+      // True one-time flat charge — rate only, NOT multiplied by CS or headcount,
+      // and only charged ONCE across the whole topsheet (on whichever row is
+      // first, in order, to have a non-zero count) — not once per date row.
+      if(count>0){
+        const firstIdx=_fxRows.findIndex(rw=>(parseFloat(rw.roleData?.[r.id]?.count)||0)>0);
+        if(firstIdx===idx)total+=(parseFloat(rd.rate)||0);
+      }
       total+=count*(parseFloat(rd.allowance)||0);
       return;
     }
@@ -20124,7 +20131,18 @@ function printFlexBillTopsheet(b){
     <th style="padding:4px 6px;font-size:9px;color:#fff;background:#28486e">Battas ₹</th>
     <th style="padding:4px 6px;font-size:9px;color:#fff;background:#28486e">Allow ₹</th>`).join('');
 
-  const tableRows=rows.map(row=>{
+  // Precompute, per Flat-type role, which row (by array index) is the one that
+  // actually gets charged — the first row (in display order) with a non-zero
+  // count for that role. Shared between the row table below and the grand-total
+  // footer, so both credit the exact same row and never double-count.
+  const flatFirstIdx={};
+  activeRoles.forEach(r=>{
+    if(r.payType!=='Flat')return;
+    const idx=rows.findIndex(row=>(parseFloat(row.roleData?.[r.id]?.count)||0)>0);
+    if(idx>=0)flatFirstIdx[r.id]=idx;
+  });
+
+  const tableRows=rows.map((row,rIdx)=>{
     let rowTotal=0;
     const roleCells=activeRoles.map(r=>{
       const rd=row.roleData?.[r.id]||{count:0,rate:0,allowance:0};
@@ -20135,7 +20153,7 @@ function printFlexBillTopsheet(b){
       if(r.payType==='Package'){
         battas=count>0?rate*(parseFloat(row.cs)||1):0; // flat per call sheet × number of call sheets
       }else if(r.payType==='Flat'){
-        battas=count>0?rate:0; // one-time flat charge — not multiplied by CS or headcount
+        battas=(count>0&&flatFirstIdx[r.id]===rIdx)?rate:0; // one-time flat charge — only on its one credited row, not every row
       }else{
         const csMultiplier=(r.payType==='Per Day')?1:(parseFloat(row.cs)||1);
         battas=Math.round(count*rate*csMultiplier*100)/100;
@@ -20169,14 +20187,14 @@ function printFlexBillTopsheet(b){
   // Grand totals per role column (footer)
   const roleFooterCells=activeRoles.map(r=>{
     let totCount=0,totBattas=0,totAllow=0;
-    rows.forEach(row=>{
+    rows.forEach((row,rIdx)=>{
       const rd=row.roleData?.[r.id]||{count:0,rate:0,allowance:0};
       const count=parseFloat(rd.count)||0,rate=parseFloat(rd.rate)||0,allow=parseFloat(rd.allowance)||0;
       totCount+=count;
       if(r.payType==='Package'){
         totBattas+=count>0?rate*(parseFloat(row.cs)||1):0;
       }else if(r.payType==='Flat'){
-        totBattas+=count>0?rate:0;
+        if(count>0&&flatFirstIdx[r.id]===rIdx)totBattas+=rate; // same one credited row as the table above
       }else{
         const csMultiplier=(r.payType==='Per Day')?1:(parseFloat(row.cs)||1);
         totBattas+=count*rate*csMultiplier;
@@ -20221,7 +20239,7 @@ function printFlexBillTopsheet(b){
           <td colspan="5" style="padding:6px;border:1px solid #ddd;text-align:right;font-size:11px">GRAND TOTAL</td>
           ${roleFooterCells}
           <td style="padding:6px;border:1px solid #ddd;border-left:2px solid #ccc;text-align:right">${fmt(rows.reduce((s,r)=>s+(parseFloat(r.otherCharges)||0),0))}</td>
-          <td style="padding:6px;border:1px solid #ddd;text-align:right;background:#e2e8f0">${fmt(rows.reduce((s,row)=>{let t=0;activeRoles.forEach(r=>{const rd=row.roleData?.[r.id]||{count:0,rate:0,allowance:0};const count=parseFloat(rd.count)||0,rate=parseFloat(rd.rate)||0,allow=parseFloat(rd.allowance)||0;let battas;if(r.payType==='Package'){battas=count>0?rate*(parseFloat(row.cs)||1):0;}else if(r.payType==='Flat'){battas=count>0?rate:0;}else{const csM=(r.payType==='Per Day')?1:(parseFloat(row.cs)||1);battas=count*rate*csM;}t+=battas+count*allow;});return s+t+(parseFloat(row.otherCharges)||0);},0))}</td>
+          <td style="padding:6px;border:1px solid #ddd;text-align:right;background:#e2e8f0">${fmt(rows.reduce((s,row,rIdx)=>{let t=0;activeRoles.forEach(r=>{const rd=row.roleData?.[r.id]||{count:0,rate:0,allowance:0};const count=parseFloat(rd.count)||0,rate=parseFloat(rd.rate)||0,allow=parseFloat(rd.allowance)||0;let battas;if(r.payType==='Package'){battas=count>0?rate*(parseFloat(row.cs)||1):0;}else if(r.payType==='Flat'){battas=(count>0&&flatFirstIdx[r.id]===rIdx)?rate:0;}else{const csM=(r.payType==='Per Day')?1:(parseFloat(row.cs)||1);battas=count*rate*csM;}t+=battas+count*allow;});return s+t+(parseFloat(row.otherCharges)||0);},0))}</td>
           <td style="border:1px solid #ddd"></td>
         </tr>
       </tbody>
@@ -21572,7 +21590,15 @@ function generateFlexTopsheetHtml(b){
     <th style="padding:4px 6px;border-left:2px solid rgba(255,255,255,.25);font-size:9px;color:#fff;background:#28486e">No.</th>
     <th style="padding:4px 6px;font-size:9px;color:#fff;background:#28486e">Battas ₹</th>
     <th style="padding:4px 6px;font-size:9px;color:#fff;background:#28486e">Allow ₹</th>`).join('');
-  const tableRows=rows.map(row=>{
+  // Same shared one-time-Flat-charge mapping as printFlexBillTopsheet, used
+  // consistently by the table, footer, and grand total below.
+  const flatFirstIdx={};
+  activeRoles.forEach(r=>{
+    if(r.payType!=='Flat')return;
+    const idx=rows.findIndex(row=>(parseFloat(row.roleData?.[r.id]?.count)||0)>0);
+    if(idx>=0)flatFirstIdx[r.id]=idx;
+  });
+  const tableRows=rows.map((row,rIdx)=>{
     let rowTotal=0;
     const roleCells=activeRoles.map(r=>{
       const rd=row.roleData?.[r.id]||{count:0,rate:0,allowance:0};
@@ -21581,7 +21607,7 @@ function generateFlexTopsheetHtml(b){
       if(r.payType==='Package'){
         battas=count>0?rate*(parseFloat(row.cs)||1):0;
       }else if(r.payType==='Flat'){
-        battas=count>0?rate:0;
+        battas=(count>0&&flatFirstIdx[r.id]===rIdx)?rate:0;
       }else{
         const csMultiplier=(r.payType==='Per Day')?1:(parseFloat(row.cs)||1);
         battas=Math.round(count*rate*csMultiplier*100)/100;
@@ -21612,14 +21638,14 @@ function generateFlexTopsheetHtml(b){
   }).join('');
   const roleFooterCells=activeRoles.map(r=>{
     let totCount=0,totBattas=0,totAllow=0;
-    rows.forEach(row=>{
+    rows.forEach((row,rIdx)=>{
       const rd=row.roleData?.[r.id]||{count:0,rate:0,allowance:0};
       const count=parseFloat(rd.count)||0,rate=parseFloat(rd.rate)||0,allow=parseFloat(rd.allowance)||0;
       totCount+=count;
       if(r.payType==='Package'){
         totBattas+=count>0?rate*(parseFloat(row.cs)||1):0;
       }else if(r.payType==='Flat'){
-        totBattas+=count>0?rate:0;
+        if(count>0&&flatFirstIdx[r.id]===rIdx)totBattas+=rate;
       }else{
         const csMultiplier=(r.payType==='Per Day')?1:(parseFloat(row.cs)||1);
         totBattas+=count*rate*csMultiplier;
@@ -21631,7 +21657,7 @@ function generateFlexTopsheetHtml(b){
       <td style="padding:6px;border:1px solid #ddd;text-align:right;font-weight:700">${fmt(Math.round(totAllow*100)/100)}</td>`;
   }).join('');
   const colCount=5+activeRoles.length*3+3;
-  const grandTotal=rows.reduce((s,row)=>{
+  const grandTotal=rows.reduce((s,row,rIdx)=>{
     let rt=0;
     activeRoles.forEach(r=>{
       const rd=row.roleData?.[r.id]||{};
@@ -21639,7 +21665,7 @@ function generateFlexTopsheetHtml(b){
       if(r.payType==='Package'){
         rt+=(count>0?rate*(parseFloat(row.cs)||1):0)+count*allow;
       }else if(r.payType==='Flat'){
-        rt+=(count>0?rate:0)+count*allow;
+        rt+=((count>0&&flatFirstIdx[r.id]===rIdx)?rate:0)+count*allow;
       }else{
         const cs=(r.payType==='Per Day')?1:(parseFloat(row.cs)||1);
         rt+=count*rate*cs+count*allow;
