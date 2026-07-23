@@ -10035,10 +10035,12 @@ function alogNameChanged(name){
   const key=name.toLowerCase();
 
   // If this artist has a predefined entourage, offer to load the whole team
-  // at once rather than adding each member by hand.
+  // at once rather than adding each member by hand. Fuzzy-matched, so typing
+  // "Pasupathi" still finds an entourage saved under "Pasupathi Masimlani".
   const banner=document.getElementById('alog-entourage-banner');
   if(banner){
-    const team=(DB.entourages||{})[_entKey(name)]||[];
+    const entKey=_findEntourageKey(name);
+    const team=entKey?(DB.entourages||{})[entKey]||[]:[];
     banner.innerHTML=team.length?`<div class="card no-print" style="background:rgba(46,204,138,.08);border-color:var(--gn);padding:8px 14px;margin-bottom:10px">
       <div class="flex aic jb">
         <span class="xs2" style="color:var(--gn)">🎪 <strong>${esc(name)}</strong> has a predefined entourage — ${team.length} member(s): ${team.map(m=>esc(m.name)).join(', ')}</span>
@@ -10047,11 +10049,12 @@ function alogNameChanged(name){
     </div>`:'';
   }
 
-  // Search every day's Actor Log entries for the most recent match (by date)
+  // Search every day's Actor Log entries for the most recent match (by date) —
+  // fuzzy, so "Pasupathi" matches an existing "Pasupathi Masimlani" entry.
   let bestEntry=null,bestDate=null;
   Object.keys(DB.actorLog||{}).forEach(d=>{
     (DB.actorLog[d]||[]).forEach(e=>{
-      if((e.name||'').toLowerCase().trim()===key&&(!bestDate||d>bestDate)){
+      if(_nameMatches(name,e.name)&&(!bestDate||d>bestDate)){
         bestEntry=e;bestDate=d;
       }
     });
@@ -10061,13 +10064,13 @@ function alogNameChanged(name){
     document.getElementById('alog-paytype').value=bestEntry.payType||'Per Day';
     document.getElementById('alog-rate').value=bestEntry.rate||'';
     if(bestEntry.attachedTo)document.getElementById('alog-actor').value=bestEntry.attachedTo;
-    toast('✓ Auto-filled from '+fmtD(bestDate)+' entry for '+name);
+    toast('✓ Auto-filled from '+fmtD(bestDate)+' entry for '+(bestEntry.name!==name?bestEntry.name+' (matched '+name+')':name));
     return;
   }
 
   // Fall back to the Staff Register — no prior Actor Log entry, but they're
   // a known staff member with a set monthly rate.
-  const staffMatch=(DB.salaries||[]).find(s=>(s.name||'').toLowerCase().trim()===key);
+  const staffMatch=(DB.salaries||[]).find(s=>_nameMatches(name,s.name));
   if(staffMatch){
     document.getElementById('alog-cat').value=staffMatch.desig&&document.querySelector(`#alog-cat option[value="${staffMatch.desig}"]`)?staffMatch.desig:'Other Staff';
     toast('✓ Found in Staff Register — set Category/Pay Type/Rate for this shoot as needed');
@@ -10077,7 +10080,8 @@ function alogNameChanged(name){
 // Adds every predefined entourage member for an artist as separate Actor Log
 // entries on the CURRENT day, each correctly linked via "Attached to Actor".
 function loadEntourageForActor(artistName){
-  const team=(DB.entourages||{})[_entKey(artistName)]||[];
+  const key=_findEntourageKey(artistName);
+  const team=key?(DB.entourages||{})[key]||[]:[];
   if(!team.length){toast('No entourage defined for '+artistName,'err');return;}
   const d=actCurrentDay;
   const h=(DB.dayHeaders||{})[d]||{};
@@ -22150,7 +22154,36 @@ function arPtLabel(pt){
 // attached to a specific artist, so adding that artist in Actors Day Log can
 // offer to add their whole team at once instead of one entry at a time. ──
 // Stored as DB.entourages[artistNameLowercased] = [{id,name,category,payType,rate}]
+// Matches a typed name against a registered one even when it's a shorter/
+// informal version — e.g. "Pasupathi" typed day-to-day should still match
+// "Pasupathi Masimlani" on file, but "Ram" must NOT match "Ramesh" (that's
+// a different person, not a shortened name). Word-boundary aware: the
+// shorter name's words must exactly match the START of the longer name's
+// words, not just be a raw substring.
+function _nameMatches(typed,registered){
+  const a=(typed||'').toLowerCase().trim();
+  const b=(registered||'').toLowerCase().trim();
+  if(!a||!b)return false;
+  if(a===b)return true;
+  const shortWords=(a.length<=b.length?a:b).split(/\s+/);
+  const longWords=(a.length<=b.length?b:a).split(/\s+/);
+  if(shortWords.length>=longWords.length)return false;
+  return shortWords.every((w,i)=>longWords[i]===w);
+}
 function _entKey(name){return(name||'').toLowerCase().trim();}
+// Finds the actual entourage key that fuzzy-matches a typed name, since
+// entourages are stored keyed by whatever full name they were defined
+// under — a plain _entKey() lookup would miss "Pasupathi" against an
+// entourage saved under "Pasupathi Masimlani".
+function _findEntourageKey(name){
+  const exact=_entKey(name);
+  if((DB.entourages||{})[exact])return exact;
+  return Object.keys(DB.entourages||{}).find(k=>{
+    const team=DB.entourages[k];
+    const displayName=team&&team[0]&&team[0]._artistDisplayName;
+    return displayName&&_nameMatches(name,displayName);
+  })||null;
+}
 function arRenderEntourage(){
   const dl=document.getElementById('ent-artist-list');
   if(dl){
