@@ -1335,7 +1335,7 @@ body.auditor-mode #save-btn { display:none !important; }
           </select>
         </div>
         <div class="fld"><label>Rate (&#8377;)</label>
-          <input type="number" id="alog-rate" placeholder="0">
+          <input type="number" id="alog-rate" placeholder="0" oninput="alogUpdateFxPreview()">
         </div>
         <div class="fld"><label>Count</label>
           <input type="number" id="alog-count" value="1" min="1">
@@ -1343,6 +1343,22 @@ body.auditor-mode #save-btn { display:none !important; }
         <div class="fld" style="padding-top:18px">
           <button class="btn bg" onclick="addManualActorLog()">+ Add</button>
         </div>
+      </div>
+      <div class="flex aic gap8 mb8" style="flex-wrap:wrap">
+        <div class="fld" style="max-width:120px;flex:none"><label>Currency</label>
+          <select id="alog-currency" onchange="alogCurrencyChanged()">
+            <option value="INR">₹ INR</option>
+            <option value="USD">$ USD</option>
+            <option value="EUR">€ EUR</option>
+            <option value="GBP">£ GBP</option>
+            <option value="AED">AED</option>
+          </select>
+        </div>
+        <div class="fld" id="alog-fxrate-field" style="max-width:170px;flex:none;display:none">
+          <label>FX Rate (1 unit = ₹)</label>
+          <input type="number" id="alog-fxrate" placeholder="e.g. 83.25" step="0.01" oninput="alogUpdateFxPreview()">
+        </div>
+        <span id="alog-fx-preview" class="xs2 dim"></span>
       </div>
       <div class="fld" style="max-width:280px"><label>Attached to Actor <span class="xs3 dim">(for staff)</span></label>
         <input type="text" id="alog-actor" placeholder="e.g. Alia Bhatt" list="alog-actor-list" autocomplete="off">
@@ -10101,15 +10117,38 @@ function loadEntourageForActor(artistName){
   toast('✓ Added '+added+' entourage member(s) for '+artistName);
 }
 
+function alogCurrencyChanged(){
+  const cur=document.getElementById('alog-currency')?.value||'INR';
+  const fxField=document.getElementById('alog-fxrate-field');
+  if(fxField)fxField.style.display=cur==='INR'?'none':'';
+  alogUpdateFxPreview();
+}
+function alogUpdateFxPreview(){
+  const cur=document.getElementById('alog-currency')?.value||'INR';
+  const preview=document.getElementById('alog-fx-preview');
+  if(!preview)return;
+  if(cur==='INR'){preview.textContent='';return;}
+  const rate=parseFloat(document.getElementById('alog-rate')?.value)||0;
+  const fx=parseFloat(document.getElementById('alog-fxrate')?.value)||0;
+  preview.textContent=(rate&&fx)?'= ₹'+fmt(Math.round(rate*fx*100)/100)+' at this rate':'';
+}
 function addManualActorLog(){
   const name=(document.getElementById('alog-name')?.value||'').trim();
   if(!name){toast('Name required','err');return;}
   const cat=document.getElementById('alog-cat')?.value||'Main Artist';
   const payType=document.getElementById('alog-paytype')?.value||'Per Day';
-  const rate=parseFloat(document.getElementById('alog-rate')?.value)||0;
+  const rateEntered=parseFloat(document.getElementById('alog-rate')?.value)||0;
   const count=parseFloat(document.getElementById('alog-count')?.value)||1;
   const notes=(document.getElementById('alog-notes')?.value||'').trim();
   const attachedTo=(document.getElementById('alog-actor')?.value||'').trim();
+  // Foreign currency: the Rate field is understood to be in the selected
+  // currency, not INR — fxRate converts it. The stored rate/amount stay in
+  // INR (as every downstream total/print/DPR sync already assumes), while
+  // currency/fxRate/rateOriginal are kept alongside purely for reference.
+  const currency=document.getElementById('alog-currency')?.value||'INR';
+  const fxRate=currency==='INR'?1:(parseFloat(document.getElementById('alog-fxrate')?.value)||0);
+  if(currency!=='INR'&&!fxRate){toast('Enter the conversion rate for '+currency,'err');return;}
+  const rate=Math.round(rateEntered*fxRate*100)/100;
   const d=actCurrentDay;
   const h=(DB.dayHeaders||{})[d]||{};
   const dayCS=parseFloat(h.cs)||1;
@@ -10118,14 +10157,18 @@ function addManualActorLog(){
   const amount=payType==='Package'?rate:(!_isStaff&&payType==='Per Call Sheet')?rate*dayCS*count:rate*count;
   if(!DB.actorLog)DB.actorLog={};
   if(!DB.actorLog[d])DB.actorLog[d]=[];
-  DB.actorLog[d].push({id:uid(),name,category:cat,payType,rate,count,cs:payType==='Per Call Sheet'?dayCS:0,amount,notes,attachedTo,isManual:true});
+  const entry={id:uid(),name,category:cat,payType,rate,count,cs:payType==='Per Call Sheet'?dayCS:0,amount,notes,attachedTo,isManual:true};
+  if(currency!=='INR'){entry.currency=currency;entry.fxRate=fxRate;entry.rateOriginal=rateEntered;}
+  DB.actorLog[d].push(entry);
   saveDB();renderActLog();
   dprSyncFromActorLogDay(d);
   document.getElementById('alog-name').value='';
   document.getElementById('alog-rate').value='';
   document.getElementById('alog-notes').value='';
   document.getElementById('alog-count').value='1';
-  toast('✓ '+name+' added');
+  document.getElementById('alog-fxrate').value='';
+  const preview=document.getElementById('alog-fx-preview');if(preview)preview.textContent='';
+  toast('✓ '+name+' added'+(currency!=='INR'?' ('+currency+' '+Number(rateEntered).toLocaleString('en-IN')+' × '+fxRate+' = '+fmt(rate)+')':''));
 }
 
 // Pull every Actor Log entry for a date into that date's DPR Cast/Staff list (additive —
@@ -10409,6 +10452,7 @@ function renderActLog(){
       <td style="${isAttached?'padding-left:16px;border-left:2px solid var(--bl)':''}">
         <input class="act-inline" style="width:130px" value="${e.name}" onchange="editActEntry('${d}','${e.id}','name',this.value)">
         ${isAttached?`<div class="xs3 dim" style="font-size:9px">↳ ${e._actor}</div>`:''}
+        ${e.currency?`<div class="xs3" style="font-size:9px;color:var(--go)" title="Original: ${e.currency} ${Number(e.rateOriginal||0).toLocaleString('en-IN')} × ${e.fxRate} = ${fmt(e.rate)}">💱 ${e.currency} ${Number(e.rateOriginal||0).toLocaleString('en-IN')}</div>`:''}
       </td>
       <td><select class="act-inline" style="width:140px" onchange="editActEntry('${d}','${e.id}','category',this.value)">
         ${['Main Artist','Secondary Artist','Tertiary / Dupe','Model','Junior Artist','Coordinator','Makeup Artist','Hair Stylist','Costume','Personal Assistant','Spot Boy','Manager','Bodyguard','Trainer','Nutritionist','Fighter','Stunt Double','Other Staff'].map(c=>`<option value="${c}"${e.category===c?' selected':''}>${c}</option>`).join('')}
