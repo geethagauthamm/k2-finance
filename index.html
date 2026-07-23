@@ -1299,7 +1299,8 @@ body.auditor-mode #save-btn { display:none !important; }
       <div class="ct">+ Add Manual Entry</div>
       <div class="fg mb8" style="grid-template-columns:1.4fr 1fr 0.8fr 0.8fr 0.6fr auto">
         <div class="fld"><label>Name *</label>
-          <input type="text" id="alog-name" placeholder="Actor / person name">
+          <input type="text" id="alog-name" placeholder="Actor / person name" list="alog-name-list" autocomplete="off" onchange="alogNameChanged(this.value)">
+          <datalist id="alog-name-list"></datalist>
         </div>
         <div class="fld"><label>Category</label>
           <select id="alog-cat">
@@ -9979,6 +9980,43 @@ function confirmActorLogTopsheet(){
   toast('✓ Bill created for '+name+' — ₹'+fm(total)+' — find it in Bills Archive to review and approve');
 }
 
+// When a name matching an existing Actor Log entry (any past day) or Staff
+// Register member is typed/selected, auto-fill Category/Pay Type/Rate (and
+// Attached-to-Actor, if applicable) from their most recent record — so
+// re-adding the same person day after day doesn't risk a spelling slip or
+// an inconsistent rate from re-typing everything by hand each time.
+function alogNameChanged(name){
+  name=(name||'').trim();
+  if(!name)return;
+  const key=name.toLowerCase();
+
+  // Search every day's Actor Log entries for the most recent match (by date)
+  let bestEntry=null,bestDate=null;
+  Object.keys(DB.actorLog||{}).forEach(d=>{
+    (DB.actorLog[d]||[]).forEach(e=>{
+      if((e.name||'').toLowerCase().trim()===key&&(!bestDate||d>bestDate)){
+        bestEntry=e;bestDate=d;
+      }
+    });
+  });
+  if(bestEntry){
+    document.getElementById('alog-cat').value=bestEntry.category||'Main Artist';
+    document.getElementById('alog-paytype').value=bestEntry.payType||'Per Day';
+    document.getElementById('alog-rate').value=bestEntry.rate||'';
+    if(bestEntry.attachedTo)document.getElementById('alog-actor').value=bestEntry.attachedTo;
+    toast('✓ Auto-filled from '+fmtD(bestDate)+' entry for '+name);
+    return;
+  }
+
+  // Fall back to the Staff Register — no prior Actor Log entry, but they're
+  // a known staff member with a set monthly rate.
+  const staffMatch=(DB.salaries||[]).find(s=>(s.name||'').toLowerCase().trim()===key);
+  if(staffMatch){
+    document.getElementById('alog-cat').value=staffMatch.desig&&document.querySelector(`#alog-cat option[value="${staffMatch.desig}"]`)?staffMatch.desig:'Other Staff';
+    toast('✓ Found in Staff Register — set Category/Pay Type/Rate for this shoot as needed');
+  }
+}
+
 function addManualActorLog(){
   const name=(document.getElementById('alog-name')?.value||'').trim();
   if(!name){toast('Name required','err');return;}
@@ -10235,6 +10273,25 @@ function renderActLog(){
   // Populate actor datalist for Attached to field
   const dl=document.getElementById('alog-actor-list');
   if(dl)dl.innerHTML=entries.filter(e=>ARTIST_CATS.includes(e.category)).map(a=>`<option value="${a.name}">`).join('');
+
+  // Populate the Name field's datalist from EVERY past Actor Log entry (any
+  // day) plus the Staff Register, so typing a name that's been used before
+  // suggests it — and selecting/matching it can auto-fill their usual
+  // Category/Pay Type/Rate via alogNameChanged, instead of re-entering by hand.
+  const nameDl=document.getElementById('alog-name-list');
+  if(nameDl){
+    const seen=new Set();
+    const names=[];
+    Object.values(DB.actorLog||{}).forEach(dayEntries=>(dayEntries||[]).forEach(e=>{
+      const key=(e.name||'').toLowerCase().trim();
+      if(key&&!seen.has(key)){seen.add(key);names.push(e.name);}
+    }));
+    (DB.salaries||[]).forEach(s=>{
+      const key=(s.name||'').toLowerCase().trim();
+      if(key&&!seen.has(key)){seen.add(key);names.push(s.name);}
+    });
+    nameDl.innerHTML=names.sort().map(n=>`<option value="${n.replace(/"/g,'&quot;')}">`).join('');
+  }
 
   if(!entries.length){
     body.innerHTML='<tr><td colspan="9" class="te dim">No entries for this day — add below</td></tr>';
