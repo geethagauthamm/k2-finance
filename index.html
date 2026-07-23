@@ -1657,8 +1657,24 @@ body.auditor-mode #save-btn { display:none !important; }
               <option value="Per Call Sheet">Per Call Sheet</option>
             </select>
           </div>
-          <div class="fld"><label>Rate (&#8377;)</label><input type="number" id="ent-member-rate" placeholder="0"></div>
+          <div class="fld"><label>Rate (&#8377;)</label><input type="number" id="ent-member-rate" placeholder="0" oninput="entUpdateFxPreview()"></div>
           <div class="fld" style="padding-top:18px"><button class="btn bg" onclick="addEntourageMember()">+ Add to Team</button></div>
+        </div>
+        <div class="flex aic gap8 mb10" style="flex-wrap:wrap">
+          <div class="fld" style="max-width:120px;flex:none"><label>Currency</label>
+            <select id="ent-member-currency" onchange="entCurrencyChanged()">
+              <option value="INR">₹ INR</option>
+              <option value="USD">$ USD</option>
+              <option value="EUR">€ EUR</option>
+              <option value="GBP">£ GBP</option>
+              <option value="AED">AED</option>
+            </select>
+          </div>
+          <div class="fld" id="ent-member-fxrate-field" style="max-width:170px;flex:none;display:none">
+            <label>FX Rate (1 unit = ₹)</label>
+            <input type="number" id="ent-member-fxrate" placeholder="e.g. 83.25" step="0.01" oninput="entUpdateFxPreview()">
+          </div>
+          <span id="ent-member-fx-preview" class="xs2 dim"></span>
         </div>
         <div class="tw"><table>
           <thead><tr><th>Name</th><th>Category</th><th>Pay Type</th><th class="tr">Rate ₹</th><th class="no-print"></th></tr></thead>
@@ -10107,8 +10123,10 @@ function loadEntourageForActor(artistName){
   let added=0;
   team.forEach(m=>{
     const amount=m.payType==='Package'?m.rate:(m.payType==='Per Call Sheet'?m.rate*dayCS:m.rate);
-    DB.actorLog[d].push({id:uid(),name:m.name,category:m.category,payType:m.payType,rate:m.rate,count:1,
-      cs:m.payType==='Per Call Sheet'?dayCS:0,amount,notes:'Entourage — '+artistName,attachedTo:artistName,isManual:true});
+    const entry={id:uid(),name:m.name,category:m.category,payType:m.payType,rate:m.rate,count:1,
+      cs:m.payType==='Per Call Sheet'?dayCS:0,amount,notes:'Entourage — '+artistName,attachedTo:artistName,isManual:true};
+    if(m.currency){entry.currency=m.currency;entry.fxRate=m.fxRate;entry.rateOriginal=m.rateOriginal;}
+    DB.actorLog[d].push(entry);
     added++;
   });
   saveDB();renderActLog();
@@ -22247,16 +22265,33 @@ function arRenderEntourageTeam(){
   if(!name){if(card)card.style.display='none';return;}
   if(card)card.style.display='';
   const lbl=document.getElementById('ent-artist-label');if(lbl)lbl.textContent=name;
-  const team=(DB.entourages||{})[_entKey(name)]||[];
+  const foundKey=_findEntourageKey(name);
+  const team=foundKey?(DB.entourages||{})[foundKey]||[]:[];
+  const rowKey=foundKey||_entKey(name);
   const body=document.getElementById('ent-team-body');
   if(!body)return;
   body.innerHTML=team.length?team.map(m=>`<tr>
-    <td class="semi">${m.name}</td>
+    <td class="semi">${m.name}${m.currency?`<div class="xs3" style="font-size:9px;color:var(--go)" title="Original: ${m.currency} ${Number(m.rateOriginal||0).toLocaleString('en-IN')} × ${m.fxRate} = ${fmt(m.rate)}">💱 ${m.currency} ${Number(m.rateOriginal||0).toLocaleString('en-IN')}</div>`:''}</td>
     <td class="xs2"><span class="tag ts xs2">${m.category}</span></td>
     <td class="xs2">${m.payType}</td>
     <td class="tr mono">${fmt(m.rate)}</td>
-    <td class="no-print"><button class="btn br xs" onclick="delEntourageMember('${_entKey(name)}','${m.id}')">✕</button></td>
+    <td class="no-print"><button class="btn br xs" onclick="delEntourageMember('${rowKey}','${m.id}')">✕</button></td>
   </tr>`).join(''):'<tr><td colspan="5" class="te">No team members yet — add one above</td></tr>';
+}
+function entCurrencyChanged(){
+  const cur=document.getElementById('ent-member-currency')?.value||'INR';
+  const fxField=document.getElementById('ent-member-fxrate-field');
+  if(fxField)fxField.style.display=cur==='INR'?'none':'';
+  entUpdateFxPreview();
+}
+function entUpdateFxPreview(){
+  const cur=document.getElementById('ent-member-currency')?.value||'INR';
+  const preview=document.getElementById('ent-member-fx-preview');
+  if(!preview)return;
+  if(cur==='INR'){preview.textContent='';return;}
+  const rate=parseFloat(document.getElementById('ent-member-rate')?.value)||0;
+  const fx=parseFloat(document.getElementById('ent-member-fxrate')?.value)||0;
+  preview.textContent=(rate&&fx)?'= ₹'+fmt(Math.round(rate*fx*100)/100)+' at this rate':'';
 }
 function addEntourageMember(){
   const artistName=(document.getElementById('ent-artist-name')?.value||'').trim();
@@ -22265,16 +22300,27 @@ function addEntourageMember(){
   if(!memberName){toast('Team member name required','err');return;}
   const category=document.getElementById('ent-member-cat')?.value||'Other Staff';
   const payType=document.getElementById('ent-member-paytype')?.value||'Per Day';
-  const rate=parseFloat(document.getElementById('ent-member-rate')?.value)||0;
+  const rateEntered=parseFloat(document.getElementById('ent-member-rate')?.value)||0;
+  // Same foreign-currency handling as Actor Log — Rate is understood to be in
+  // the selected currency; the stored rate stays INR-equivalent so it plugs
+  // straight into Actor Log entries when this entourage gets loaded later.
+  const currency=document.getElementById('ent-member-currency')?.value||'INR';
+  const fxRate=currency==='INR'?1:(parseFloat(document.getElementById('ent-member-fxrate')?.value)||0);
+  if(currency!=='INR'&&!fxRate){toast('Enter the conversion rate for '+currency,'err');return;}
+  const rate=Math.round(rateEntered*fxRate*100)/100;
   const key=_entKey(artistName);
   if(!DB.entourages)DB.entourages={};
   if(!DB.entourages[key])DB.entourages[key]=[];
-  DB.entourages[key].push({id:uid(),name:memberName,category,payType,rate,_artistDisplayName:artistName});
+  const member={id:uid(),name:memberName,category,payType,rate,_artistDisplayName:artistName};
+  if(currency!=='INR'){member.currency=currency;member.fxRate=fxRate;member.rateOriginal=rateEntered;}
+  DB.entourages[key].push(member);
   saveDB();
   document.getElementById('ent-member-name').value='';
   document.getElementById('ent-member-rate').value='';
+  document.getElementById('ent-member-fxrate').value='';
+  const preview=document.getElementById('ent-member-fx-preview');if(preview)preview.textContent='';
   arRenderEntourageTeam();
-  toast('✓ '+memberName+' added to '+artistName+'\'s entourage');
+  toast('✓ '+memberName+' added to '+artistName+'\'s entourage'+(currency!=='INR'?' ('+currency+' '+Number(rateEntered).toLocaleString('en-IN')+' × '+fxRate+' = '+fmt(rate)+')':''));
 }
 function delEntourageMember(key,memberId){
   if(!DB.entourages||!DB.entourages[key])return;
