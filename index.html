@@ -1297,6 +1297,7 @@ body.auditor-mode #save-btn { display:none !important; }
     <!-- Manual Add Form -->
     <div class="card no-print" style="margin-top:12px">
       <div class="ct">+ Add Manual Entry</div>
+      <div id="alog-entourage-banner"></div>
       <div class="fg mb8" style="grid-template-columns:1.4fr 1fr 0.8fr 0.8fr 0.6fr auto">
         <div class="fld"><label>Name *</label>
           <input type="text" id="alog-name" placeholder="Actor / person name" list="alog-name-list" autocomplete="off" onchange="alogNameChanged(this.value)">
@@ -1459,6 +1460,7 @@ body.auditor-mode #save-btn { display:none !important; }
       <button id="artab-btn-roster" onclick="arShowTab('roster')" style="padding:9px 20px;font-size:12px;font-weight:600;font-family:inherit;cursor:pointer;border:none;border-bottom:2px solid var(--go);background:transparent;color:var(--go);">🎭 Artist Roster</button>
       <button id="artab-btn-attendance" onclick="arShowTab('attendance')" style="padding:9px 20px;font-size:12px;font-weight:600;font-family:inherit;cursor:pointer;border:none;border-bottom:2px solid transparent;background:transparent;color:var(--tx2);">📅 Attendance</button>
       <button id="artab-btn-payables" onclick="arShowTab('payables')" style="padding:9px 20px;font-size:12px;font-weight:600;font-family:inherit;cursor:pointer;border:none;border-bottom:2px solid transparent;background:transparent;color:var(--tx2);">💰 Payables</button>
+      <button id="artab-btn-entourage" onclick="arShowTab('entourage')" style="padding:9px 20px;font-size:12px;font-weight:600;font-family:inherit;cursor:pointer;border:none;border-bottom:2px solid transparent;background:transparent;color:var(--tx2);">🎪 Entourage</button>
     </div>
 
     <!-- ── ROSTER ── -->
@@ -1604,6 +1606,48 @@ body.auditor-mode #save-btn { display:none !important; }
             <tfoot id="ar-payables-foot"></tfoot>
           </table>
         </div>
+      </div>
+    </div>
+
+    <!-- ── ENTOURAGE ── -->
+    <div id="artab-entourage" style="display:none">
+      <div class="card no-print" style="background:rgba(91,138,240,.05);border-color:rgba(91,138,240,.2);padding:10px 14px;">
+        <span class="xs2" style="color:var(--bl)">💡 Define an artist's regular team here once — makeup artist, hairstylist, spot boy, manager, etc. Next time you add that artist in <strong>Actors Day Log</strong>, you'll be offered a one-click "Load Entourage" to add the whole team at once, correctly linked to that artist.</span>
+      </div>
+      <div class="card no-print">
+        <div class="ct">Select / Add Artist</div>
+        <div class="fld" style="max-width:320px">
+          <label>Artist Name</label>
+          <input type="text" id="ent-artist-name" placeholder="e.g. Yogesh" list="ent-artist-list" autocomplete="off" onchange="arRenderEntourageTeam()">
+          <datalist id="ent-artist-list"></datalist>
+        </div>
+      </div>
+      <div class="card" id="ent-team-card" style="display:none">
+        <div class="ct">Team for <span id="ent-artist-label" style="color:var(--go)"></span></div>
+        <div class="fg mb10" style="grid-template-columns:1.4fr 1fr 1fr 0.8fr auto">
+          <div class="fld"><label>Name *</label><input type="text" id="ent-member-name" placeholder="Staff member name"></div>
+          <div class="fld"><label>Category</label>
+            <select id="ent-member-cat">
+              <option>Makeup Artist</option><option>Hair Stylist</option><option>Costume</option>
+              <option>Personal Assistant</option><option>Spot Boy</option><option>Manager</option>
+              <option>Bodyguard</option><option>Trainer</option><option>Nutritionist</option>
+              <option>Other Staff</option>
+            </select>
+          </div>
+          <div class="fld"><label>Pay Type</label>
+            <select id="ent-member-paytype">
+              <option value="Per Day">Per Day</option>
+              <option value="Package">Package</option>
+              <option value="Per Call Sheet">Per Call Sheet</option>
+            </select>
+          </div>
+          <div class="fld"><label>Rate (&#8377;)</label><input type="number" id="ent-member-rate" placeholder="0"></div>
+          <div class="fld" style="padding-top:18px"><button class="btn bg" onclick="addEntourageMember()">+ Add to Team</button></div>
+        </div>
+        <div class="tw"><table>
+          <thead><tr><th>Name</th><th>Category</th><th>Pay Type</th><th class="tr">Rate ₹</th><th class="no-print"></th></tr></thead>
+          <tbody id="ent-team-body"></tbody>
+        </table></div>
       </div>
     </div>
   </div>
@@ -9990,6 +10034,19 @@ function alogNameChanged(name){
   if(!name)return;
   const key=name.toLowerCase();
 
+  // If this artist has a predefined entourage, offer to load the whole team
+  // at once rather than adding each member by hand.
+  const banner=document.getElementById('alog-entourage-banner');
+  if(banner){
+    const team=(DB.entourages||{})[_entKey(name)]||[];
+    banner.innerHTML=team.length?`<div class="card no-print" style="background:rgba(46,204,138,.08);border-color:var(--gn);padding:8px 14px;margin-bottom:10px">
+      <div class="flex aic jb">
+        <span class="xs2" style="color:var(--gn)">🎪 <strong>${esc(name)}</strong> has a predefined entourage — ${team.length} member(s): ${team.map(m=>esc(m.name)).join(', ')}</span>
+        <button class="btn bg xs" onclick="loadEntourageForActor('${esc(name).replace(/'/g,"\\'")}')">+ Load Entourage</button>
+      </div>
+    </div>`:'';
+  }
+
   // Search every day's Actor Log entries for the most recent match (by date)
   let bestEntry=null,bestDate=null;
   Object.keys(DB.actorLog||{}).forEach(d=>{
@@ -10015,6 +10072,29 @@ function alogNameChanged(name){
     document.getElementById('alog-cat').value=staffMatch.desig&&document.querySelector(`#alog-cat option[value="${staffMatch.desig}"]`)?staffMatch.desig:'Other Staff';
     toast('✓ Found in Staff Register — set Category/Pay Type/Rate for this shoot as needed');
   }
+}
+
+// Adds every predefined entourage member for an artist as separate Actor Log
+// entries on the CURRENT day, each correctly linked via "Attached to Actor".
+function loadEntourageForActor(artistName){
+  const team=(DB.entourages||{})[_entKey(artistName)]||[];
+  if(!team.length){toast('No entourage defined for '+artistName,'err');return;}
+  const d=actCurrentDay;
+  const h=(DB.dayHeaders||{})[d]||{};
+  const dayCS=parseFloat(h.cs)||1;
+  if(!DB.actorLog)DB.actorLog={};
+  if(!DB.actorLog[d])DB.actorLog[d]=[];
+  let added=0;
+  team.forEach(m=>{
+    const amount=m.payType==='Package'?m.rate:(m.payType==='Per Call Sheet'?m.rate*dayCS:m.rate);
+    DB.actorLog[d].push({id:uid(),name:m.name,category:m.category,payType:m.payType,rate:m.rate,count:1,
+      cs:m.payType==='Per Call Sheet'?dayCS:0,amount,notes:'Entourage — '+artistName,attachedTo:artistName,isManual:true});
+    added++;
+  });
+  saveDB();renderActLog();
+  dprSyncFromActorLogDay(d);
+  const banner=document.getElementById('alog-entourage-banner');if(banner)banner.innerHTML='';
+  toast('✓ Added '+added+' entourage member(s) for '+artistName);
 }
 
 function addManualActorLog(){
@@ -22066,8 +22146,68 @@ function arPtLabel(pt){
   return{'Package Fixed':'🟡 Pkg Fixed','Package Variable':'🟠 Pkg Variable','Per Day':'🟢 Per Day'}[pt]||pt;
 }
 
+// ── Entourage: predefined teams (makeup, hair, spot boy, manager, etc.)
+// attached to a specific artist, so adding that artist in Actors Day Log can
+// offer to add their whole team at once instead of one entry at a time. ──
+// Stored as DB.entourages[artistNameLowercased] = [{id,name,category,payType,rate}]
+function _entKey(name){return(name||'').toLowerCase().trim();}
+function arRenderEntourage(){
+  const dl=document.getElementById('ent-artist-list');
+  if(dl){
+    const names=new Set();
+    arArtists().forEach(a=>{if(a.name)names.add(a.name);});
+    Object.keys(DB.entourages||{}).forEach(k=>{
+      const team=DB.entourages[k];
+      if(team&&team.length&&team[0]._artistDisplayName)names.add(team[0]._artistDisplayName);
+    });
+    dl.innerHTML=[...names].sort().map(n=>`<option value="${n.replace(/"/g,'&quot;')}">`).join('');
+  }
+  arRenderEntourageTeam();
+}
+function arRenderEntourageTeam(){
+  const name=(document.getElementById('ent-artist-name')?.value||'').trim();
+  const card=document.getElementById('ent-team-card');
+  if(!name){if(card)card.style.display='none';return;}
+  if(card)card.style.display='';
+  const lbl=document.getElementById('ent-artist-label');if(lbl)lbl.textContent=name;
+  const team=(DB.entourages||{})[_entKey(name)]||[];
+  const body=document.getElementById('ent-team-body');
+  if(!body)return;
+  body.innerHTML=team.length?team.map(m=>`<tr>
+    <td class="semi">${m.name}</td>
+    <td class="xs2"><span class="tag ts xs2">${m.category}</span></td>
+    <td class="xs2">${m.payType}</td>
+    <td class="tr mono">${fmt(m.rate)}</td>
+    <td class="no-print"><button class="btn br xs" onclick="delEntourageMember('${_entKey(name)}','${m.id}')">✕</button></td>
+  </tr>`).join(''):'<tr><td colspan="5" class="te">No team members yet — add one above</td></tr>';
+}
+function addEntourageMember(){
+  const artistName=(document.getElementById('ent-artist-name')?.value||'').trim();
+  if(!artistName){toast('Enter an artist name first','err');return;}
+  const memberName=(document.getElementById('ent-member-name')?.value||'').trim();
+  if(!memberName){toast('Team member name required','err');return;}
+  const category=document.getElementById('ent-member-cat')?.value||'Other Staff';
+  const payType=document.getElementById('ent-member-paytype')?.value||'Per Day';
+  const rate=parseFloat(document.getElementById('ent-member-rate')?.value)||0;
+  const key=_entKey(artistName);
+  if(!DB.entourages)DB.entourages={};
+  if(!DB.entourages[key])DB.entourages[key]=[];
+  DB.entourages[key].push({id:uid(),name:memberName,category,payType,rate,_artistDisplayName:artistName});
+  saveDB();
+  document.getElementById('ent-member-name').value='';
+  document.getElementById('ent-member-rate').value='';
+  arRenderEntourageTeam();
+  toast('✓ '+memberName+' added to '+artistName+'\'s entourage');
+}
+function delEntourageMember(key,memberId){
+  if(!DB.entourages||!DB.entourages[key])return;
+  DB.entourages[key]=DB.entourages[key].filter(m=>m.id!==memberId);
+  saveDB();
+  arRenderEntourageTeam();
+}
+
 function arShowTab(t){
-  ['roster','attendance','payables'].forEach(function(n){
+  ['roster','attendance','payables','entourage'].forEach(function(n){
     var el=document.getElementById('artab-'+n);
     var btn=document.getElementById('artab-btn-'+n);
     if(el)el.style.display=t===n?'':'none';
@@ -22076,6 +22216,7 @@ function arShowTab(t){
   if(t==='attendance')arRenderAtt();
   if(t==='payables')arRenderPayables();
   if(t==='roster')arRenderRoster();
+  if(t==='entourage')arRenderEntourage();
 }
 
 function arTogglePtype(){
