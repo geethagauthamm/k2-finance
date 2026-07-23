@@ -1505,13 +1505,29 @@ body.auditor-mode #save-btn { display:none !important; }
         </div>
         <!-- Row 2: conditional rate fields + agent + notes + button -->
         <div style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;">
-          <div class="fld" id="ar-f-pkg" style="min-width:130px;flex:1"><label>Package Amt ₹</label><input type="number" id="ar-pkg" placeholder="0" min="0"></div>
+          <div class="fld" id="ar-f-pkg" style="min-width:130px;flex:1"><label>Package Amt ₹</label><input type="number" id="ar-pkg" placeholder="0" min="0" oninput="arUpdateFxPreview()"></div>
           <div class="fld" id="ar-f-gdays" style="min-width:120px;flex:1;display:none"><label>Guaranteed Days</label><input type="number" id="ar-gdays" placeholder="0" min="0"></div>
-          <div class="fld" id="ar-f-xday" style="min-width:130px;flex:1;display:none"><label>Extra Day Rate ₹</label><input type="number" id="ar-xday" placeholder="0" min="0"></div>
-          <div class="fld" id="ar-f-pday" style="min-width:130px;flex:1;display:none"><label>Per Day Rate ₹</label><input type="number" id="ar-pday" placeholder="0" min="0"></div>
+          <div class="fld" id="ar-f-xday" style="min-width:130px;flex:1;display:none"><label>Extra Day Rate ₹</label><input type="number" id="ar-xday" placeholder="0" min="0" oninput="arUpdateFxPreview()"></div>
+          <div class="fld" id="ar-f-pday" style="min-width:130px;flex:1;display:none"><label>Per Day Rate ₹</label><input type="number" id="ar-pday" placeholder="0" min="0" oninput="arUpdateFxPreview()"></div>
           <div class="fld" style="min-width:150px;flex:1.5"><label>Agent / Contact</label><input type="text" id="ar-agent" placeholder="Optional"></div>
           <div class="fld" style="min-width:160px;flex:2"><label>Notes / Deal Terms</label><input type="text" id="ar-notes" placeholder="Deal terms…"></div>
           <div style="flex-shrink:0"><button class="btn bg" onclick="arAddArtist()" style="white-space:nowrap">＋ Add Artist</button></div>
+        </div>
+        <div class="flex aic gap8 mb8" style="flex-wrap:wrap;margin-top:8px">
+          <div class="fld" style="max-width:120px;flex:none"><label>Currency</label>
+            <select id="ar-currency" onchange="arCurrencyChanged()">
+              <option value="INR">₹ INR</option>
+              <option value="USD">$ USD</option>
+              <option value="EUR">€ EUR</option>
+              <option value="GBP">£ GBP</option>
+              <option value="AED">AED</option>
+            </select>
+          </div>
+          <div class="fld" id="ar-fxrate-field" style="max-width:170px;flex:none;display:none">
+            <label>FX Rate (1 unit = ₹)</label>
+            <input type="number" id="ar-fxrate" placeholder="e.g. 83.25" step="0.01" oninput="arUpdateFxPreview()">
+          </div>
+          <span id="ar-fx-preview" class="xs2 dim"></span>
         </div>
         <div class="xs2 dim" style="margin-top:10px;line-height:1.7">
           🟡 <strong>Package Fixed</strong> — flat fee regardless of days &nbsp;|&nbsp;
@@ -22357,26 +22373,63 @@ function arEditTogglePtype(){
   document.getElementById('aredit-f-pday').style.display=pt==='Per Day'?'':'none';
 }
 
+function arCurrencyChanged(){
+  var cur=document.getElementById('ar-currency').value;
+  var fxField=document.getElementById('ar-fxrate-field');
+  if(fxField)fxField.style.display=cur==='INR'?'none':'';
+  arUpdateFxPreview();
+}
+function arUpdateFxPreview(){
+  var cur=document.getElementById('ar-currency')?.value||'INR';
+  var preview=document.getElementById('ar-fx-preview');
+  if(!preview)return;
+  if(cur==='INR'){preview.textContent='';return;}
+  var fx=parseFloat(document.getElementById('ar-fxrate')?.value)||0;
+  if(!fx){preview.textContent='';return;}
+  var parts=[];
+  var pkg=parseFloat(document.getElementById('ar-pkg')?.value)||0;
+  var xday=parseFloat(document.getElementById('ar-xday')?.value)||0;
+  var pday=parseFloat(document.getElementById('ar-pday')?.value)||0;
+  if(pkg)parts.push('Package: '+fmt(Math.round(pkg*fx*100)/100));
+  if(xday)parts.push('Extra Day: '+fmt(Math.round(xday*fx*100)/100));
+  if(pday)parts.push('Per Day: '+fmt(Math.round(pday*fx*100)/100));
+  preview.textContent=parts.length?parts.join(' · '):'';
+}
 function arAddArtist(){
   var name=(document.getElementById('ar-name').value||'').trim();
   if(!name){toast('Artist name required','err');return;}
   var pt=document.getElementById('ar-ptype').value;
+  // Foreign currency: Package/Extra Day/Per Day fields are understood to be
+  // in the selected currency; fxRate converts them. The stored values stay
+  // INR-equivalent (as every downstream Payables/print calculation already
+  // assumes), with the original figures kept alongside for reference.
+  var currency=document.getElementById('ar-currency')?.value||'INR';
+  var fxRate=currency==='INR'?1:(parseFloat(document.getElementById('ar-fxrate')?.value)||0);
+  if(currency!=='INR'&&!fxRate){toast('Enter the conversion rate for '+currency,'err');return;}
+  var pkgEntered=parseFloat(document.getElementById('ar-pkg').value)||0;
+  var xdayEntered=parseFloat(document.getElementById('ar-xday').value)||0;
+  var pdayEntered=parseFloat(document.getElementById('ar-pday').value)||0;
   var a={id:arUid(),name:name,
     char:(document.getElementById('ar-char').value||'').trim(),
     cat:document.getElementById('ar-cat').value, ptype:pt,
-    pkg:parseFloat(document.getElementById('ar-pkg').value)||0,
+    pkg:Math.round(pkgEntered*fxRate*100)/100,
     gdays:parseFloat(document.getElementById('ar-gdays').value)||0,
-    xday:parseFloat(document.getElementById('ar-xday').value)||0,
-    pday:parseFloat(document.getElementById('ar-pday').value)||0,
+    xday:Math.round(xdayEntered*fxRate*100)/100,
+    pday:Math.round(pdayEntered*fxRate*100)/100,
     agent:(document.getElementById('ar-agent').value||'').trim(),
     notes:(document.getElementById('ar-notes').value||'').trim()
   };
+  if(currency!=='INR'){
+    a.currency=currency;a.fxRate=fxRate;
+    a.pkgOriginal=pkgEntered;a.xdayOriginal=xdayEntered;a.pdayOriginal=pdayEntered;
+  }
   if(!DB._arArtists)DB._arArtists=[];
   DB._arArtists.push(a);
   saveDB();
-  ['ar-name','ar-char','ar-agent','ar-notes','ar-pkg','ar-gdays','ar-xday','ar-pday'].forEach(function(id){var el=document.getElementById(id);if(el)el.value='';});
+  ['ar-name','ar-char','ar-agent','ar-notes','ar-pkg','ar-gdays','ar-xday','ar-pday','ar-fxrate'].forEach(function(id){var el=document.getElementById(id);if(el)el.value='';});
+  var fxp=document.getElementById('ar-fx-preview');if(fxp)fxp.textContent='';
   arRenderRoster();
-  toast('✓ '+name+' added');
+  toast('✓ '+name+' added'+(currency!=='INR'?' ('+currency+' conversion applied @ '+fxRate+')':''));
 }
 
 function arDelArtist(id){
@@ -22396,7 +22449,7 @@ function arRenderRoster(){
     var advTotal=arAdvTotal(a.id);
     return'<tr>'+
       '<td class="xs2 dim">'+(i+1)+'</td>'+
-      '<td class="semi">'+a.name+'</td>'+
+      '<td class="semi">'+a.name+(a.currency?' <span class="xs3" style="font-size:9px;color:var(--go)" title="Original: '+a.currency+' pkg '+Number(a.pkgOriginal||0).toLocaleString('en-IN')+' × '+a.fxRate+'">💱 '+a.currency+'</span>':'')+'</td>'+
       '<td class="xs2">'+( a.char||'—')+'</td>'+
       '<td>'+arCatTag(a.cat)+'</td>'+
       '<td class="xs2">'+arPtLabel(a.ptype)+'</td>'+
