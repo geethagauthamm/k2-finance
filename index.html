@@ -22280,10 +22280,12 @@ function arPtLabel(pt){
 // Stored as DB.entourages[artistNameLowercased] = [{id,name,category,payType,rate}]
 // Matches a typed name against a registered one even when it's a shorter/
 // informal version — e.g. "Pasupathi" typed day-to-day should still match
-// "Pasupathi Masimlani" on file, but "Ram" must NOT match "Ramesh" (that's
-// a different person, not a shortened name). Word-boundary aware: the
-// shorter name's words must exactly match the START of the longer name's
-// words, not just be a raw substring.
+// "Pasupathi Masimlani" on file, and "Ayaz Pasha" should match "Mohammed
+// Ayaz Shamshuddin Pasha" (a middle-and-last-name combination, not just a
+// prefix) — but "Ram" must NOT match "Ramesh" (different person, not a
+// shortened name). Every word of the shorter name must appear as a WHOLE
+// word in the longer name, in the same relative order, though not
+// necessarily starting at word 1 or being contiguous.
 function _nameMatches(typed,registered){
   const a=(typed||'').toLowerCase().trim();
   const b=(registered||'').toLowerCase().trim();
@@ -22292,7 +22294,16 @@ function _nameMatches(typed,registered){
   const shortWords=(a.length<=b.length?a:b).split(/\s+/);
   const longWords=(a.length<=b.length?b:a).split(/\s+/);
   if(shortWords.length>=longWords.length)return false;
-  return shortWords.every((w,i)=>longWords[i]===w);
+  let li=0;
+  for(let si=0;si<shortWords.length;si++){
+    let found=false;
+    while(li<longWords.length){
+      if(longWords[li]===shortWords[si]){found=true;li++;break;}
+      li++;
+    }
+    if(!found)return false;
+  }
+  return true;
 }
 function _entKey(name){return(name||'').toLowerCase().trim();}
 // Finds the actual entourage key that fuzzy-matches a typed name, since
