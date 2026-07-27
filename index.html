@@ -775,6 +775,7 @@ body.auditor-mode #save-btn { display:none !important; }
     <div class="ni" data-page="notifications" onclick="go('notifications')"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M8 1a4 4 0 0 0-4 4v3l-1.5 3h11L12 8V5a4 4 0 0 0-4-4z"/><path d="M6.5 14a1.5 1.5 0 0 0 3 0"/></svg>Notifications</div>
   </nav>
   <div class="sbf" id="sbf">Loading...</div>
+  <div style="padding:0 14px 14px"><button class="btn bs sm no-print" onclick="openChangeHistory()" style="width:100%">🕐 Change History</button></div>
 </div>
 <div id="main">
   <div class="topbar">
@@ -795,8 +796,22 @@ body.auditor-mode #save-btn { display:none !important; }
   </div>
 
   <div id="concurrent-edit-banner" class="no-print" style="display:none;background:rgba(232,169,69,.12);border-bottom:1px solid var(--go);padding:8px 20px;font-size:12px;color:var(--go);display:none;align-items:center;gap:10px">
-    <span>⚠ Heads up — someone else made changes to this project recently. You may want to check with them, since your recent save could have overwritten something they just added or changed.</span>
+    <span>⚠ Heads up — someone else made changes to this project recently. Check <strong style="cursor:pointer;text-decoration:underline" onclick="openChangeHistory()">Change History</strong> to see who changed what and when.</span>
     <button onclick="document.getElementById('concurrent-edit-banner').style.display='none'" style="margin-left:auto;background:none;border:none;color:var(--go);cursor:pointer;font-size:14px;flex-shrink:0">✕</button>
+  </div>
+
+  <div id="change-history-modal" class="no-print" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:9500;align-items:center;justify-content:center">
+    <div style="max-width:700px;width:95%;max-height:80vh;overflow-y:auto;background:var(--sf);border:1px solid var(--bd);border-radius:12px;padding:20px 22px">
+      <div class="flex aic jb" style="margin-bottom:4px">
+        <div class="semi" style="font-size:15px">🕐 Change History</div>
+        <button class="btn bs sm" onclick="document.getElementById('change-history-modal').style.display='none'">✕ Close</button>
+      </div>
+      <div class="xs2 dim" style="margin-bottom:14px">Who saved changes, when, and which sections of the project were affected — most recent first.</div>
+      <div class="tw"><table>
+        <thead><tr><th>When</th><th>Who</th><th>Sections Changed</th></tr></thead>
+        <tbody id="change-history-body"></tbody>
+      </table></div>
+    </div>
   </div>
 
   <!-- DASHBOARD -->
@@ -15372,6 +15387,58 @@ let _sbSaving=false;
 let _lastKnownServerUpdatedAt=null; // last server updated_at this session actually knows about — used to passively detect when someone else has saved changes in the meantime
 
 function updateSyncStatus(m,c){const el=document.getElementById('file-status');if(el){el.textContent=m;el.style.color=c||'var(--tx3)';}}
+// Human-readable labels for the top-level DB sections most worth reporting
+// on in the history log — anything not listed here still gets logged, just
+// with its raw key name as a fallback.
+const _historySectionLabels={
+  bills:'Bills',paytracker:'Payments',hotels:'Hotels',flights:'Flights',
+  vehicles:'Vehicles',salaries:'Salaries',salaryPayments:'Salary Payments',
+  salaryOverrides:'Salary Overrides',_arArtists:'Artist Roster',_arAtt:'Attendance',
+  _arAdv:'Artist Advances',actorLog:'Actors Day Log',entourages:'Entourage',
+  estimates:'Estimates',schedules:'Schedules',pettycash:'Petty Cash',
+  vendors:'Vendors',rateCard:'Rate Card',dayHeaders:'Day Headers',
+  admin:'Admin & Legal',users:'Users'
+};
+const HISTORY_MAX_ENTRIES=200;
+// Compares the current in-memory DB against what was actually in the cloud
+// right before this save, at the top-level-section granularity (not deep
+// field diffing — that's overkill for "who touched what" at a glance).
+// Records one history entry per save that actually changed something.
+function recordChangeHistory(priorCloudData){
+  if(!priorCloudData)return; // first-ever save, or the pre-save fetch failed — nothing to diff against
+  const skip=new Set(['snapshots','_changeHistory','_tombstones']);
+  const changedSections=[];
+  const allKeys=new Set([...Object.keys(DB||{}),...Object.keys(priorCloudData||{})]);
+  allKeys.forEach(key=>{
+    if(skip.has(key))return;
+    const before=JSON.stringify(priorCloudData[key]??null);
+    const after=JSON.stringify(DB[key]??null);
+    if(before!==after)changedSections.push(_historySectionLabels[key]||key);
+  });
+  if(!changedSections.length)return; // nothing actually changed this save
+  if(!DB._changeHistory)DB._changeHistory=[];
+  DB._changeHistory.unshift({
+    ts:new Date().toISOString(),
+    userId:CURRENT_USER?.id||'unknown',
+    userName:CURRENT_USER?.name||'Unknown',
+    userRole:CURRENT_USER?.role||'',
+    sections:changedSections
+  });
+  if(DB._changeHistory.length>HISTORY_MAX_ENTRIES)DB._changeHistory.length=HISTORY_MAX_ENTRIES;
+}
+function openChangeHistory(){
+  const modal=document.getElementById('change-history-modal');
+  const body=document.getElementById('change-history-body');
+  if(!modal||!body)return;
+  const history=DB._changeHistory||[];
+  body.innerHTML=history.length?history.map(h=>`<tr>
+    <td class="xs2" style="white-space:nowrap">${new Date(h.ts).toLocaleString('en-IN',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'})}</td>
+    <td class="semi xs2">${esc(h.userName)}${h.userRole?` <span class="xs3 dim">(${esc(h.userRole)})</span>`:''}</td>
+    <td class="xs2">${h.sections.map(s=>`<span class="tag ts xs3" style="margin:1px">${esc(s)}</span>`).join(' ')}</td>
+  </tr>`).join(''):'<tr><td colspan="3" class="te">No change history recorded yet</td></tr>';
+  modal.style.display='flex';
+}
+
 let _lastConcurrentWarningAt=0;
 function showConcurrentEditWarning(){
   // Debounced saves fire often — avoid re-popping the same warning every
@@ -15487,11 +15554,13 @@ async function _saveToSupabase(){
   if(_sbSaving)return;
   _sbSaving=true;
   try{
+    let priorCloudData=null;
     try{
       const freshRes=await sbFetch('/rest/v1/k2_data?project=eq.'+SB_PROJECT+'&limit=1',{headers:{'Prefer':'return=representation'}});
       if(freshRes.ok){
         const freshRows=await freshRes.json();
         if(freshRows&&freshRows.length&&freshRows[0].data){
+          priorCloudData=freshRows[0].data;
           mergeInCloudAdditions(freshRows[0].data);
           // Passive concurrent-edit detection: if the cloud's updated_at has
           // moved on from what this session last knew about, someone else
@@ -15499,7 +15568,8 @@ async function _saveToSupabase(){
           // deletions of whole records — an edit to a FIELD on a record that
           // exists in both copies isn't merged, so this save could silently
           // overwrite that edit. We don't block the save (per design — this
-          // is meant to inform, not interrupt), just surface it.
+          // is meant to inform, not interrupt); recordChangeHistory below
+          // gives a real answer to "who changed what", not just a warning.
           const freshUpdatedAt=freshRows[0].updated_at;
           if(_lastKnownServerUpdatedAt&&freshUpdatedAt&&freshUpdatedAt!==_lastKnownServerUpdatedAt){
             showConcurrentEditWarning();
@@ -15507,6 +15577,9 @@ async function _saveToSupabase(){
         }
       }
     }catch(e){console.warn('Pre-save cloud merge check failed, proceeding with local data only:',e);}
+
+    recordChangeHistory(priorCloudData); // who/when/what — before dbClean is built, so this entry is included in the save
+
     const dbClean=JSON.parse(JSON.stringify(DB));
     // Strip snapshots — they're huge and local-only
     dbClean.snapshots=[];
