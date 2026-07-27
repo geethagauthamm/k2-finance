@@ -1505,6 +1505,7 @@ body.auditor-mode #save-btn { display:none !important; }
               <option value="Package Fixed">🟡 Package Fixed</option>
               <option value="Package Variable">🟠 Package Variable</option>
               <option value="Per Day">🟢 Per Day</option>
+              <option value="Per Call Sheet">🔵 Per Call Sheet</option>
             </select>
           </div>
         </div>
@@ -22257,7 +22258,7 @@ function arCatTag(cat){
   return'<span class="tag '+cls+'">'+cat+'</span>';
 }
 function arPtLabel(pt){
-  return{'Package Fixed':'🟡 Pkg Fixed','Package Variable':'🟠 Pkg Variable','Per Day':'🟢 Per Day'}[pt]||pt;
+  return{'Package Fixed':'🟡 Pkg Fixed','Package Variable':'🟠 Pkg Variable','Per Day':'🟢 Per Day','Per Call Sheet':'🔵 Per CS'}[pt]||pt;
 }
 
 // ── Entourage: predefined teams (makeup, hair, spot boy, manager, etc.)
@@ -22395,14 +22396,18 @@ function arTogglePtype(){
   document.getElementById('ar-f-pkg').style.display=(pt==='Package Fixed'||pt==='Package Variable')?'':'none';
   document.getElementById('ar-f-gdays').style.display=pt==='Package Variable'?'':'none';
   document.getElementById('ar-f-xday').style.display=pt==='Package Variable'?'':'none';
-  document.getElementById('ar-f-pday').style.display=pt==='Per Day'?'':'none';
+  document.getElementById('ar-f-pday').style.display=(pt==='Per Day'||pt==='Per Call Sheet')?'':'none';
+  var pdayLbl=document.querySelector('#ar-f-pday label');
+  if(pdayLbl)pdayLbl.textContent=pt==='Per Call Sheet'?'Rate per Call Sheet ₹':'Per Day Rate ₹';
 }
 function arEditTogglePtype(){
   var pt=document.getElementById('aredit-ptype').value;
   document.getElementById('aredit-f-pkg').style.display=(pt==='Package Fixed'||pt==='Package Variable')?'':'none';
   document.getElementById('aredit-f-gdays').style.display=pt==='Package Variable'?'':'none';
   document.getElementById('aredit-f-xday').style.display=pt==='Package Variable'?'':'none';
-  document.getElementById('aredit-f-pday').style.display=pt==='Per Day'?'':'none';
+  document.getElementById('aredit-f-pday').style.display=(pt==='Per Day'||pt==='Per Call Sheet')?'':'none';
+  var pdayLbl=document.querySelector('#aredit-f-pday label');
+  if(pdayLbl)pdayLbl.textContent=pt==='Per Call Sheet'?'Rate per Call Sheet ₹':'Per Day Rate ₹';
 }
 
 function arCurrencyChanged(){
@@ -22652,6 +22657,22 @@ function arToggleAtt(aid,date){
 function arDaysWorked(aid){
   return Object.values((arAtt()[aid]||{})).filter(Boolean).length;
 }
+// For "Per Call Sheet" artists — sums the ACTUAL call sheet count for each
+// present date (from that day's header, defaulting to 1), not just the
+// number of days attended. A single shoot day can have 2+ call sheets
+// (e.g. a dupe covering multiple setups), so this differs from Per Day
+// whenever that happens — that's the whole point of the distinction.
+function arCSWorked(aid){
+  var aAtt=(arAtt()[aid]||{});
+  var total=0;
+  Object.keys(aAtt).forEach(function(date){
+    if(aAtt[date]){
+      var cs=parseFloat((DB.dayHeaders||{})[date]&&DB.dayHeaders[date].cs)||1;
+      total+=cs;
+    }
+  });
+  return total;
+}
 
 function arRenderAtt(){
   var wrap=document.getElementById('ar-att-wrap');if(!wrap)return;
@@ -22691,6 +22712,7 @@ function arCalcEarned(a){
   var addl=parseFloat(adv.addl)||0;
   if(a.ptype==='Package Fixed')return a.pkg+addl;
   if(a.ptype==='Package Variable'){var extra=Math.max(0,days-a.gdays);return a.pkg+(extra*a.xday)+addl;}
+  if(a.ptype==='Per Call Sheet')return(arCSWorked(a.id)*a.pday)+addl;
   return(days*a.pday)+addl;
 }
 
@@ -22710,7 +22732,7 @@ function arRefreshPayRow(aid){
   var eEl=document.getElementById('arEarn-'+aid),bEl=document.getElementById('arBal-'+aid),dEl=document.getElementById('arPdays-'+aid);
   if(eEl)eEl.textContent='₹'+arFmt(total);
   if(bEl){bEl.textContent='₹'+arFmt(bal);bEl.style.color=bal>=0?'var(--gn)':'var(--rd)';}
-  if(dEl)dEl.textContent=arDaysWorked(aid);
+  if(dEl)dEl.textContent=(artist.ptype==='Per Call Sheet'?arCSWorked(aid)+' CS':arDaysWorked(aid));
 }
 
 function goToArtistPayables(artistName){
@@ -22746,6 +22768,8 @@ function arRenderPayables(){
   var adv=arAdv();var gT=0,gA1=0,gA2=0,gB=0;
   body.innerHTML=artists.map(function(a,i){
     var advA=(adv[a.id]||{});var days=arDaysWorked(a.id);
+    var isPerCS=a.ptype==='Per Call Sheet';
+    var displayCount=isPerCS?arCSWorked(a.id):days;
     var total=arCalcEarned(a);var adv1=parseFloat(advA.adv1)||0,adv2=parseFloat(advA.adv2)||0,bal=total-adv1-adv2;
     gT+=total;gA1+=adv1;gA2+=adv2;gB+=bal;
     return'<tr>'+
@@ -22754,7 +22778,7 @@ function arRenderPayables(){
       '<td class="xs2 muted">'+(a.char||'—')+'</td>'+
       '<td>'+arCatTag(a.cat)+'</td>'+
       '<td class="xs2">'+arPtLabel(a.ptype)+'</td>'+
-      '<td class="tn ar-att-days" id="arPdays-'+a.id+'">'+days+'</td>'+
+      '<td class="tn ar-att-days" id="arPdays-'+a.id+'" title="'+(isPerCS?displayCount+' call sheet(s) across '+days+' day(s)':days+' day(s)')+'">'+displayCount+(isPerCS?' CS':'')+'</td>'+
       '<td class="tn tr">'+(a.pkg?'₹'+arFmt(a.pkg):'—')+'</td>'+
       '<td style="text-align:center">'+(a.gdays||'—')+'</td>'+
       '<td class="tn tr">'+(a.xday?'₹'+arFmt(a.xday):'—')+'</td>'+
@@ -23087,6 +23111,7 @@ function arRenderPayables(){
           <option value="Package Fixed">🟡 Package Fixed</option>
           <option value="Package Variable">🟠 Package Variable</option>
           <option value="Per Day">🟢 Per Day</option>
+          <option value="Per Call Sheet">🔵 Per Call Sheet</option>
         </select>
       </div>
     </div>
