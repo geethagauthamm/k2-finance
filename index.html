@@ -794,6 +794,11 @@ body.auditor-mode #save-btn { display:none !important; }
     </div>
   </div>
 
+  <div id="concurrent-edit-banner" class="no-print" style="display:none;background:rgba(232,169,69,.12);border-bottom:1px solid var(--go);padding:8px 20px;font-size:12px;color:var(--go);display:none;align-items:center;gap:10px">
+    <span>⚠ Heads up — someone else made changes to this project recently. You may want to check with them, since your recent save could have overwritten something they just added or changed.</span>
+    <button onclick="document.getElementById('concurrent-edit-banner').style.display='none'" style="margin-left:auto;background:none;border:none;color:var(--go);cursor:pointer;font-size:14px;flex-shrink:0">✕</button>
+  </div>
+
   <!-- DASHBOARD -->
   <div class="page active" id="page-dash">
     <div class="print-header"><h1 id="ph-title">K2 Dashboard</h1><p class="print-sub"></p></div>
@@ -15350,8 +15355,19 @@ const SB_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZ
 const SB_PROJECT='kalki2';
 let _sbReady=false;
 let _sbSaving=false;
+let _lastKnownServerUpdatedAt=null; // last server updated_at this session actually knows about — used to passively detect when someone else has saved changes in the meantime
 
 function updateSyncStatus(m,c){const el=document.getElementById('file-status');if(el){el.textContent=m;el.style.color=c||'var(--tx3)';}}
+let _lastConcurrentWarningAt=0;
+function showConcurrentEditWarning(){
+  // Debounced saves fire often — avoid re-popping the same warning every
+  // few seconds for what's really one ongoing conflict window.
+  const now=Date.now();
+  if(now-_lastConcurrentWarningAt<60000)return;
+  _lastConcurrentWarningAt=now;
+  const banner=document.getElementById('concurrent-edit-banner');
+  if(banner)banner.style.display='flex';
+}
 
 // ── SUPABASE HELPERS ──────────────────────────────────────────────
 async function sbFetch(path,opts={}){
@@ -15461,7 +15477,20 @@ async function _saveToSupabase(){
       const freshRes=await sbFetch('/rest/v1/k2_data?project=eq.'+SB_PROJECT+'&limit=1',{headers:{'Prefer':'return=representation'}});
       if(freshRes.ok){
         const freshRows=await freshRes.json();
-        if(freshRows&&freshRows.length&&freshRows[0].data)mergeInCloudAdditions(freshRows[0].data);
+        if(freshRows&&freshRows.length&&freshRows[0].data){
+          mergeInCloudAdditions(freshRows[0].data);
+          // Passive concurrent-edit detection: if the cloud's updated_at has
+          // moved on from what this session last knew about, someone else
+          // saved in between. mergeInCloudAdditions only catches additions/
+          // deletions of whole records — an edit to a FIELD on a record that
+          // exists in both copies isn't merged, so this save could silently
+          // overwrite that edit. We don't block the save (per design — this
+          // is meant to inform, not interrupt), just surface it.
+          const freshUpdatedAt=freshRows[0].updated_at;
+          if(_lastKnownServerUpdatedAt&&freshUpdatedAt&&freshUpdatedAt!==_lastKnownServerUpdatedAt){
+            showConcurrentEditWarning();
+          }
+        }
       }
     }catch(e){console.warn('Pre-save cloud merge check failed, proceeding with local data only:',e);}
     const dbClean=JSON.parse(JSON.stringify(DB));
@@ -15476,13 +15505,15 @@ async function _saveToSupabase(){
       }
     });
 
+    const _thisSaveTimestamp=new Date().toISOString();
     const res=await sbFetch('/rest/v1/k2_data',{
       method:'POST',
       headers:{'Prefer':'resolution=merge-duplicates,return=minimal'},
-      body:JSON.stringify({project:SB_PROJECT,data:dbClean,updated_at:new Date().toISOString()})
+      body:JSON.stringify({project:SB_PROJECT,data:dbClean,updated_at:_thisSaveTimestamp})
     });
 
     if(res.ok||res.status===201||res.status===204){
+      _lastKnownServerUpdatedAt=_thisSaveTimestamp; // this save is now the latest known state
       if(Object.keys(scans).length){
         await sbFetch('/rest/v1/k2_scans',{method:'POST',
           headers:{'Prefer':'resolution=merge-duplicates,return=minimal'},
@@ -15535,6 +15566,7 @@ async function loadFromSupabase(){
     // tombstones. This mirrors that same protection on the load path too.
     const localTombstones=DB._tombstones;
     DB={...DB,...rows[0].data};
+    _lastKnownServerUpdatedAt=rows[0].updated_at||null; // for detecting concurrent-edit conflicts on save
     if(localTombstones){
       if(!DB._tombstones)DB._tombstones={};
       Object.keys(localTombstones).forEach(field=>{
