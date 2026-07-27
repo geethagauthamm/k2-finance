@@ -14397,16 +14397,27 @@ function renderDash(){
     const schedsTotal=(DB.schedules||[]).length;
     const schedsInProgress=(DB.schedules||[]).filter(s=>s.startDate&&s.startDate<=todayStr&&(!s.endDate||s.endDate>=todayStr)).length;
 
-    // Days worked per artist — pulls from the SAME attendance data Artists &
-    // Contracts itself maintains (DB._arAtt, keyed by artist id), not Actor
-    // Log entries matched by name — those are a different data source
-    // entirely (daily payment tracking, not attendance marking), which is
-    // why this previously showed 0 for artists whose attendance had genuinely
-    // been marked. Uses call-sheet-aware counting for Per Call Sheet artists,
-    // same as the Payables tab.
+    // Days worked per artist — combines BOTH the Attendance tab's own
+    // checkbox grid AND Actor Log entries (fuzzy name-matched), unioned by
+    // date so the same date isn't double-counted if it exists in both. In
+    // practice this production tracks work days mainly through Actor Log,
+    // not the separate Attendance grid — the grid may be empty or only
+    // partially used — so relying on just one source undercounts real days.
     const primaryArtists=(DB._arArtists||[]).filter(a=>a.cat==='Primary');
     const daysWorkedByArtist=primaryArtists.map(a=>{
-      const days=a.ptype==='Per Call Sheet'?arCSWorked(a.id):arDaysWorked(a.id);
+      const dateSet=new Set();
+      const attForArtist=(DB._arAtt||{})[a.id]||{};
+      Object.keys(attForArtist).forEach(d=>{if(attForArtist[d])dateSet.add(d);});
+      Object.keys(DB.actorLog||{}).forEach(d=>{
+        if((DB.actorLog[d]||[]).some(e=>_nameMatches(a.name,e.name)))dateSet.add(d);
+      });
+      let days;
+      if(a.ptype==='Per Call Sheet'){
+        days=0;
+        dateSet.forEach(d=>{days+=parseFloat((DB.dayHeaders||{})[d]&&DB.dayHeaders[d].cs)||1;});
+      }else{
+        days=dateSet.size;
+      }
       return{name:a.name,char:a.char||'',days,isCS:a.ptype==='Per Call Sheet'};
     }).sort((a,b)=>b.days-a.days);
 
