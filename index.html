@@ -3497,7 +3497,13 @@ function addEntry(){
   // etc.) even with no schedId chosen — this used to completely bypass the
   // declared-artist check since it never touches schedId. Catch it here too.
   if(!schedId&&typeof ATL_CATS!=='undefined'&&ATL_CATS.indexOf(cat)>=0&&typeof blockIfNotDeclaredArtist==='function'&&blockIfNotDeclaredArtist(vendor,'atl-artist'))return;
-  if(!billId){alert('A bill must be linked before adding a payment.\n\nSelect an existing approved bill, or click "+ New Topsheet" to create one now.');return;}
+  // Some categories are genuinely never going to have a "bill" to link —
+  // salary payments, audit fees, internal accounts entries, miscellaneous
+  // items — so exempt them from the bill-required rule rather than forcing
+  // a topsheet that doesn't make sense for them.
+  var NO_BILL_REQUIRED_CATS=['monthly salaries','salary','salaries','audit','accounts','misc','miscellaneous','admin','admin & legal'];
+  var billExempt=NO_BILL_REQUIRED_CATS.indexOf(cat.toLowerCase().trim())>=0;
+  if(!billId&&!billExempt){alert('A bill must be linked before adding a payment.\n\nSelect an existing approved bill, or click "+ New Topsheet" to create one now.');return;}
 
   // Duplicate guard: same vendor + same amount (+ same category) already exists somewhere,
   // most often because yesterday's entry was carried over by re-typing it instead of
