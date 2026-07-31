@@ -2885,6 +2885,20 @@ function removeCat(c){
 // ── LABELS ──
 function pLabel(s){return{pending:'Pending',approved:'Approved',partial:'Part.appr.',hold:'Hold',rejected:'Rejected'}[s]||s;}
 function accLabel(s){return{'acc-pending':'Pending','acc-approved':'Approved','acc-partial':'Part.appr.','acc-hold':'Hold','acc-rejected':'Rejected'}[s]||s;}
+// The amount actually approved for payment — when Accounts or the Producer
+// has only partially approved an entry, this reflects THAT amount, not the
+// original requested figure. Accounts' figure wins if both are set (it's
+// the later, more final stage of approval).
+function entryEffectiveAmt(e){
+  if(e.accStatus==='acc-partial'&&e.accApprovedAmt!=null)return e.accApprovedAmt;
+  if(e.producerStatus==='partial'&&e.producerApprovedAmt!=null)return e.producerApprovedAmt;
+  return e.amt;
+}
+function entryAmtCellHtml(e){
+  var eff=entryEffectiveAmt(e);
+  if(eff===e.amt)return '₹'+fm(e.amt);
+  return '₹'+fm(eff)+'<div style="font-size:9px;color:#64748b;text-decoration:line-through" title="Originally requested">₹'+fm(e.amt)+'</div>';
+}
 function payLabel(s){return{'pay-awaiting':'Awaiting','pay-paid':'Paid','pay-partial':'Partially Paid','pay-hold':'On Hold','pay-unpaid':'Unpaid','pay-settled':'Settled'}[s]||s;}
 function pClass(s){return 's-'+(s||'pending');}
 function accClass(s){return 's-acc-'+(s?s.replace('acc-',''):'pending');}
@@ -3053,7 +3067,7 @@ function renderEntries(){
           '<td style="color:#94a3b8">'+e.inv+'</td>'+
           '<td><span class="cp">'+e.cat+'</span></td>'+
           '<td style="color:#94a3b8;font-size:12px">'+(e.desc||'')+'</td>'+
-          '<td class="at">₹'+fm(e.amt)+'</td>'+
+          '<td class="at">'+entryAmtCellHtml(e)+'</td>'+
           '<td style="color:#64748b;font-size:12px">'+fd(e.invDate)+'</td>'+
           '<td style="color:#64748b;font-size:12px">'+fd(e.dueDate)+'</td>'+
           prodCell+commentBtnHtml+
@@ -3080,7 +3094,7 @@ function renderEntries(){
           '<td style="color:#94a3b8">'+e.inv+'</td>'+
           '<td><span class="cp">'+e.cat+'</span></td>'+
           '<td style="color:#94a3b8;font-size:12px">'+(e.desc||'')+'</td>'+
-          '<td class="at">₹'+fm(e.amt)+'</td>'+
+          '<td class="at">'+entryAmtCellHtml(e)+'</td>'+
           accCell+payCell+commentBtnHtml+
           '<td class="np" style="text-align:center"><button class="ib-exp" onclick="openEditEntry(\''+e.id+'\')" title="Edit entry" style="font-size:13px">✏️</button></td>'+
           '<td class="np" style="text-align:center"><button class="ib-del" onclick="delEntry(\''+e.id+'\')" title="Delete">🗑</button></td>';
@@ -3093,7 +3107,7 @@ function renderEntries(){
       tbody.appendChild(cr);
     });
   }
-  var tot=filtered.reduce(function(s,e){return s+Number(e.amt);},0);
+  var tot=filtered.reduce(function(s,e){return s+Number(entryEffectiveAmt(e));},0);
   var cols=PHASE===1?6:5;
   tfoot.innerHTML='<tr class="tr2"><td colspan="'+cols+'" style="text-align:right;color:#475569;font-size:11px;font-weight:700;letter-spacing:.04em">GRAND TOTAL'+(phaseFilter?' · '+phaseFilter:'')+'</td><td class="at">₹'+fm(tot)+'</td><td colspan="4" class="np"></td></tr>';
   updatePendingBadge();
@@ -4108,7 +4122,7 @@ function renderPending(){
       '<td style="color:#94a3b8">'+e.inv+'</td>'+
       '<td><span class="cp">'+e.cat+'</span></td>'+
       '<td style="color:#94a3b8;font-size:12px">'+(e.desc||'')+'</td>'+
-      '<td class="at">₹'+fm(e.amt)+'</td>'+
+      '<td class="at">'+entryAmtCellHtml(e)+'</td>'+
       '<td style="font-size:12px;color:#64748b">'+fd(e.invDate)+'</td>'+
       '<td style="font-size:12px;color:#64748b">'+fd(e.dueDate)+'</td>'+
       '<td>'+statusText+'</td>'+
@@ -4122,7 +4136,7 @@ function renderPending(){
     cr.innerHTML='<td colspan="10"><div class="hist-inner">'+buildHistEntryPanel(e)+'</div></td>';
     tbody.appendChild(cr);
   });
-  var tot=filtered.reduce(function(s,e){return s+Number(e.amt);},0);
+  var tot=filtered.reduce(function(s,e){return s+Number(entryEffectiveAmt(e));},0);
   tfoot.innerHTML='<tr class="tr2"><td colspan="4" style="text-align:right;color:#475569;font-size:11px;font-weight:700">TOTAL PENDING</td><td class="at">₹'+fm(tot)+'</td><td colspan="5"></td></tr>';
 }
 
@@ -4543,8 +4557,8 @@ function renderHistory(){
   days.forEach(function(k){
     var day=S[k],entries=day.entries||[];
     var fil=q?entries.filter(function(e){return(e.vendor+' '+e.inv+' '+e.cat+' '+(e.desc||'')+(e.producerComment||'')+(e.accComment||'')+(e.payUTR||'')).toLowerCase().indexOf(q)>=0;}):entries;
-    var tot=fil.reduce(function(s,e){return s+Number(e.amt);},0);
-    grand+=(day.entries||[]).reduce(function(s,e){return s+Number(e.amt);},0);
+    var tot=fil.reduce(function(s,e){return s+Number(entryEffectiveAmt(e));},0);
+    grand+=(day.entries||[]).reduce(function(s,e){return s+Number(entryEffectiveAmt(e));},0);
     var pend=fil.filter(function(e){return e.producerStatus==='pending';}).length;
     var app=fil.filter(function(e){return PROD_APPROVED.indexOf(e.producerStatus)>=0;}).length;
     var paid=fil.filter(function(e){return e.payStatus==='pay-paid';}).length;
@@ -4557,7 +4571,7 @@ function renderHistory(){
         '<td style="color:#94a3b8;font-size:12px">'+e.inv+'</td>'+
         '<td><span class="cp">'+e.cat+'</span></td>'+
         '<td style="color:#94a3b8;font-size:12px">'+(e.desc||'')+'</td>'+
-        '<td class="at">₹'+fm(e.amt)+'</td>'+
+        '<td class="at">'+entryAmtCellHtml(e)+'</td>'+
         '<td><span class="sp '+pClass(e.producerStatus)+'">'+pLabel(e.producerStatus)+'</span>'+(e.producerApprovedAmt?'<div style="font-size:10px;color:#93c5fd">₹'+fm(e.producerApprovedAmt)+'</div>':'')+
           (e.producerComment?'<div style="font-size:10px;color:#64748b">'+e.producerComment+'</div>':'')+'</td>'+
         '<td><span class="sp '+accClass(as)+'">'+accLabel(as)+'</span>'+(e.accApprovedAmt?'<div style="font-size:10px;color:#93c5fd">₹'+fm(e.accApprovedAmt)+'</div>':'')+
@@ -18613,6 +18627,8 @@ function fxEditBill(billId){
   document.getElementById('fx-billdate').value=b.billDate||tod();
   document.getElementById('fx-gst-pct').value=b.subtotal?Math.round((b.gst/b.subtotal)*10000)/100||'':'';
   document.getElementById('fx-notes').value=b.notes||'';
+  const existingAdvance=(b.paymentRecords||[]).find(r=>r.note==='Advance paid (entered when creating this topsheet)');
+  document.getElementById('fx-advance').value=existingAdvance?existingAdvance.amount:'';
   document.getElementById('fx-range-from').value='';
   document.getElementById('fx-range-to').value='';
   const dl=document.getElementById('fx-vendor-list');
@@ -19170,6 +19186,14 @@ function fxCalcTotals(){
   const se=document.getElementById('fx-subtotal');if(se)se.value=sub;
   const ge=document.getElementById('fx-gst');if(ge)ge.value=gst;
   const te=document.getElementById('fx-total');if(te)te.value=total;
+  const advance=parseFloat(document.getElementById('fx-advance')?.value)||0;
+  const netPayable=Math.round((total-advance)*100)/100;
+  const ne=document.getElementById('fx-net-payable');
+  if(ne){
+    ne.value=netPayable;
+    ne.style.color=netPayable<0?'var(--rd)':'var(--gn)';
+    ne.title=netPayable<0?'Advance exceeds the bill total — this vendor was overpaid by '+fmt(Math.abs(netPayable)):'';
+  }
 }
 
 
@@ -19937,6 +19961,17 @@ function fxSave(){
   if(!DB.bills)DB.bills=[];
   DB.bills.push(bill);
 
+  // If an advance was entered, record it as a payment against this bill
+  // right away — same mechanism as Record Payment/Link Payment elsewhere,
+  // so status (partial/paid), the payment-records expand row in Bills
+  // Archive, and Schedule Summary all reflect it consistently.
+  const advanceAmt=parseFloat(document.getElementById('fx-advance')?.value)||0;
+  if(advanceAmt>0){
+    bill.paymentRecords=[{id:uid(),amount:advanceAmt,date:billDate||tod(),utr:'',note:'Advance paid (entered when creating this topsheet)'}];
+    const totalPaid=typeof billPaidSoFar==='function'?billPaidSoFar(bill):advanceAmt;
+    bill.status=totalPaid>=(bill.total||0)?'paid':'partial';
+  }
+
   // If a file was chosen via "Choose Bill (Image/PDF)" before opening the topsheet,
   // attach it as the bill's scan automatically — no need to re-attach manually.
   if(window._billPending?.file){
@@ -20055,6 +20090,21 @@ function fxUpdateBill(){
   b._flexMessCols=_fxMessCatCols;b._flexMessRows=_fxMessDateRows;b._flexProdCols=_fxProdItemCols;b._flexProdRows=_fxProdDateRows;
   b._flexHireItems=_fxHireItems;b._flexHireDateCols=_fxHireDateCols;
   b._editedAt=new Date().toISOString();
+
+  // Advance field: update the existing advance record from this source (if
+  // any) rather than duplicating it on every edit-save. Clearing the field
+  // to 0 removes the record entirely; any other manually-recorded payments
+  // on this bill are left untouched.
+  const advanceAmt=parseFloat(document.getElementById('fx-advance')?.value)||0;
+  const advNote='Advance paid (entered when creating this topsheet)';
+  b.paymentRecords=(b.paymentRecords||[]).filter(r=>r.note!==advNote);
+  if(advanceAmt>0){
+    b.paymentRecords.push({id:uid(),amount:advanceAmt,date:billDate||tod(),utr:'',note:advNote});
+  }
+  if(b.paymentRecords.length){
+    const totalPaid=typeof billPaidSoFar==='function'?billPaidSoFar(b):advanceAmt;
+    b.status=totalPaid>=(b.total||0)?'paid':(totalPaid>0?'partial':b.status);
+  }
 
   // Remove this bill's old actAdhoc entries everywhere (dates may have changed), then re-post fresh ones
   if(DB.actAdhoc){
@@ -23372,6 +23422,10 @@ function arRenderPayables(){
       <div class="field"><label>GST %</label><input type="number" id="fx-gst-pct" placeholder="0" min="0" max="100" oninput="fxCalcTotals()"></div>
       <div class="field"><label>GST ₹ (auto)</label><input type="number" id="fx-gst" readonly style="opacity:.6"></div>
       <div class="field"><label>Total ₹ (incl. GST)</label><input type="number" id="fx-total" readonly style="opacity:.6;font-weight:700"></div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px">
+      <div class="field"><label>Advance Paid ₹ <span class="xs3 dim">(deducted below)</span></label><input type="number" id="fx-advance" placeholder="0" min="0" oninput="fxCalcTotals()"></div>
+      <div class="field"><label>Net Payable ₹ (auto)</label><input type="number" id="fx-net-payable" readonly style="opacity:.85;font-weight:700"></div>
     </div>
     <div class="field" style="margin-bottom:12px"><label>Notes</label><input type="text" id="fx-notes" placeholder="Remarks for this topsheet…"></div>
 
