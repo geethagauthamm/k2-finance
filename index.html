@@ -3748,6 +3748,7 @@ function renderInbox(){
 }
 
 function inboxDecide(id,decision){
+  if(!Object.keys(S).length)ld(); // findEntry searches S, not DB.paytracker directly — must be loaded first
   const e=findEntry(id);if(!e)return;
   const comment=(document.getElementById('inbox-comment-'+id)?.value||'').trim();
   e.producerStatus=decision;e.producerComment=comment;
@@ -3772,6 +3773,7 @@ function inboxDecide(id,decision){
 }
 
 function inboxMarkPaid(id,action){
+  if(!Object.keys(S).length)ld();
   const e=findEntry(id);if(!e)return;
   if(action!=='hold'&&blockIfPayeeMissing(e.vendor))return;
   const comment=(document.getElementById('inbox-comment-'+id)?.value||'').trim();
