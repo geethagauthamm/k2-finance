@@ -1,0 +1,965 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Team Attendance</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+  :root{
+    --ink:#1C1B1A;
+    --ink-soft:#4A4740;
+    --paper:#F6F5F1;
+    --surface:#FFFFFF;
+    --line:#E4E1D8;
+    --muted:#8A8578;
+    --accent:#B8842E;
+    --accent-ink:#6E4E16;
+    --accent-soft:#F3E6CC;
+    --present:#3F7A5C;
+    --present-soft:#E3EFE8;
+    --absent:#B5433D;
+    --absent-soft:#F6E4E2;
+    --leave:#3E6B99;
+    --leave-soft:#E3EBF3;
+    --half:#B8842E;
+    --half-soft:#F3E6CC;
+    --c-office:#4A6FA1;
+    --c-home:#8B5FA3;
+    --c-field:#4F8F6B;
+    --c-set:#C97B2E;
+    --c-postprod:#A15C8C;
+    --c-travel:#3F8FA1;
+    --c-break:#9C9689;
+    --c-lunch:#C97B4A;
+    --radius:10px;
+    --shadow:0 1px 2px rgba(28,27,26,0.04), 0 4px 16px rgba(28,27,26,0.05);
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:var(--paper);
+    color:var(--ink);
+    font-family:'Inter',system-ui,sans-serif;
+    min-height:100vh;
+    -webkit-font-smoothing:antialiased;
+  }
+  h1,h2,h3,.num{font-family:'Space Grotesk',system-ui,sans-serif;}
+  .hidden{display:none !important;}
+  button{font-family:inherit;cursor:pointer;}
+  input,select,textarea{font-family:inherit;}
+
+  #app{max-width:1080px;margin:0 auto;padding:0 16px 60px;}
+
+  .topbar{
+    display:flex;align-items:center;justify-content:space-between;
+    padding:18px 0;border-bottom:1px solid var(--line);margin-bottom:24px;
+  }
+  .brand{display:flex;align-items:center;gap:10px;}
+  .brand h1{font-size:19px;font-weight:600;margin:0;letter-spacing:-0.01em;}
+  .who{display:flex;align-items:center;gap:12px;font-size:14px;color:var(--ink-soft);}
+  .who b{color:var(--ink);font-weight:600;}
+  .ghost-btn{
+    background:transparent;border:1px solid var(--line);color:var(--ink-soft);
+    padding:7px 14px;border-radius:8px;font-size:13px;font-weight:500;
+    transition:all .15s;
+  }
+  .ghost-btn:hover{border-color:var(--ink-soft);color:var(--ink);}
+  .tab-switch{display:flex;gap:6px;}
+  .tab-btn{border:1px solid var(--line);background:var(--surface);padding:8px 16px;border-radius:8px;font-size:13px;font-weight:600;color:var(--ink-soft);transition:all .12s;}
+  .tab-btn:hover{border-color:var(--ink-soft);}
+  .tab-btn.active{background:var(--ink);color:#fff;border-color:var(--ink);}
+
+  .config-warning{
+    background:var(--absent-soft);color:var(--absent);border:1px solid var(--absent);
+    border-radius:9px;padding:12px 16px;font-size:13px;margin-bottom:20px;
+  }
+
+  /* ---------- login ---------- */
+  #loginScreen{min-height:80vh;display:flex;align-items:center;justify-content:center;}
+  .login-card{
+    background:var(--surface);border:1px solid var(--line);border-radius:14px;
+    padding:36px 32px;width:100%;max-width:360px;box-shadow:var(--shadow);
+  }
+  .login-brand{display:flex;align-items:center;gap:10px;margin-bottom:6px;}
+  .login-brand .mark{
+    width:30px;height:30px;border-radius:8px;background:var(--ink);
+    display:flex;align-items:center;justify-content:center;
+    color:var(--accent-soft);font-family:'Space Grotesk';font-weight:700;font-size:15px;
+  }
+  .login-card h1{font-size:20px;margin:0;}
+  .login-sub{color:var(--muted);font-size:13px;margin:4px 0 26px;}
+  .field{margin-bottom:16px;}
+  .field label{display:block;font-size:12px;font-weight:600;color:var(--ink-soft);margin-bottom:6px;text-transform:uppercase;letter-spacing:.04em;}
+  .field select,.field input{
+    width:100%;padding:11px 12px;border:1px solid var(--line);border-radius:8px;
+    font-size:15px;background:var(--paper);color:var(--ink);
+  }
+  .field select:focus,.field input:focus,textarea:focus{outline:2px solid var(--accent);outline-offset:1px;}
+  .primary-btn{
+    width:100%;background:var(--ink);color:#fff;border:none;border-radius:8px;
+    padding:12px;font-size:14px;font-weight:600;margin-top:4px;transition:opacity .15s;
+  }
+  .primary-btn:hover{opacity:.88;}
+  .error-msg{color:var(--absent);font-size:13px;margin-top:12px;min-height:16px;}
+  .login-foot{margin-top:18px;font-size:12px;color:var(--muted);text-align:center;}
+
+  /* ---------- shared cards ---------- */
+  .card{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:22px;box-shadow:var(--shadow);}
+  .card + .card{margin-top:18px;}
+  .card h2{font-size:15px;margin:0 0 16px;font-weight:600;}
+  .today-date{color:var(--muted);font-size:13px;margin:-12px 0 18px;}
+
+  /* ---------- day status ---------- */
+  .status-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(100px,1fr));gap:10px;margin-bottom:6px;}
+  .status-btn{
+    border:1.5px solid var(--line);background:var(--surface);border-radius:9px;
+    padding:12px 10px;font-size:13px;font-weight:600;color:var(--ink-soft);
+    display:flex;flex-direction:column;align-items:center;gap:6px;transition:all .12s;
+  }
+  .status-btn .dot{width:9px;height:9px;border-radius:50%;}
+  .status-btn[data-status="present"] .dot{background:var(--present);}
+  .status-btn[data-status="absent"] .dot{background:var(--absent);}
+  .status-btn[data-status="leave"] .dot{background:var(--leave);}
+  .status-btn[data-status="half-day"] .dot{background:var(--half);}
+  .status-btn.active[data-status="present"]{background:var(--present-soft);border-color:var(--present);color:var(--present);}
+  .status-btn.active[data-status="absent"]{background:var(--absent-soft);border-color:var(--absent);color:var(--absent);}
+  .status-btn.active[data-status="leave"]{background:var(--leave-soft);border-color:var(--leave);color:var(--leave);}
+  .status-btn.active[data-status="half-day"]{background:var(--half-soft);border-color:var(--half);color:var(--half);}
+
+  /* ---------- time-code log ---------- */
+  .section-lbl{font-size:12px;font-weight:600;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.04em;margin:20px 0 10px;}
+  .time-code-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(92px,1fr));gap:8px;}
+  .tcode-btn{
+    border:1.5px solid var(--line);background:var(--surface);border-radius:9px;
+    padding:11px 6px;font-size:12.5px;font-weight:600;color:var(--ink-soft);
+    display:flex;flex-direction:column;align-items:center;gap:5px;transition:all .12s;
+  }
+  .tcode-btn .dot{width:8px;height:8px;border-radius:50%;}
+  .tcode-btn.current{box-shadow:0 0 0 2px var(--ink) inset;}
+
+  .current-segment{
+    background:var(--paper);border:1px dashed var(--line);border-radius:9px;
+    padding:14px 16px;margin:16px 0;font-size:13px;
+  }
+  .current-segment.active{border-style:solid;}
+  .cs-row{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;}
+  .cs-badge{display:flex;align-items:center;gap:8px;font-weight:600;}
+  .cs-badge .dot{width:9px;height:9px;border-radius:50%;}
+  .cs-since{color:var(--muted);font-size:12px;}
+  .current-segment textarea{
+    width:100%;border:1px solid var(--line);border-radius:7px;padding:9px 10px;
+    font-size:13px;background:var(--surface);min-height:44px;resize:vertical;
+  }
+  .cs-save-row{display:flex;align-items:center;gap:12px;margin-top:10px;}
+  .cs-save-row .ghost-btn{padding:8px 16px;}
+  .cs-logs{display:flex;flex-direction:column;gap:5px;margin-bottom:10px;}
+  .cs-log-line{font-size:12.5px;color:var(--ink-soft);background:var(--surface);border:1px solid var(--line);border-radius:6px;padding:6px 9px;}
+  .cs-log-line b{color:var(--muted);font-weight:600;margin-right:6px;}
+  .empty-note{color:var(--muted);font-size:13px;padding:4px 0;}
+
+  .timeline{display:flex;flex-direction:column;}
+  .tl-row{display:flex;align-items:flex-start;gap:10px;padding:9px 0;border-bottom:1px solid var(--line);font-size:13px;}
+  .tl-row:last-child{border-bottom:none;}
+  .tl-badge{font-size:11px;font-weight:700;padding:3px 9px;border-radius:20px;color:#fff;white-space:nowrap;flex-shrink:0;margin-top:1px;}
+  .tl-time{color:var(--ink-soft);font-weight:600;white-space:nowrap;flex-shrink:0;width:110px;}
+  .tl-ongoing{color:var(--present);}
+  .tl-note{color:var(--muted);flex:1;}
+  .tl-note-empty{font-style:italic;opacity:.7;}
+  .tl-logs{display:flex;flex-direction:column;gap:3px;flex:1;}
+  .tl-log-line{color:var(--muted);}
+  .tl-log-line b{color:var(--ink-soft);font-weight:600;margin-right:6px;}
+
+  .logoff-row{display:flex;align-items:center;gap:12px;margin-top:18px;}
+  .logoff-row .primary-btn{width:auto;padding:11px 24px;}
+  .saved-flag{font-size:13px;color:var(--present);font-weight:600;opacity:0;transition:opacity .2s;}
+  .saved-flag.show{opacity:1;}
+
+  .absent-note textarea{width:100%;border:1px solid var(--line);border-radius:8px;padding:11px 12px;font-size:14px;min-height:70px;background:var(--paper);}
+
+  /* ---------- recent list ---------- */
+  .recent-list{display:flex;flex-direction:column;}
+  .recent-row{padding:12px 0;border-bottom:1px solid var(--line);}
+  .recent-row:last-child{border-bottom:none;}
+  .recent-top{display:flex;align-items:center;gap:10px;font-size:13px;margin-bottom:4px;flex-wrap:wrap;}
+  .recent-top .rdate{width:82px;color:var(--muted);flex-shrink:0;}
+  .status-pill{font-size:11px;font-weight:700;padding:3px 9px;border-radius:20px;text-transform:uppercase;letter-spacing:.03em;flex-shrink:0;}
+  .status-pill[data-status="present"]{background:var(--present-soft);color:var(--present);}
+  .status-pill[data-status="absent"]{background:var(--absent-soft);color:var(--absent);}
+  .status-pill[data-status="leave"]{background:var(--leave-soft);color:var(--leave);}
+  .status-pill[data-status="half-day"]{background:var(--half-soft);color:var(--half);}
+  .recent-top .rhours{color:var(--ink-soft);font-weight:600;}
+  .recent-top .rrange{color:var(--muted);}
+  .recent-path{font-size:12px;color:var(--muted);padding-left:92px;}
+
+  /* ---------- admin ---------- */
+  .admin-header-row{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:16px;}
+  .month-nav{display:flex;align-items:center;gap:10px;}
+  .month-nav button{width:30px;height:30px;border:1px solid var(--line);background:var(--surface);border-radius:7px;font-size:14px;color:var(--ink-soft);}
+  .month-nav button:hover{border-color:var(--ink-soft);}
+  .month-label{font-weight:600;font-size:15px;min-width:130px;text-align:center;}
+
+  .stats-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px;margin-bottom:18px;}
+  .stat-box{background:var(--surface);border:1px solid var(--line);border-radius:9px;padding:12px 14px;}
+  .stat-box .num{font-size:22px;font-weight:700;}
+  .stat-box .lbl{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;margin-top:2px;}
+  .stat-box[data-k="present"] .num{color:var(--present);}
+  .stat-box[data-k="absent"] .num{color:var(--absent);}
+  .stat-box[data-k="leave"] .num{color:var(--leave);}
+  .stat-box[data-k="half-day"] .num{color:var(--half);}
+
+  .grid-scroll{overflow-x:auto;border:1px solid var(--line);border-radius:var(--radius);}
+  table.grid{border-collapse:collapse;width:100%;font-size:12px;}
+  table.grid th,table.grid td{border-bottom:1px solid var(--line);border-right:1px solid var(--line);padding:0;}
+  table.grid th{background:var(--paper);font-weight:600;color:var(--ink-soft);padding:8px 4px;}
+  table.grid td.name-cell{padding:8px 12px;font-weight:600;white-space:nowrap;background:var(--surface);position:sticky;left:0;border-right:1.5px solid var(--line);}
+  th.day-col{min-width:30px;text-align:center;}
+  td.day-cell{width:30px;height:32px;text-align:center;cursor:pointer;}
+  td.day-cell:hover{opacity:.75;}
+  .chip{width:100%;height:100%;display:block;}
+  .chip.present{background:var(--present);}
+  .chip.absent{background:var(--absent);}
+  .chip.leave{background:var(--leave);}
+  .chip.half-day{background:var(--half);}
+  .chip.empty{background:transparent;}
+
+  .legend{display:flex;gap:14px;flex-wrap:wrap;margin:14px 0 4px;font-size:12px;color:var(--ink-soft);}
+  .legend span{display:inline-flex;align-items:center;gap:6px;}
+  .legend i{width:9px;height:9px;border-radius:2px;display:inline-block;}
+
+  .roster-toggle{margin-top:22px;font-size:13px;font-weight:600;color:var(--accent-ink);background:none;border:none;padding:0;}
+  .roster-box{margin-top:14px;}
+  .roster-add-row{display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap;}
+  .roster-add-row input,.roster-add-row select{padding:9px 10px;border:1px solid var(--line);border-radius:7px;font-size:13px;}
+  .roster-add-row input[name="rname"]{flex:2;min-width:140px;}
+  .roster-add-row input[name="rpin"]{width:90px;}
+  .roster-table{width:100%;border-collapse:collapse;font-size:13px;}
+  .roster-table th{text-align:left;color:var(--muted);font-weight:600;font-size:11px;text-transform:uppercase;padding:6px 8px;border-bottom:1px solid var(--line);}
+  .roster-table td{padding:8px;border-bottom:1px solid var(--line);}
+  .roster-table td button{border:1px solid var(--line);background:var(--surface);border-radius:6px;padding:4px 10px;font-size:12px;color:var(--ink-soft);}
+  .roster-table td button:hover{border-color:var(--absent);color:var(--absent);}
+  .row-inactive td{opacity:.45;}
+
+  .modal-backdrop{position:fixed;inset:0;background:rgba(28,27,26,0.4);display:flex;align-items:center;justify-content:center;z-index:50;padding:16px;}
+  .modal{background:var(--surface);border-radius:12px;padding:24px;max-width:420px;width:100%;box-shadow:var(--shadow);max-height:86vh;overflow-y:auto;}
+  .modal h3{margin:0 0 4px;font-size:16px;}
+  .modal .msub{color:var(--muted);font-size:13px;margin-bottom:16px;}
+  .modal-close-row{display:flex;justify-content:flex-end;gap:8px;margin-top:18px;}
+  .modal-status-row{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px;}
+  .modal-status-row button{border:1.5px solid var(--line);background:var(--surface);border-radius:8px;padding:8px 12px;font-size:12.5px;font-weight:600;color:var(--ink-soft);}
+  .modal-status-row button.active{border-color:var(--ink);color:var(--ink);background:var(--paper);}
+  .modal-summary{display:flex;gap:14px;font-size:13px;color:var(--ink-soft);margin-bottom:12px;flex-wrap:wrap;}
+  .modal-summary b{color:var(--ink);}
+
+  @media(max-width:600px){
+    .status-grid{grid-template-columns:repeat(2,1fr);}
+    .time-code-grid{grid-template-columns:repeat(3,1fr);}
+    .recent-path{padding-left:0;margin-top:4px;}
+  }
+</style>
+</head>
+<body>
+
+<div id="app">
+
+  <div id="configWarning" class="config-warning hidden">
+    ⚠️ Supabase isn't configured yet — open this file and fill in <code>SUPABASE_URL</code> and <code>SUPABASE_ANON_KEY</code> near the top of the script, and run the setup SQL first.
+  </div>
+
+  <!-- ============ LOGIN ============ -->
+  <div id="loginScreen" class="screen">
+    <div class="login-card">
+      <div class="login-brand">
+        <div class="mark">K2</div>
+        <h1>Team Attendance</h1>
+      </div>
+      <p class="login-sub">Select your name and enter your PIN.</p>
+      <div class="field">
+        <label>Name</label>
+        <select id="nameSelect"><option value="">Loading team…</option></select>
+      </div>
+      <div class="field">
+        <label>PIN</label>
+        <input id="pinInput" type="password" inputmode="numeric" maxlength="6" placeholder="••••">
+      </div>
+      <button id="loginBtn" class="primary-btn">Log in</button>
+      <div id="loginError" class="error-msg"></div>
+      <div class="login-foot">Not on the list? Ask your admin to add you.</div>
+    </div>
+  </div>
+
+  <!-- ============ SHARED TOPBAR ============ -->
+  <div id="mainTopbar" class="topbar hidden">
+    <div class="brand"><h1>Team Attendance</h1></div>
+    <div id="adminTabSwitch" class="tab-switch hidden">
+      <button class="tab-btn" data-tab="myday">My Day</button>
+      <button class="tab-btn" data-tab="dashboard">Team Dashboard</button>
+    </div>
+    <div class="who">
+      <span id="whoLabel"></span>
+      <button id="mainLogout" class="ghost-btn">Log out</button>
+    </div>
+  </div>
+
+  <!-- ============ MEMBER VIEW ("My Day") ============ -->
+  <div id="memberScreen" class="screen hidden">
+    <div class="card">
+      <h2>Today</h2>
+      <div class="today-date" id="todayDateLabel"></div>
+
+      <div class="status-grid" id="statusGrid">
+        <button class="status-btn" data-status="present"><span class="dot"></span>Present</button>
+        <button class="status-btn" data-status="half-day"><span class="dot"></span>Half-day</button>
+        <button class="status-btn" data-status="absent"><span class="dot"></span>Absent</button>
+        <button class="status-btn" data-status="leave"><span class="dot"></span>Leave</button>
+      </div>
+
+      <div id="absentNoteWrap" class="field absent-note hidden" style="margin-top:16px;">
+        <label>Reason (optional)</label>
+        <textarea id="absentNote" placeholder="e.g. planned leave, sick..."></textarea>
+      </div>
+
+      <div id="timeLogSection" class="hidden">
+        <div class="section-lbl">What are you doing right now?</div>
+        <div class="time-code-grid" id="timeCodeGrid"></div>
+
+        <div id="currentSegmentBox" class="current-segment"></div>
+
+        <div class="section-lbl">Today's timeline</div>
+        <div id="timelineList" class="timeline"></div>
+
+        <div class="logoff-row">
+          <button id="logoffBtn" class="primary-btn">Log off for today</button>
+          <span id="savedFlag" class="saved-flag">Saved ✓</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Last 7 days</h2>
+      <div id="recentList" class="recent-list"><div class="empty-note">Loading…</div></div>
+    </div>
+  </div>
+
+  <!-- ============ ADMIN VIEW ("Team Dashboard") ============ -->
+  <div id="adminScreen" class="screen hidden">
+    <div class="admin-header-row">
+      <div class="month-nav">
+        <button id="prevMonth">‹</button>
+        <div class="month-label" id="monthLabel">—</div>
+        <button id="nextMonth">›</button>
+      </div>
+    </div>
+
+    <div class="stats-row" id="statsRow"></div>
+
+    <div class="grid-scroll">
+      <table class="grid" id="gridTable"></table>
+    </div>
+
+    <div class="legend">
+      <span><i style="background:var(--present)"></i>Present</span>
+      <span><i style="background:var(--half)"></i>Half-day</span>
+      <span><i style="background:var(--absent)"></i>Absent</span>
+      <span><i style="background:var(--leave)"></i>Leave</span>
+      <span><i style="background:var(--line)"></i>No entry</span>
+    </div>
+
+    <button id="rosterToggle" class="roster-toggle">+ Manage team roster</button>
+    <div id="rosterBox" class="roster-box hidden">
+      <div class="card">
+        <h2>Team roster</h2>
+        <div class="roster-add-row">
+          <input name="rname" placeholder="Full name">
+          <input name="rpin" placeholder="4-digit PIN" maxlength="6">
+          <select name="rrole">
+            <option value="member">Member</option>
+            <option value="admin">Admin</option>
+          </select>
+          <button id="addRosterBtn" class="ghost-btn">+ Add</button>
+        </div>
+        <table class="roster-table">
+          <thead><tr><th>Name</th><th>PIN</th><th>Role</th><th></th></tr></thead>
+          <tbody id="rosterTableBody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<div id="modalRoot"></div>
+
+<script>
+/* =========================================================================
+   CONFIGURE ME — paste your Supabase project credentials below.
+   Same project as your K2 app is fine; this uses its own tables
+   (team_roster, day_status, time_segments) so it won't touch K2's data.
+   Run attendance-tracker-setup.sql in the Supabase SQL editor first.
+   The anon key is meant to be public/client-side — same as what's already
+   embedded in your K2 app's page source.
+   ========================================================================= */
+const SUPABASE_URL = "https://scavuwvhhhonqpfiostz.supabase.co";
+const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNjYXZ1d3ZoaGhvbnFwZmlvc3R6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODI5MDY0ODUsImV4cCI6MjA5ODQ4MjQ4NX0.jq_oHIIW7TIpJS1YEZi5z_h5l0pl_hle5axLZHR7sj0";
+
+const TIME_CODES = [
+  {code:"office",   label:"Office",       color:"var(--c-office)"},
+  {code:"home",     label:"Home / WFH",   color:"var(--c-home)"},
+  {code:"field",    label:"Field",        color:"var(--c-field)"},
+  {code:"set",      label:"Set / Shoot",  color:"var(--c-set)"},
+  {code:"postprod", label:"Post-Prod",    color:"var(--c-postprod)"},
+  {code:"travel",   label:"Travel",       color:"var(--c-travel)"},
+  {code:"break",    label:"Break",        color:"var(--c-break)"},
+  {code:"lunch",    label:"Lunch",        color:"var(--c-lunch)"}
+];
+const NONWORK_CODES = new Set(["break","lunch"]);
+const STATUSES = ["present","half-day","absent","leave"];
+const STATUS_LABEL = {present:"Present","half-day":"Half-day",absent:"Absent",leave:"Leave"};
+
+let sb = null;
+const CONFIGURED = SUPABASE_URL.indexOf("PASTE_") !== 0 && SUPABASE_ANON_KEY.indexOf("PASTE_") !== 0;
+
+function tcMeta(code){ return TIME_CODES.find(t => t.code === code) || {label:code, color:"var(--muted)"}; }
+function pad(n){ return String(n).padStart(2,"0"); }
+function dateStrOf(d){ return d.getFullYear()+"-"+pad(d.getMonth()+1)+"-"+pad(d.getDate()); }
+function todayStr(){ return dateStrOf(new Date()); }
+function pastDate(n){ const d = new Date(); d.setDate(d.getDate()-n); return dateStrOf(d); }
+function nowTime(){ const d = new Date(); return pad(d.getHours())+":"+pad(d.getMinutes()); }
+function fmtMonthLabel(d){ return d.toLocaleString(undefined,{month:"long",year:"numeric"}); }
+function daysInMonth(d){ return new Date(d.getFullYear(), d.getMonth()+1, 0).getDate(); }
+function escapeHtml(s){ return String(s||"").replace(/[&<>"']/g, m => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[m])); }
+function minutesBetween(a,b){
+  const [ah,am]=a.split(":").map(Number), [bh,bm]=b.split(":").map(Number);
+  return (bh*60+bm)-(ah*60+am);
+}
+function fmtDuration(mins){
+  if(mins<0) mins=0;
+  return Math.floor(mins/60)+"h "+(mins%60)+"m";
+}
+
+let S = {
+  roster: [], rosterLoaded:false, user:null,
+  dayStatus:null, currentSegmentId:null,
+  todayDayRows:[], todaySegRows:[],
+  monthCursor: new Date(), monthEntries:{}, monthDayRows:[], monthSegRows:[],
+  activeTab:"myday"
+};
+
+function init(){
+  if(!CONFIGURED){
+    document.getElementById("configWarning").classList.remove("hidden");
+  } else {
+    sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+  }
+  wireLoginScreen(); wireMemberScreen(); wireAdminScreen();
+  document.getElementById("mainLogout").addEventListener("click", logout);
+  document.querySelectorAll("#adminTabSwitch .tab-btn").forEach(b => {
+    b.addEventListener("click", () => switchTab(b.dataset.tab));
+  });
+  loadRoster();
+}
+
+async function loadRoster(){
+  const sel = document.getElementById("nameSelect");
+  if(!CONFIGURED){ sel.innerHTML = '<option value="">Configure Supabase first</option>'; return; }
+  const { data, error } = await sb.from("team_roster").select("*").eq("active", true).order("name");
+  if(error){ sel.innerHTML = '<option value="">Error loading team</option>'; console.error(error); return; }
+  S.roster = data || [];
+  S.rosterLoaded = true;
+  sel.innerHTML = '<option value="">Select your name…</option>' +
+    S.roster.map(r => `<option value="${r.id}">${escapeHtml(r.name)}</option>`).join("");
+}
+function ensureRoster(){ return S.rosterLoaded ? Promise.resolve() : loadRoster(); }
+
+// ---- login ----
+function wireLoginScreen(){
+  document.getElementById("loginBtn").addEventListener("click", doLogin);
+  document.getElementById("pinInput").addEventListener("keydown", e => { if(e.key==="Enter") doLogin(); });
+}
+async function doLogin(){
+  const err = document.getElementById("loginError"); err.textContent = "";
+  await ensureRoster();
+  const id = document.getElementById("nameSelect").value;
+  const pin = document.getElementById("pinInput").value.trim();
+  if(!id){ err.textContent = "Select your name."; return; }
+  const person = S.roster.find(r => r.id === id);
+  if(!person){ err.textContent = "Couldn't find that person — try reloading."; return; }
+  if(String(person.pin) !== pin){ err.textContent = "Incorrect PIN."; return; }
+
+  S.user = { id:person.id, name:person.name, role:person.role };
+  document.getElementById("loginScreen").classList.add("hidden");
+  document.getElementById("mainTopbar").classList.remove("hidden");
+  document.getElementById("whoLabel").innerHTML = person.role === "admin"
+    ? `Admin: <b>${escapeHtml(person.name)}</b>` : `Hi, <b>${escapeHtml(person.name)}</b>`;
+
+  subscribeRealtime();
+
+  if(person.role === "admin"){
+    document.getElementById("adminTabSwitch").classList.remove("hidden");
+    await switchTab("myday");
+  } else {
+    document.getElementById("adminTabSwitch").classList.add("hidden");
+    document.getElementById("memberScreen").classList.remove("hidden");
+    await renderMemberScreen();
+  }
+}
+async function switchTab(tab){
+  S.activeTab = tab;
+  document.querySelectorAll("#adminTabSwitch .tab-btn").forEach(b => b.classList.toggle("active", b.dataset.tab === tab));
+  if(tab === "myday"){
+    document.getElementById("adminScreen").classList.add("hidden");
+    document.getElementById("memberScreen").classList.remove("hidden");
+    await renderMemberScreen();
+  } else {
+    document.getElementById("memberScreen").classList.add("hidden");
+    document.getElementById("adminScreen").classList.remove("hidden");
+    await renderAdminMonth();
+  }
+}
+function logout(){
+  if(realtimeChannel){ sb.removeChannel(realtimeChannel); realtimeChannel = null; }
+  S.user = null; S.currentSegmentId = null;
+  document.getElementById("memberScreen").classList.add("hidden");
+  document.getElementById("adminScreen").classList.add("hidden");
+  document.getElementById("mainTopbar").classList.add("hidden");
+  document.getElementById("adminTabSwitch").classList.add("hidden");
+  document.getElementById("loginScreen").classList.remove("hidden");
+  document.getElementById("pinInput").value = "";
+}
+
+// ---- realtime ----
+let realtimeChannel = null;
+function subscribeRealtime(){
+  if(!CONFIGURED) return;
+  try{
+    realtimeChannel = sb.channel("attendance-live")
+      .on("postgres_changes", { event:"*", schema:"public", table:"time_segments" }, () => onLiveChange())
+      .on("postgres_changes", { event:"*", schema:"public", table:"day_status" }, () => onLiveChange())
+      .subscribe();
+  }catch(e){ console.error(e); }
+}
+function onLiveChange(){
+  if(!S.user) return;
+  if(S.user.role === "admin" && S.activeTab === "dashboard") renderAdminMonth();
+  else if(S.activeTab === "myday") loadRecent();
+}
+
+// ---- shared: day summary from fetched rows ----
+function computeDaySummary(name, date, dayRows, segRows){
+  const day = dayRows.find(d => d.employee_name===name && d.entry_date===date);
+  const segs = segRows.filter(s => s.employee_name===name && s.entry_date===date)
+    .sort((a,b) => a.start_time < b.start_time ? -1 : 1);
+  if(!day && !segs.length) return null;
+
+  let workedMin = 0, breakMin = 0;
+  const nowT = date === todayStr() ? nowTime() : null;
+  segs.forEach(s => {
+    const end = s.end_time || nowT || s.start_time;
+    const mins = Math.max(0, minutesBetween(s.start_time, end));
+    if(NONWORK_CODES.has(s.code)) breakMin += mins; else workedMin += mins;
+  });
+  const path = [];
+  segs.forEach(s => { const lbl = tcMeta(s.code).label; if(path[path.length-1] !== lbl) path.push(lbl); });
+
+  return {
+    status: day ? day.status : (segs.length ? "present" : null),
+    note: day ? day.note : "",
+    firstStart: segs[0] ? segs[0].start_time : null,
+    lastEnd: segs.length ? (segs[segs.length-1].end_time || (date===todayStr() ? "ongoing" : segs[segs.length-1].start_time)) : null,
+    workedMin, breakMin, path: path.join(" → "), segs
+  };
+}
+
+// ---- member: status ----
+function wireMemberScreen(){
+  document.getElementById("statusGrid").addEventListener("click", e => {
+    const btn = e.target.closest(".status-btn");
+    if(!btn) return;
+    setStatus(btn.dataset.status);
+  });
+  document.getElementById("absentNote").addEventListener("blur", e => {
+    saveAbsentNote(e.target.value);
+  });
+  document.getElementById("logoffBtn").addEventListener("click", logOff);
+}
+
+async function setStatus(status){
+  S.dayStatus = status;
+  document.querySelectorAll("#statusGrid .status-btn").forEach(b => b.classList.toggle("active", b.dataset.status === status));
+  const showTimeLog = status === "present" || status === "half-day";
+  document.getElementById("timeLogSection").classList.toggle("hidden", !showTimeLog);
+  document.getElementById("absentNoteWrap").classList.toggle("hidden", showTimeLog);
+  if(showTimeLog) renderTimeLog();
+
+  if(!CONFIGURED) return;
+  const { data, error } = await sb.from("day_status")
+    .upsert({ employee_name:S.user.name, entry_date:todayStr(), status, updated_at:new Date().toISOString() }, { onConflict:"employee_name,entry_date" })
+    .select().single();
+  if(!error && data){
+    const idx = S.todayDayRows.findIndex(d => d.employee_name===S.user.name && d.entry_date===todayStr());
+    if(idx>=0) S.todayDayRows[idx] = data; else S.todayDayRows.push(data);
+  }
+}
+
+async function saveAbsentNote(note){
+  if(!CONFIGURED || !S.user) return;
+  const { data, error } = await sb.from("day_status")
+    .upsert({ employee_name:S.user.name, entry_date:todayStr(), status:S.dayStatus, note, updated_at:new Date().toISOString() }, { onConflict:"employee_name,entry_date" })
+    .select().single();
+  if(!error && data){
+    const idx = S.todayDayRows.findIndex(d => d.employee_name===S.user.name && d.entry_date===todayStr());
+    if(idx>=0) S.todayDayRows[idx] = data; else S.todayDayRows.push(data);
+  }
+}
+
+async function renderMemberScreen(){
+  const d = new Date();
+  document.getElementById("todayDateLabel").textContent = d.toLocaleDateString(undefined,{weekday:"long",year:"numeric",month:"long",day:"numeric"});
+  const today = todayStr();
+
+  if(CONFIGURED){
+    const [dayRes, segRes] = await Promise.all([
+      sb.from("day_status").select("*").eq("employee_name", S.user.name).eq("entry_date", today),
+      sb.from("time_segments").select("*").eq("employee_name", S.user.name).eq("entry_date", today).order("start_time")
+    ]);
+    S.todayDayRows = dayRes.data || [];
+    S.todaySegRows = segRes.data || [];
+  } else {
+    S.todayDayRows = []; S.todaySegRows = [];
+  }
+
+  const existingDay = S.todayDayRows.find(d2 => d2.entry_date === today);
+  const status = existingDay ? existingDay.status : "present";
+  document.getElementById("absentNote").value = existingDay ? (existingDay.note||"") : "";
+  await setStatus(status);
+
+  const open = S.todaySegRows.find(s => !s.end_time);
+  S.currentSegmentId = open ? open.id : null;
+
+  renderTimeCodeGrid();
+  renderTimeLog();
+  loadRecent();
+}
+
+function renderTimeCodeGrid(){
+  const grid = document.getElementById("timeCodeGrid");
+  grid.innerHTML = TIME_CODES.map(tc => `
+    <button class="tcode-btn" data-code="${tc.code}">
+      <span class="dot" style="background:${tc.color}"></span>${tc.label}
+    </button>
+  `).join("");
+  grid.querySelectorAll(".tcode-btn").forEach(btn => {
+    btn.addEventListener("click", () => startSegment(btn.dataset.code));
+  });
+}
+
+async function startSegment(code){
+  if(!CONFIGURED){ alert("Configure Supabase first."); return; }
+  const now = nowTime();
+  const name = S.user.name, date = todayStr();
+
+  const open = S.todaySegRows.find(s => !s.end_time);
+  if(open){
+    await sb.from("time_segments").update({ end_time: now }).eq("id", open.id);
+    open.end_time = now;
+  }
+  const { data, error } = await sb.from("time_segments")
+    .insert({ employee_name:name, entry_date:date, code, start_time:now, end_time:null, logs:[] })
+    .select().single();
+  if(error){ alert("Couldn't start — " + error.message); return; }
+  S.todaySegRows.push(data);
+  S.currentSegmentId = data.id;
+  renderTimeLog();
+}
+
+async function addLogEntry(){
+  const seg = S.todaySegRows.find(s => s.id === S.currentSegmentId);
+  const box = document.getElementById("currentNote");
+  if(!seg || !box) return;
+  const text = box.value.trim();
+  if(!text) return;
+  const newLogs = [...(seg.logs||[]), { time: nowTime(), text }];
+  const { error } = await sb.from("time_segments").update({ logs: newLogs }).eq("id", seg.id);
+  if(error){ alert("Couldn't save — " + error.message); return; }
+  seg.logs = newLogs;
+  renderTimeLog();
+  const flag = document.getElementById("noteSavedFlag");
+  if(flag){ flag.classList.add("show"); setTimeout(() => flag.classList.remove("show"), 1500); }
+}
+
+function renderTimeLog(){
+  const segs = [...S.todaySegRows].sort((a,b) => a.start_time < b.start_time ? -1 : 1);
+
+  document.querySelectorAll(".tcode-btn").forEach(b => b.classList.toggle("current", S.currentSegmentId && segs.find(s=>s.id===S.currentSegmentId && s.code===b.dataset.code)));
+
+  const csBox = document.getElementById("currentSegmentBox");
+  const openSeg = segs.find(s => s.id === S.currentSegmentId && !s.end_time);
+  if(openSeg){
+    const m = tcMeta(openSeg.code);
+    csBox.classList.add("active");
+    const logs = openSeg.logs || [];
+    const logsHtml = logs.length ? `
+      <div class="cs-logs">
+        ${logs.map(l => `<div class="cs-log-line"><b>${l.time}</b> — ${escapeHtml(l.text)}</div>`).join("")}
+      </div>` : "";
+    csBox.innerHTML = `
+      <div class="cs-row">
+        <div class="cs-badge"><span class="dot" style="background:${m.color}"></span>${m.label}</div>
+        <div class="cs-since">since ${openSeg.start_time}</div>
+      </div>
+      ${logsHtml}
+      <textarea id="currentNote" placeholder="Add what you're doing right now, then Save…"></textarea>
+      <div class="cs-save-row">
+        <button id="saveNoteBtn" class="ghost-btn">+ Add to log</button>
+        <span id="noteSavedFlag" class="saved-flag">Saved ✓</span>
+      </div>
+    `;
+    document.getElementById("currentNote").addEventListener("keydown", e => {
+      if(e.key === "Enter" && !e.shiftKey){ e.preventDefault(); addLogEntry(); }
+    });
+    document.getElementById("saveNoteBtn").addEventListener("click", addLogEntry);
+  } else {
+    csBox.classList.remove("active");
+    csBox.innerHTML = `<div class="empty-note">Tap a code above to start logging your day.</div>`;
+  }
+
+  const list = document.getElementById("timelineList");
+  if(!segs.length){
+    list.innerHTML = `<div class="empty-note">Nothing logged yet today.</div>`;
+    return;
+  }
+  list.innerHTML = segs.map(s => {
+    const m = tcMeta(s.code);
+    const timeStr = s.end_time ? `${s.start_time}–${s.end_time}` : `${s.start_time}–<span class="tl-ongoing">ongoing</span>`;
+    const logs = s.logs || [];
+    const notesHtml = logs.length
+      ? `<div class="tl-logs">${logs.map(l => `<div class="tl-log-line"><b>${l.time}</b> ${escapeHtml(l.text)}</div>`).join("")}</div>`
+      : `<span class="tl-note tl-note-empty">No notes added</span>`;
+    return `<div class="tl-row">
+      <span class="tl-badge" style="background:${m.color}">${m.label}</span>
+      <span class="tl-time">${timeStr}</span>
+      ${notesHtml}
+    </div>`;
+  }).join("");
+}
+
+async function logOff(){
+  if(!CONFIGURED){ alert("Configure Supabase first."); return; }
+  const open = S.todaySegRows.find(s => !s.end_time);
+  if(open){
+    const now = nowTime();
+    await sb.from("time_segments").update({ end_time: now }).eq("id", open.id);
+    open.end_time = now;
+  }
+  S.currentSegmentId = null;
+  renderTimeLog();
+  const flag = document.getElementById("savedFlag");
+  if(flag){ flag.classList.add("show"); setTimeout(() => flag.classList.remove("show"), 1800); }
+  loadRecent();
+}
+
+async function loadRecent(){
+  const box = document.getElementById("recentList");
+  if(!CONFIGURED){ box.innerHTML = '<div class="empty-note">Configure Supabase first.</div>'; return; }
+  const start = pastDate(6), end = todayStr();
+  const [dayRes, segRes] = await Promise.all([
+    sb.from("day_status").select("*").eq("employee_name", S.user.name).gte("entry_date", start).lte("entry_date", end),
+    sb.from("time_segments").select("*").eq("employee_name", S.user.name).gte("entry_date", start).lte("entry_date", end)
+  ]);
+  const dayRows = dayRes.data || [], segRows = segRes.data || [];
+  const dates = []; for(let i=0;i<7;i++) dates.push(pastDate(i));
+  const rows = dates.map(d => ({ date:d, sum: computeDaySummary(S.user.name, d, dayRows, segRows) })).filter(r => r.sum);
+  if(!rows.length){ box.innerHTML = '<div class="empty-note">No entries yet.</div>'; return; }
+  box.innerHTML = rows.map(({date,sum}) => `
+    <div class="recent-row">
+      <div class="recent-top">
+        <span class="rdate">${date}</span>
+        ${sum.status ? `<span class="status-pill" data-status="${sum.status}">${STATUS_LABEL[sum.status]}</span>` : ""}
+        ${sum.segs.length ? `<span class="rhours">${fmtDuration(sum.workedMin)}</span><span class="rrange">${sum.firstStart||"—"}–${sum.lastEnd||"—"}</span>` : ""}
+      </div>
+      ${sum.path ? `<div class="recent-path">${escapeHtml(sum.path)}</div>` : (sum.note ? `<div class="recent-path">${escapeHtml(sum.note)}</div>` : "")}
+    </div>
+  `).join("");
+}
+
+// ---- admin ----
+function wireAdminScreen(){
+  document.getElementById("prevMonth").addEventListener("click", () => { S.monthCursor.setMonth(S.monthCursor.getMonth()-1); renderAdminMonth(); });
+  document.getElementById("nextMonth").addEventListener("click", () => { S.monthCursor.setMonth(S.monthCursor.getMonth()+1); renderAdminMonth(); });
+  document.getElementById("rosterToggle").addEventListener("click", () => {
+    const box = document.getElementById("rosterBox");
+    box.classList.toggle("hidden");
+    document.getElementById("rosterToggle").textContent = box.classList.contains("hidden") ? "+ Manage team roster" : "− Manage team roster";
+    if(!box.classList.contains("hidden")) renderRosterTable();
+  });
+  document.getElementById("addRosterBtn").addEventListener("click", addRosterMember);
+}
+
+async function renderAdminMonth(){
+  document.getElementById("monthLabel").textContent = fmtMonthLabel(S.monthCursor);
+  await ensureRoster();
+  const year = S.monthCursor.getFullYear(), month = S.monthCursor.getMonth(), nDays = daysInMonth(S.monthCursor);
+  const startStr = year+"-"+pad(month+1)+"-01", endStr = year+"-"+pad(month+1)+"-"+pad(nDays);
+
+  if(CONFIGURED){
+    const [dayRes, segRes] = await Promise.all([
+      sb.from("day_status").select("*").gte("entry_date", startStr).lte("entry_date", endStr),
+      sb.from("time_segments").select("*").gte("entry_date", startStr).lte("entry_date", endStr)
+    ]);
+    S.monthDayRows = dayRes.data || [];
+    S.monthSegRows = segRes.data || [];
+  } else {
+    S.monthDayRows = []; S.monthSegRows = [];
+  }
+
+  S.monthEntries = {};
+  S.roster.forEach(person => {
+    for(let d=1; d<=nDays; d++){
+      const dateStr = year+"-"+pad(month+1)+"-"+pad(d);
+      const sum = computeDaySummary(person.name, dateStr, S.monthDayRows, S.monthSegRows);
+      if(sum) S.monthEntries[person.name+"|"+dateStr] = sum;
+    }
+  });
+  renderStats();
+  renderGrid(year, month, nDays);
+}
+
+function renderStats(){
+  const t = todayStr();
+  const counts = {present:0,absent:0,leave:0,"half-day":0};
+  Object.keys(S.monthEntries).forEach(k => {
+    if(k.endsWith("|"+t)){
+      const st = S.monthEntries[k].status;
+      if(counts[st] !== undefined) counts[st]++;
+    }
+  });
+  document.getElementById("statsRow").innerHTML = `
+    <div class="stat-box" data-k="present"><div class="num">${counts.present}</div><div class="lbl">Present today</div></div>
+    <div class="stat-box" data-k="half-day"><div class="num">${counts["half-day"]}</div><div class="lbl">Half-day today</div></div>
+    <div class="stat-box" data-k="absent"><div class="num">${counts.absent}</div><div class="lbl">Absent today</div></div>
+    <div class="stat-box" data-k="leave"><div class="num">${counts.leave}</div><div class="lbl">Leave today</div></div>
+  `;
+}
+
+function renderGrid(year, month, nDays){
+  const table = document.getElementById("gridTable");
+  const activeRoster = S.roster.filter(r => r.active !== false);
+  let thead = "<thead><tr><th class='name-cell'>Name</th>";
+  for(let d=1; d<=nDays; d++) thead += `<th class="day-col">${d}</th>`;
+  thead += "</tr></thead>";
+  let tbody = "<tbody>";
+  activeRoster.forEach(person => {
+    tbody += `<tr><td class="name-cell">${escapeHtml(person.name)}</td>`;
+    for(let d=1; d<=nDays; d++){
+      const dateStr = year+"-"+pad(month+1)+"-"+pad(d);
+      const sum = S.monthEntries[person.name+"|"+dateStr];
+      const status = sum ? sum.status : "";
+      tbody += `<td class="day-cell" data-name="${escapeHtml(person.name)}" data-date="${dateStr}"><div class="chip ${status||"empty"}"></div></td>`;
+    }
+    tbody += "</tr>";
+  });
+  tbody += "</tbody>";
+  table.innerHTML = thead + tbody;
+  table.querySelectorAll("td.day-cell").forEach(td => {
+    td.addEventListener("click", () => openCellDetail(td.dataset.name, td.dataset.date));
+  });
+}
+
+function openCellDetail(name, date){
+  const sum = computeDaySummary(name, date, S.monthDayRows, S.monthSegRows) || { status:null, note:"", segs:[], workedMin:0, breakMin:0, path:"" };
+  const root = document.getElementById("modalRoot");
+  root.innerHTML = `
+    <div class="modal-backdrop" id="modalBackdrop">
+      <div class="modal">
+        <h3>${escapeHtml(name)}</h3>
+        <div class="msub">${date}</div>
+        <div class="modal-status-row" id="modalStatusRow">
+          ${STATUSES.map(s => `<button data-status="${s}" class="${sum.status===s?'active':''}">${STATUS_LABEL[s]}</button>`).join("")}
+        </div>
+        ${sum.segs.length ? `
+          <div class="modal-summary">
+            <span>Worked <b>${fmtDuration(sum.workedMin)}</b></span>
+            ${sum.breakMin ? `<span>Break <b>${fmtDuration(sum.breakMin)}</b></span>` : ""}
+            <span><b>${sum.firstStart||"—"}</b>–<b>${sum.lastEnd||"—"}</b></span>
+          </div>
+          <div class="timeline">
+            ${sum.segs.map(s => {
+              const m = tcMeta(s.code);
+              const timeStr = s.end_time ? `${s.start_time}–${s.end_time}` : `${s.start_time}–ongoing`;
+              const logs = s.logs || [];
+              const notesHtml = logs.length
+                ? `<div class="tl-logs">${logs.map(l => `<div class="tl-log-line"><b>${l.time}</b> ${escapeHtml(l.text)}</div>`).join("")}</div>`
+                : `<span class="tl-note tl-note-empty">No notes added</span>`;
+              return `<div class="tl-row"><span class="tl-badge" style="background:${m.color}">${m.label}</span><span class="tl-time">${timeStr}</span>${notesHtml}</div>`;
+            }).join("")}
+          </div>
+        ` : `<div class="field"><label>Note</label><textarea id="mNote">${escapeHtml(sum.note||"")}</textarea></div>`}
+        <div class="modal-close-row">
+          <button class="ghost-btn" id="mCancel">Close</button>
+          <button class="primary-btn" id="mSave" style="width:auto;padding:9px 18px;">Save status</button>
+        </div>
+      </div>
+    </div>
+  `;
+  let chosenStatus = sum.status;
+  document.querySelectorAll("#modalStatusRow button").forEach(b => {
+    b.addEventListener("click", () => {
+      chosenStatus = b.dataset.status;
+      document.querySelectorAll("#modalStatusRow button").forEach(x => x.classList.toggle("active", x===b));
+    });
+  });
+  document.getElementById("mCancel").addEventListener("click", closeModal);
+  document.getElementById("modalBackdrop").addEventListener("click", e => { if(e.target.id==="modalBackdrop") closeModal(); });
+  document.getElementById("mSave").addEventListener("click", async () => {
+    const noteEl = document.getElementById("mNote");
+    const { error } = await sb.from("day_status")
+      .upsert({ employee_name:name, entry_date:date, status:chosenStatus, note: noteEl ? noteEl.value : (sum.note||""), updated_at:new Date().toISOString() }, { onConflict:"employee_name,entry_date" });
+    if(error){ alert("Couldn't save — " + error.message); return; }
+    closeModal();
+    renderAdminMonth();
+  });
+}
+function closeModal(){ document.getElementById("modalRoot").innerHTML = ""; }
+
+// ---- roster ----
+function renderRosterTable(){
+  const body = document.getElementById("rosterTableBody");
+  body.innerHTML = S.roster.map(r => `
+    <tr class="${r.active===false?'row-inactive':''}">
+      <td>${escapeHtml(r.name)}</td><td>${escapeHtml(String(r.pin))}</td><td>${r.role}</td>
+      <td><button data-id="${r.id}" data-active="${r.active!==false}">${r.active===false ? "Reactivate" : "Remove"}</button></td>
+    </tr>
+  `).join("");
+  body.querySelectorAll("button[data-id]").forEach(btn => {
+    btn.addEventListener("click", () => toggleRosterMember(btn.dataset.id, btn.dataset.active === "true"));
+  });
+}
+async function addRosterMember(){
+  const name = document.querySelector('input[name="rname"]').value.trim();
+  const pin = document.querySelector('input[name="rpin"]').value.trim();
+  const role = document.querySelector('select[name="rrole"]').value;
+  if(!name || !pin){ alert("Enter a name and PIN."); return; }
+  const { error } = await sb.from("team_roster").insert({ name, pin, role, active:true });
+  if(error){ alert("Couldn't add — " + error.message); return; }
+  document.querySelector('input[name="rname"]').value = "";
+  document.querySelector('input[name="rpin"]').value = "";
+  await loadRoster();
+  renderRosterTable();
+  renderAdminMonth();
+}
+async function toggleRosterMember(id, currentlyActive){
+  // Soft-delete only — keeps attendance history intact.
+  const { error } = await sb.from("team_roster").update({ active: !currentlyActive }).eq("id", id);
+  if(error){ alert("Couldn't update — " + error.message); return; }
+  await loadRoster();
+  renderRosterTable();
+  renderAdminMonth();
+}
+
+init();
+</script>
+</body>
+</html>
