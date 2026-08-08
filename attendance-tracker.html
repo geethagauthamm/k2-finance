@@ -191,6 +191,14 @@
   .status-pill[data-status="absent"]{background:var(--absent-soft);color:var(--absent);}
   .status-pill[data-status="leave"]{background:var(--leave-soft);color:var(--leave);}
   .status-pill[data-status="half-day"]{background:var(--half-soft);color:var(--half);}
+  .approval-pill{display:inline-block;font-size:12px;font-weight:600;padding:6px 12px;border-radius:8px;margin:2px 0 16px;}
+  .approval-pill.pending{background:var(--half-soft);color:var(--half-ink,var(--accent-ink));}
+  .approval-pill.approved{background:var(--present-soft);color:var(--present);}
+  .approval-pill.rejected{background:var(--absent-soft);color:var(--absent);}
+  .approval-mini{font-size:10.5px;font-weight:700;padding:2px 7px;border-radius:20px;margin-left:6px;text-transform:uppercase;letter-spacing:.02em;}
+  .approval-mini.pending{background:var(--half-soft);color:var(--accent-ink);}
+  .approval-mini.approved{background:var(--present-soft);color:var(--present);}
+  .approval-mini.rejected{background:var(--absent-soft);color:var(--absent);}
   .recent-top .rhours{color:var(--ink-soft);font-weight:600;}
   .recent-top .rrange{color:var(--muted);}
   .recent-path{font-size:12px;color:var(--muted);padding-left:92px;}
@@ -225,6 +233,18 @@
   .chip.leave{background:var(--leave);}
   .chip.half-day{background:var(--half);}
   .chip.empty{background:transparent;}
+  td.day-cell{position:relative;}
+  .pending-dot{position:absolute;top:2px;right:2px;width:6px;height:6px;border-radius:50%;background:var(--half);box-shadow:0 0 0 1px var(--surface);}
+
+  .approval-row{display:flex;align-items:center;gap:12px;padding:11px 0;border-bottom:1px solid var(--line);flex-wrap:wrap;}
+  .approval-row:last-child{border-bottom:none;}
+  .approval-row .arow-name{font-weight:600;min-width:110px;}
+  .approval-row .arow-date{color:var(--muted);font-size:13px;min-width:90px;}
+  .approval-row .arow-note{color:var(--muted);font-size:13px;flex:1;min-width:120px;}
+  .approval-row .arow-actions{display:flex;gap:8px;}
+  .approve-btn,.reject-btn{border:1px solid var(--line);border-radius:7px;padding:6px 14px;font-size:12.5px;font-weight:600;}
+  .approve-btn{background:var(--present-soft);color:var(--present);border-color:var(--present);}
+  .reject-btn{background:var(--absent-soft);color:var(--absent);border-color:var(--absent);}
 
   .legend{display:flex;gap:14px;flex-wrap:wrap;margin:14px 0 4px;font-size:12px;color:var(--ink-soft);}
   .legend span{display:inline-flex;align-items:center;gap:6px;}
@@ -236,6 +256,13 @@
   .roster-add-row input,.roster-add-row select{padding:9px 10px;border:1px solid var(--line);border-radius:7px;font-size:13px;}
   .roster-add-row input[name="rname"]{flex:2;min-width:140px;}
   .roster-add-row input[name="rpin"]{width:90px;}
+  .summary-head-row{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:16px;}
+  .table-scroll{overflow-x:auto;}
+  .summary-table{width:100%;border-collapse:collapse;font-size:13px;}
+  .summary-table th{text-align:left;color:var(--muted);font-weight:600;font-size:11px;text-transform:uppercase;letter-spacing:.03em;padding:8px 10px;border-bottom:1px solid var(--line);white-space:nowrap;}
+  .summary-table td{padding:8px 10px;border-bottom:1px solid var(--line);white-space:nowrap;}
+  .summary-table td.num{text-align:right;font-variant-numeric:tabular-nums;}
+  .summary-table tr:last-child td{border-bottom:none;}
   .roster-table{width:100%;border-collapse:collapse;font-size:13px;}
   .roster-table th{text-align:left;color:var(--muted);font-weight:600;font-size:11px;text-transform:uppercase;padding:6px 8px;border-bottom:1px solid var(--line);}
   .roster-table td{padding:8px;border-bottom:1px solid var(--line);}
@@ -252,6 +279,17 @@
   .modal-status-row button{border:1.5px solid var(--line);background:var(--surface);border-radius:8px;padding:8px 12px;font-size:12.5px;font-weight:600;color:var(--ink-soft);}
   .modal-status-row button.active{border-color:var(--ink);color:var(--ink);background:var(--paper);}
   .modal-summary{display:flex;gap:14px;font-size:13px;color:var(--ink-soft);margin-bottom:12px;flex-wrap:wrap;}
+  .modal-approval-row{display:flex;align-items:center;gap:8px;margin-bottom:14px;flex-wrap:wrap;}
+  .seg-edit-row{border:1px solid var(--line);border-radius:9px;padding:10px 12px;margin-bottom:10px;}
+  .seg-code{padding:6px 8px;border:1px solid var(--line);border-radius:6px;font-size:12.5px;margin-right:6px;}
+  .seg-start,.seg-end{padding:6px 8px;border:1px solid var(--line);border-radius:6px;font-size:12.5px;width:100px;margin-right:6px;}
+  .seg-delete{border:1px solid var(--line);background:var(--surface);border-radius:6px;padding:5px 9px;font-size:12px;color:var(--absent);}
+  .seg-logs{margin-top:9px;padding-top:9px;border-top:1px dashed var(--line);}
+  .seg-log-row{display:flex;gap:6px;margin-bottom:6px;align-items:center;}
+  .seg-log-time{width:80px;padding:5px 6px;border:1px solid var(--line);border-radius:6px;font-size:12px;flex-shrink:0;}
+  .seg-log-text{flex:1;padding:5px 8px;border:1px solid var(--line);border-radius:6px;font-size:12.5px;}
+  .seg-log-delete{border:none;background:none;color:var(--muted);font-size:16px;cursor:pointer;padding:0 4px;}
+  .seg-log-add{font-size:12px;padding:5px 10px;}
   .modal-summary b{color:var(--ink);}
 
   @media(max-width:600px){
@@ -317,6 +355,8 @@
         <button class="status-btn" data-status="leave"><span class="dot"></span>Leave</button>
       </div>
 
+      <div id="approvalBadge"></div>
+
       <div id="absentNoteWrap" class="field absent-note hidden" style="margin-top:16px;">
         <label>Reason (optional)</label>
         <textarea id="absentNote" placeholder="e.g. planned leave, sick..."></textarea>
@@ -356,6 +396,11 @@
 
     <div class="stats-row" id="statsRow"></div>
 
+    <div id="pendingApprovalsCard" class="card hidden" style="margin-bottom:18px;">
+      <h2>Pending approvals</h2>
+      <div id="pendingApprovalsList"></div>
+    </div>
+
     <div class="grid-scroll">
       <table class="grid" id="gridTable"></table>
     </div>
@@ -366,6 +411,16 @@
       <span><i style="background:var(--absent)"></i>Absent</span>
       <span><i style="background:var(--leave)"></i>Leave</span>
       <span><i style="background:var(--line)"></i>No entry</span>
+    </div>
+
+    <div class="card" style="margin-top:18px;">
+      <div class="summary-head-row">
+        <h2 style="margin:0;">Monthly summary — <span id="summaryMonthLabel"></span></h2>
+        <button id="downloadSummaryCsv" class="ghost-btn">⬇ Download CSV</button>
+      </div>
+      <div class="table-scroll">
+        <table class="summary-table" id="summaryTable"></table>
+      </div>
     </div>
 
     <button id="rosterToggle" class="roster-toggle">+ Manage team roster</button>
@@ -567,6 +622,8 @@ function computeDaySummary(name, date, dayRows, segRows){
   return {
     status: day ? day.status : (segs.length ? "present" : null),
     note: day ? day.note : "",
+    approval_status: day ? day.approval_status : null,
+    approved_by: day ? day.approved_by : null,
     firstStart: segs[0] ? segs[0].start_time : null,
     lastEnd: segs.length ? (segs[segs.length-1].end_time || (date===todayStr() ? "ongoing" : segs[segs.length-1].start_time)) : null,
     workedMin, breakMin, path: path.join(" → "), segs
@@ -578,7 +635,7 @@ function wireMemberScreen(){
   document.getElementById("statusGrid").addEventListener("click", e => {
     const btn = e.target.closest(".status-btn");
     if(!btn) return;
-    setStatus(btn.dataset.status);
+    chooseStatus(btn.dataset.status);
   });
   document.getElementById("absentNote").addEventListener("blur", e => {
     saveAbsentNote(e.target.value);
@@ -586,21 +643,50 @@ function wireMemberScreen(){
   document.getElementById("logoffBtn").addEventListener("click", logOff);
 }
 
-async function setStatus(status){
+// Reflects a status in the UI only — safe to call on page load without disturbing approval state.
+function applyStatusUI(status){
   S.dayStatus = status;
   document.querySelectorAll("#statusGrid .status-btn").forEach(b => b.classList.toggle("active", b.dataset.status === status));
   const showTimeLog = status === "present" || status === "half-day";
   document.getElementById("timeLogSection").classList.toggle("hidden", !showTimeLog);
   document.getElementById("absentNoteWrap").classList.toggle("hidden", showTimeLog);
+  renderApprovalBadge();
   if(showTimeLog) renderTimeLog();
+}
+
+function renderApprovalBadge(){
+  const box = document.getElementById("approvalBadge");
+  if(!box) return;
+  const day = S.todayDayRows.find(d => d.entry_date === todayStr());
+  if(!day || day.status === "present" || !day.approval_status){ box.innerHTML = ""; return; }
+  const map = {
+    pending:  { cls:"pending",  text:"⏳ Pending approval" },
+    approved: { cls:"approved", text:`✓ Approved${day.approved_by ? " by "+escapeHtml(day.approved_by) : ""}` },
+    rejected: { cls:"rejected", text:`✗ Rejected${day.approved_by ? " by "+escapeHtml(day.approved_by) : ""} — change your status to resubmit` }
+  };
+  const m = map[day.approval_status];
+  box.innerHTML = m ? `<div class="approval-pill ${m.cls}">${m.text}</div>` : "";
+}
+
+// Called when the person taps a status button — this one persists, and resets to
+// "pending" only when the status is genuinely changing (not on every page load).
+async function chooseStatus(status){
+  const today = todayStr();
+  const existing = S.todayDayRows.find(d => d.entry_date === today);
+  const patch = { employee_name:S.user.name, entry_date:today, status, updated_at:new Date().toISOString() };
+  if(status === "present"){
+    patch.approval_status = null; patch.approved_by = null; patch.approved_at = null;
+  } else if(!existing || existing.status !== status || !existing.approval_status){
+    patch.approval_status = "pending"; patch.approved_by = null; patch.approved_at = null;
+  }
+  applyStatusUI(status);
 
   if(!CONFIGURED) return;
-  const { data, error } = await sb.from("day_status")
-    .upsert({ employee_name:S.user.name, entry_date:todayStr(), status, updated_at:new Date().toISOString() }, { onConflict:"employee_name,entry_date" })
-    .select().single();
+  const { data, error } = await sb.from("day_status").upsert(patch, { onConflict:"employee_name,entry_date" }).select().single();
   if(!error && data){
-    const idx = S.todayDayRows.findIndex(d => d.employee_name===S.user.name && d.entry_date===todayStr());
+    const idx = S.todayDayRows.findIndex(d => d.entry_date === today);
     if(idx>=0) S.todayDayRows[idx] = data; else S.todayDayRows.push(data);
+    renderApprovalBadge();
   }
 }
 
@@ -634,7 +720,7 @@ async function renderMemberScreen(){
   const existingDay = S.todayDayRows.find(d2 => d2.entry_date === today);
   const status = existingDay ? existingDay.status : "present";
   document.getElementById("absentNote").value = existingDay ? (existingDay.note||"") : "";
-  await setStatus(status);
+  applyStatusUI(status);
 
   const open = S.todaySegRows.find(s => !s.end_time);
   S.currentSegmentId = open ? open.id : null;
@@ -778,6 +864,7 @@ async function loadRecent(){
       <div class="recent-top">
         <span class="rdate">${date}</span>
         ${sum.status ? `<span class="status-pill" data-status="${sum.status}">${STATUS_LABEL[sum.status]}</span>` : ""}
+        ${sum.approval_status ? `<span class="approval-mini ${sum.approval_status}">${sum.approval_status}</span>` : ""}
         ${sum.segs.length ? `<span class="rhours">${fmtDuration(sum.workedMin)}</span><span class="rrange">${sum.firstStart||"—"}–${sum.lastEnd||"—"}</span>` : ""}
       </div>
       ${sum.path ? `<div class="recent-path">${escapeHtml(sum.path)}</div>` : (sum.note ? `<div class="recent-path">${escapeHtml(sum.note)}</div>` : "")}
@@ -796,6 +883,7 @@ function wireAdminScreen(){
     if(!box.classList.contains("hidden")) renderRosterTable();
   });
   document.getElementById("addRosterBtn").addEventListener("click", addRosterMember);
+  document.getElementById("downloadSummaryCsv").addEventListener("click", downloadSummaryCsv);
 }
 
 async function renderAdminMonth(){
@@ -824,7 +912,44 @@ async function renderAdminMonth(){
     }
   });
   renderStats();
+  await renderPendingApprovals();
   renderGrid(year, month, nDays);
+  renderMonthlySummary(year, month, nDays);
+}
+
+async function renderPendingApprovals(){
+  const card = document.getElementById("pendingApprovalsCard");
+  const list = document.getElementById("pendingApprovalsList");
+  if(!CONFIGURED){ card.classList.add("hidden"); return; }
+
+  const { data, error } = await sb.from("day_status").select("*").eq("approval_status", "pending").order("entry_date", { ascending:false });
+  const pending = (data || []);
+  if(error || !pending.length){ card.classList.add("hidden"); list.innerHTML = ""; return; }
+
+  card.classList.remove("hidden");
+  list.innerHTML = pending.map(p => `
+    <div class="approval-row">
+      <span class="arow-name">${escapeHtml(p.employee_name)}</span>
+      <span class="arow-date">${p.entry_date}</span>
+      <span class="status-pill" data-status="${p.status}">${STATUS_LABEL[p.status]||p.status}</span>
+      <span class="arow-note">${escapeHtml(p.note||"")}</span>
+      <span class="arow-actions">
+        <button class="approve-btn" data-name="${escapeHtml(p.employee_name)}" data-date="${p.entry_date}" data-action="approved">Approve</button>
+        <button class="reject-btn" data-name="${escapeHtml(p.employee_name)}" data-date="${p.entry_date}" data-action="rejected">Reject</button>
+      </span>
+    </div>
+  `).join("");
+  list.querySelectorAll("button[data-action]").forEach(btn => {
+    btn.addEventListener("click", () => decideApproval(btn.dataset.name, btn.dataset.date, btn.dataset.action));
+  });
+}
+
+async function decideApproval(name, date, decision){
+  const { error } = await sb.from("day_status")
+    .update({ approval_status: decision, approved_by: S.user.name, approved_at: new Date().toISOString() })
+    .eq("employee_name", name).eq("entry_date", date);
+  if(error){ alert("Couldn't update — " + error.message); return; }
+  renderAdminMonth();
 }
 
 function renderStats(){
@@ -857,7 +982,8 @@ function renderGrid(year, month, nDays){
       const dateStr = year+"-"+pad(month+1)+"-"+pad(d);
       const sum = S.monthEntries[person.name+"|"+dateStr];
       const status = sum ? sum.status : "";
-      tbody += `<td class="day-cell" data-name="${escapeHtml(person.name)}" data-date="${dateStr}"><div class="chip ${status||"empty"}"></div></td>`;
+      const dot = sum && sum.approval_status === "pending" ? '<span class="pending-dot" title="Pending approval"></span>' : "";
+      tbody += `<td class="day-cell" data-name="${escapeHtml(person.name)}" data-date="${dateStr}"><div class="chip ${status||"empty"}"></div>${dot}</td>`;
     }
     tbody += "</tr>";
   });
@@ -868,9 +994,91 @@ function renderGrid(year, month, nDays){
   });
 }
 
+function computeMonthlySummary(year, month, nDays){
+  const summary = {};
+  S.roster.filter(r => r.active !== false).forEach(p => {
+    summary[p.name] = { name:p.name, present:0, halfDay:0, absent:0, leave:0, workedMin:0, breakMin:0, daysLogged:0 };
+  });
+  for(let d=1; d<=nDays; d++){
+    const dateStr = year+"-"+pad(month+1)+"-"+pad(d);
+    Object.keys(summary).forEach(name => {
+      const sum = S.monthEntries[name+"|"+dateStr];
+      if(!sum) return;
+      const row = summary[name];
+      row.daysLogged++;
+      if(sum.status === "present") row.present++;
+      else if(sum.status === "half-day") row.halfDay++;
+      else if(sum.status === "absent") row.absent++;
+      else if(sum.status === "leave") row.leave++;
+      row.workedMin += sum.workedMin || 0;
+      row.breakMin += sum.breakMin || 0;
+    });
+  }
+  return Object.values(summary);
+}
+
+function renderMonthlySummary(year, month, nDays){
+  document.getElementById("summaryMonthLabel").textContent = fmtMonthLabel(S.monthCursor);
+  const rows = computeMonthlySummary(year, month, nDays);
+  S._summaryRows = rows;
+  const table = document.getElementById("summaryTable");
+  table.innerHTML = `
+    <thead><tr>
+      <th>Name</th><th>Present</th><th>Half-day</th><th>Absent</th><th>Leave</th><th>Hours worked</th><th>Break time</th>
+    </tr></thead>
+    <tbody>
+      ${rows.map(r => `
+        <tr>
+          <td>${escapeHtml(r.name)}</td>
+          <td class="num">${r.present}</td>
+          <td class="num">${r.halfDay}</td>
+          <td class="num">${r.absent}</td>
+          <td class="num">${r.leave}</td>
+          <td class="num">${fmtDuration(r.workedMin)}</td>
+          <td class="num">${fmtDuration(r.breakMin)}</td>
+        </tr>
+      `).join("")}
+    </tbody>
+  `;
+}
+
+function downloadSummaryCsv(){
+  const rows = S._summaryRows || [];
+  const header = ["Name","Present","Half-day","Absent","Leave","Hours Worked","Break Time"];
+  const lines = [header.join(",")];
+  rows.forEach(r => {
+    lines.push([r.name, r.present, r.halfDay, r.absent, r.leave, fmtDuration(r.workedMin), fmtDuration(r.breakMin)]
+      .map(v => `"${String(v).replace(/"/g,'""')}"`).join(","));
+  });
+  const csv = lines.join("\n");
+  const blob = new Blob([csv], { type:"text/csv" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `attendance-summary-${fmtMonthLabel(S.monthCursor).replace(" ","-")}.csv`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+
+let modalDraftSegments = [];
+
 function openCellDetail(name, date){
-  const sum = computeDaySummary(name, date, S.monthDayRows, S.monthSegRows) || { status:null, note:"", segs:[], workedMin:0, breakMin:0, path:"" };
+  const sum = computeDaySummary(name, date, S.monthDayRows, S.monthSegRows) || { status:null, note:"", segs:[], workedMin:0, breakMin:0, path:"", approval_status:null, approved_by:null };
+  modalDraftSegments = (sum.segs || []).map(s => ({ ...s, logs:(s.logs||[]).map(l=>({...l})), _deleted:false }));
+
   const root = document.getElementById("modalRoot");
+  const approvalBlock = (sum.status && sum.status !== "present") ? `
+    <div class="modal-approval-row">
+      ${sum.approval_status ? `<span class="approval-mini ${sum.approval_status}">${sum.approval_status}${sum.approved_by ? " by "+escapeHtml(sum.approved_by) : ""}</span>` : ""}
+      ${sum.approval_status === "pending" ? `
+        <button class="approve-btn" id="modalApprove">Approve</button>
+        <button class="reject-btn" id="modalReject">Reject</button>
+      ` : ""}
+    </div>` : "";
+
   root.innerHTML = `
     <div class="modal-backdrop" id="modalBackdrop">
       <div class="modal">
@@ -879,31 +1087,20 @@ function openCellDetail(name, date){
         <div class="modal-status-row" id="modalStatusRow">
           ${STATUSES.map(s => `<button data-status="${s}" class="${sum.status===s?'active':''}">${STATUS_LABEL[s]}</button>`).join("")}
         </div>
-        ${sum.segs.length ? `
-          <div class="modal-summary">
-            <span>Worked <b>${fmtDuration(sum.workedMin)}</b></span>
-            ${sum.breakMin ? `<span>Break <b>${fmtDuration(sum.breakMin)}</b></span>` : ""}
-            <span><b>${sum.firstStart||"—"}</b>–<b>${sum.lastEnd||"—"}</b></span>
-          </div>
-          <div class="timeline">
-            ${sum.segs.map(s => {
-              const m = tcMeta(s.code);
-              const timeStr = s.end_time ? `${s.start_time}–${s.end_time}` : `${s.start_time}–ongoing`;
-              const logs = s.logs || [];
-              const notesHtml = logs.length
-                ? `<div class="tl-logs">${logs.map(l => `<div class="tl-log-line"><b>${l.time}</b> ${escapeHtml(l.text)}</div>`).join("")}</div>`
-                : `<span class="tl-note tl-note-empty">No notes added</span>`;
-              return `<div class="tl-row"><span class="tl-badge" style="background:${m.color}">${m.label}</span><span class="tl-time">${timeStr}</span>${notesHtml}</div>`;
-            }).join("")}
-          </div>
-        ` : `<div class="field"><label>Note</label><textarea id="mNote">${escapeHtml(sum.note||"")}</textarea></div>`}
+        ${approvalBlock}
+        <div class="field"><label>Note / reason</label><textarea id="mNote">${escapeHtml(sum.note||"")}</textarea></div>
+        <div class="modal-summary" id="modalSummaryRow"></div>
+        <div class="section-lbl">Time segments</div>
+        <div id="modalSegList"></div>
+        <button class="ghost-btn" id="mAddSeg" style="margin-top:10px;">+ Add segment</button>
         <div class="modal-close-row">
           <button class="ghost-btn" id="mCancel">Close</button>
-          <button class="primary-btn" id="mSave" style="width:auto;padding:9px 18px;">Save status</button>
+          <button class="primary-btn" id="mSave" style="width:auto;padding:9px 18px;">Save</button>
         </div>
       </div>
     </div>
   `;
+
   let chosenStatus = sum.status;
   document.querySelectorAll("#modalStatusRow button").forEach(b => {
     b.addEventListener("click", () => {
@@ -911,18 +1108,136 @@ function openCellDetail(name, date){
       document.querySelectorAll("#modalStatusRow button").forEach(x => x.classList.toggle("active", x===b));
     });
   });
+
+  const approveBtn = document.getElementById("modalApprove");
+  const rejectBtn = document.getElementById("modalReject");
+  if(approveBtn) approveBtn.addEventListener("click", async () => { await decideApproval(name, date, "approved"); closeModal(); });
+  if(rejectBtn) rejectBtn.addEventListener("click", async () => { await decideApproval(name, date, "rejected"); closeModal(); });
+
   document.getElementById("mCancel").addEventListener("click", closeModal);
   document.getElementById("modalBackdrop").addEventListener("click", e => { if(e.target.id==="modalBackdrop") closeModal(); });
+
+  document.getElementById("mAddSeg").addEventListener("click", () => {
+    modalDraftSegments.push({ id:"new-"+Math.random().toString(36).slice(2,9), employee_name:name, entry_date:date, code:"office", start_time:"09:00", end_time:"", logs:[] });
+    renderModalSegments();
+  });
+
   document.getElementById("mSave").addEventListener("click", async () => {
-    const noteEl = document.getElementById("mNote");
-    const { error } = await sb.from("day_status")
-      .upsert({ employee_name:name, entry_date:date, status:chosenStatus, note: noteEl ? noteEl.value : (sum.note||""), updated_at:new Date().toISOString() }, { onConflict:"employee_name,entry_date" });
-    if(error){ alert("Couldn't save — " + error.message); return; }
+    const note = document.getElementById("mNote").value;
+    const existing = S.monthDayRows.find(d => d.employee_name===name && d.entry_date===date);
+    const patch = { employee_name:name, entry_date:date, status: chosenStatus, note, updated_at:new Date().toISOString() };
+    if(chosenStatus === "present"){
+      patch.approval_status = null; patch.approved_by = null; patch.approved_at = null;
+    } else if(!existing || existing.status !== chosenStatus || !existing.approval_status){
+      // Admin setting this status directly counts as their own approval decision.
+      patch.approval_status = "approved"; patch.approved_by = S.user.name; patch.approved_at = new Date().toISOString();
+    }
+
+    const { error: dayErr } = await sb.from("day_status").upsert(patch, { onConflict:"employee_name,entry_date" });
+    if(dayErr){ alert("Couldn't save — " + dayErr.message); return; }
+
+    // Segments: wipe this day's segments and reinsert the edited set — simplest way to
+    // correctly handle edits, deletes, and new segments in one pass.
+    const { error: delErr } = await sb.from("time_segments").delete().eq("employee_name", name).eq("entry_date", date);
+    if(delErr){ alert("Couldn't update segments — " + delErr.message); return; }
+    const toInsert = modalDraftSegments.filter(s => !s._deleted).map(s => ({
+      employee_name: name, entry_date: date, code: s.code,
+      start_time: s.start_time || "09:00", end_time: s.end_time || null,
+      logs: (s.logs||[]).filter(l => l.text && l.text.trim())
+    }));
+    if(toInsert.length){
+      const { error: insErr } = await sb.from("time_segments").insert(toInsert);
+      if(insErr){ alert("Couldn't save segments — " + insErr.message); return; }
+    }
+
     closeModal();
     renderAdminMonth();
   });
+
+  renderModalSegments();
 }
-function closeModal(){ document.getElementById("modalRoot").innerHTML = ""; }
+
+function computeDraftTotals(){
+  let workedMin=0, breakMin=0;
+  modalDraftSegments.filter(s=>!s._deleted).forEach(s=>{
+    if(!s.start_time) return;
+    const end = s.end_time || s.start_time;
+    const mins = Math.max(0, minutesBetween(s.start_time, end));
+    if(NONWORK_CODES.has(s.code)) breakMin+=mins; else workedMin+=mins;
+  });
+  return {workedMin, breakMin};
+}
+
+function renderModalSegments(){
+  const box = document.getElementById("modalSegList");
+  const summaryBox = document.getElementById("modalSummaryRow");
+  const visible = modalDraftSegments.filter(s => !s._deleted);
+
+  const totals = computeDraftTotals();
+  summaryBox.innerHTML = `<span>Worked <b>${fmtDuration(totals.workedMin)}</b></span>${totals.breakMin ? ` <span>Break <b>${fmtDuration(totals.breakMin)}</b></span>` : ""}`;
+
+  if(!visible.length){
+    box.innerHTML = `<div class="empty-note">No segments logged. Use "+ Add segment" if one was missed.</div>`;
+  } else {
+    box.innerHTML = visible.map(s => `
+      <div class="seg-edit-row">
+        <select class="seg-code" data-seg-id="${s.id}">
+          ${TIME_CODES.map(tc => `<option value="${tc.code}" ${tc.code===s.code?"selected":""}>${tc.label}</option>`).join("")}
+        </select>
+        <input type="time" class="seg-start" data-seg-id="${s.id}" value="${s.start_time||""}">
+        <input type="time" class="seg-end" data-seg-id="${s.id}" value="${s.end_time||""}">
+        <button class="seg-delete" data-seg-id="${s.id}" title="Delete segment">🗑</button>
+        <div class="seg-logs">
+          ${(s.logs||[]).map((l,i) => `
+            <div class="seg-log-row">
+              <input type="time" class="seg-log-time" data-seg-id="${s.id}" data-idx="${i}" value="${l.time||""}">
+              <input type="text" class="seg-log-text" data-seg-id="${s.id}" data-idx="${i}" value="${escapeHtml(l.text||"")}" placeholder="Note">
+              <button class="seg-log-delete" data-seg-id="${s.id}" data-idx="${i}">×</button>
+            </div>
+          `).join("")}
+          <button class="seg-log-add ghost-btn" data-seg-id="${s.id}">+ note</button>
+        </div>
+      </div>
+    `).join("");
+  }
+
+  box.querySelectorAll(".seg-code").forEach(el => el.addEventListener("change", e => {
+    const s = modalDraftSegments.find(x=>x.id===e.target.dataset.segId); if(s) s.code = e.target.value;
+    renderModalSegments();
+  }));
+  box.querySelectorAll(".seg-start").forEach(el => el.addEventListener("change", e => {
+    const s = modalDraftSegments.find(x=>x.id===e.target.dataset.segId); if(s) s.start_time = e.target.value;
+    renderModalSegments();
+  }));
+  box.querySelectorAll(".seg-end").forEach(el => el.addEventListener("change", e => {
+    const s = modalDraftSegments.find(x=>x.id===e.target.dataset.segId); if(s) s.end_time = e.target.value;
+    renderModalSegments();
+  }));
+  box.querySelectorAll(".seg-delete").forEach(el => el.addEventListener("click", e => {
+    const s = modalDraftSegments.find(x=>x.id===e.target.dataset.segId); if(s) s._deleted = true;
+    renderModalSegments();
+  }));
+  box.querySelectorAll(".seg-log-time").forEach(el => el.addEventListener("change", e => {
+    const s = modalDraftSegments.find(x=>x.id===e.target.dataset.segId);
+    if(s) s.logs[+e.target.dataset.idx].time = e.target.value;
+  }));
+  box.querySelectorAll(".seg-log-text").forEach(el => el.addEventListener("input", e => {
+    const s = modalDraftSegments.find(x=>x.id===e.target.dataset.segId);
+    if(s) s.logs[+e.target.dataset.idx].text = e.target.value;
+  }));
+  box.querySelectorAll(".seg-log-delete").forEach(el => el.addEventListener("click", e => {
+    const s = modalDraftSegments.find(x=>x.id===e.target.dataset.segId);
+    if(s) s.logs.splice(+e.target.dataset.idx, 1);
+    renderModalSegments();
+  }));
+  box.querySelectorAll(".seg-log-add").forEach(el => el.addEventListener("click", e => {
+    const s = modalDraftSegments.find(x=>x.id===e.target.dataset.segId);
+    if(s){ if(!s.logs) s.logs=[]; s.logs.push({ time: nowTime(), text:"" }); }
+    renderModalSegments();
+  }));
+}
+
+function closeModal(){ document.getElementById("modalRoot").innerHTML = ""; modalDraftSegments = []; }
 
 // ---- roster ----
 function renderRosterTable(){
