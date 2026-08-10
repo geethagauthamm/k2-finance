@@ -90,11 +90,15 @@
   .workload-chip{background:var(--surface);border:1px solid var(--line);border-radius:20px;padding:6px 14px;font-size:12.5px;font-weight:600;color:var(--ink-soft);display:inline-flex;align-items:center;gap:7px;}
   .workload-chip b{color:var(--accent-ink);}
   .wc-dot{width:8px;height:8px;border-radius:50%;display:inline-block;flex-shrink:0;}
-  .kanban{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;}
+  .kanban{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;}
   .kanban-col{background:var(--paper);border:1px solid var(--line);border-radius:var(--radius);padding:14px;min-height:120px;}
   .kanban-col h3{font-size:13px;margin:0 0 12px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);display:flex;justify-content:space-between;}
   .task-card{background:var(--surface);border:1px solid var(--line);border-radius:9px;padding:12px;margin-bottom:10px;box-shadow:var(--shadow);}
-  .task-card .tc-title{font-weight:600;font-size:13.5px;margin-bottom:6px;}
+  .task-card .tc-title-row{display:flex;align-items:flex-start;justify-content:space-between;gap:8px;margin-bottom:6px;}
+  .task-card .tc-title{font-weight:600;font-size:13.5px;}
+  .tc-category{background:var(--paper);border:1px solid var(--line);color:var(--ink-soft);border-radius:5px;padding:2px 8px;font-weight:600;font-size:11px;}
+  .tc-edit-btn{border:none;background:none;cursor:pointer;font-size:12px;padding:0;opacity:.55;flex-shrink:0;}
+  .tc-edit-btn:hover{opacity:1;}
   .task-card .tc-meta{display:flex;flex-wrap:wrap;gap:6px;font-size:11.5px;color:var(--muted);margin-bottom:8px;}
   .task-card .tc-assignee{border-radius:20px;padding:2px 8px;font-weight:600;}
   .task-card .tc-meeting{background:var(--wfh-soft,var(--leave-soft));color:var(--leave);border-radius:20px;padding:2px 8px;font-weight:600;}
@@ -103,7 +107,30 @@
   .task-card select{padding:5px 6px;border:1px solid var(--line);border-radius:6px;font-size:11.5px;}
   .task-card .tc-push-select{border:1px solid var(--line);background:var(--paper);border-radius:6px;padding:5px 7px;font-size:11px;font-weight:600;color:var(--ink-soft);}
   .task-empty{color:var(--muted);font-size:12.5px;text-align:center;padding:16px 0;}
+  .category-chip-list{display:flex;flex-wrap:wrap;gap:8px;margin-top:14px;}
+  .category-chip-list .tc-category{font-size:12px;padding:5px 10px;}
+  @media(max-width:980px){ .kanban{grid-template-columns:repeat(2,1fr);} }
   @media(max-width:760px){ .kanban{grid-template-columns:1fr;} }
+
+  .tc-blocked-note{background:var(--absent-soft);color:var(--absent);border-radius:7px;padding:7px 10px;font-size:12px;margin-bottom:8px;}
+  .tc-delegate-btn{border:none;background:none;color:var(--muted);font-size:11px;cursor:pointer;padding:0 2px;text-decoration:underline;}
+  .tc-assignee-wrap{display:inline-flex;align-items:center;gap:3px;}
+  .tc-history-toggle{border:none;background:none;color:var(--accent-ink);font-size:11.5px;font-weight:600;cursor:pointer;padding:0;margin-top:6px;}
+  .tc-history-log{margin-top:8px;padding-top:8px;border-top:1px dashed var(--line);display:flex;flex-direction:column;gap:5px;}
+  .tc-history-line{font-size:11.5px;color:var(--muted);}
+  .tc-history-line b{color:var(--ink-soft);font-weight:600;margin-right:5px;}
+
+  .history-groups{display:grid;grid-template-columns:repeat(2,1fr);gap:16px;margin-top:18px;}
+  .history-col h3{font-size:12.5px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);margin:0 0 10px;}
+  .history-item{background:var(--surface);border:1px solid var(--line);border-radius:9px;padding:10px 12px;margin-bottom:8px;font-size:12.5px;}
+  .history-item .hi-title{font-weight:600;margin-bottom:3px;}
+  .history-item .hi-meta{color:var(--muted);font-size:11.5px;}
+  @media(max-width:760px){ .history-groups{grid-template-columns:1fr;} }
+
+  .offboard-task-row{display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--line);flex-wrap:wrap;}
+  .offboard-task-row:last-child{border-bottom:none;}
+  .offboard-task-row .ot-title{font-weight:600;font-size:13px;flex:1;min-width:140px;}
+  .offboard-task-row select{padding:6px 8px;border:1px solid var(--line);border-radius:7px;font-size:12.5px;}
 
   .config-warning{
     background:var(--absent-soft);color:var(--absent);border:1px solid var(--absent);
@@ -392,11 +419,35 @@
       <div class="task-filter-switch" id="taskFilterSwitch">
         <button class="tab-btn active" data-filter="all">All tasks</button>
         <button class="tab-btn" data-filter="mine">My tasks</button>
+        <button class="tab-btn" data-filter="history">History</button>
       </div>
+      <select id="categoryFilterSelect" style="padding:8px 10px;border:1px solid var(--line);border-radius:8px;font-size:12.5px;">
+        <option value="">All categories</option>
+      </select>
       <button class="primary-btn" id="newTaskBtn" style="width:auto;padding:10px 18px;">+ New task</button>
     </div>
     <div id="workloadStrip" class="workload-strip"></div>
     <div class="kanban" id="kanbanBoard"></div>
+
+    <div id="personHistoryView" class="hidden">
+      <div class="field" style="max-width:280px;">
+        <label>Person</label>
+        <select id="historyPersonSelect"></select>
+      </div>
+      <div class="history-groups" id="historyGroups"></div>
+    </div>
+
+    <button id="categoryToggle" class="roster-toggle admin-only-tab hidden">+ Manage categories</button>
+    <div id="categoryBox" class="roster-box hidden">
+      <div class="card">
+        <h2>Task categories</h2>
+        <div class="roster-add-row">
+          <input name="newCategory" placeholder="New category name">
+          <button id="addCategoryBtn" class="ghost-btn">+ Add</button>
+        </div>
+        <div id="categoryChipList" class="category-chip-list"></div>
+      </div>
+    </div>
   </div>
 
   <!-- ============ MEMBER VIEW ("My Day") ============ -->
@@ -513,7 +564,7 @@
 <script>
 /* =========================================================================
    CONFIGURE ME — paste your Supabase project credentials below.
-   Tables used: team_roster, day_status, time_segments, tasks.
+   Tables used: team_roster, day_status, time_segments, tasks, task_categories.
    Run attendance-tracker-setup.sql in the Supabase SQL editor first.
    ========================================================================= */
 const SUPABASE_URL = "https://scavuwvhhhonqpfiostz.supabase.co";
@@ -532,19 +583,13 @@ const TIME_CODES = [
 const NONWORK_CODES = new Set(["break","lunch"]);
 const STATUSES = ["present","half-day","absent","leave"];
 const STATUS_LABEL = {present:"Present","half-day":"Half-day",absent:"Absent",leave:"Leave"};
+const TASK_STATUS_LABEL = {open:"Open", in_progress:"In Progress", blocked:"Blocked", done:"Done", aborted:"Aborted"};
+let TASK_CATEGORIES = []; // loaded from Supabase at runtime
 
-// Consistent, auto-assigned color per person — same person always gets the
-// same color everywhere, no manual setup needed as the roster grows.
 const PERSON_COLORS = [
-  {bg:"#F6E4E8", ink:"#A14D63"},
-  {bg:"#F3E6CC", ink:"#8A6416"},
-  {bg:"#DCEEEC", ink:"#2E7D74"},
-  {bg:"#E4E3F6", ink:"#5A4FA0"},
-  {bg:"#E1F0E3", ink:"#3F7A5C"},
-  {bg:"#F7E5DE", ink:"#B25C3A"},
-  {bg:"#DFEEF7", ink:"#2E6E96"},
-  {bg:"#F0E1EC", ink:"#8C4A78"},
-  {bg:"#EDEEDA", ink:"#6B7239"},
+  {bg:"#F6E4E8", ink:"#A14D63"}, {bg:"#F3E6CC", ink:"#8A6416"}, {bg:"#DCEEEC", ink:"#2E7D74"},
+  {bg:"#E4E3F6", ink:"#5A4FA0"}, {bg:"#E1F0E3", ink:"#3F7A5C"}, {bg:"#F7E5DE", ink:"#B25C3A"},
+  {bg:"#DFEEF7", ink:"#2E6E96"}, {bg:"#F0E1EC", ink:"#8C4A78"}, {bg:"#EDEEDA", ink:"#6B7239"},
   {bg:"#E2E6EA", ink:"#47576B"}
 ];
 function personColor(name){
@@ -594,6 +639,7 @@ function init(){
     b.addEventListener("click", () => switchTab(b.dataset.tab));
   });
   loadRoster();
+  loadCategories();
 }
 
 async function loadRoster(){
@@ -607,6 +653,14 @@ async function loadRoster(){
     S.roster.map(r => `<option value="${r.id}">${escapeHtml(r.name)}</option>`).join("");
 }
 function ensureRoster(){ return S.rosterLoaded ? Promise.resolve() : loadRoster(); }
+
+async function loadCategories(){
+  if(!CONFIGURED) return;
+  const { data, error } = await sb.from("task_categories").select("*").order("name");
+  if(!error && data && data.length){
+    TASK_CATEGORIES = data.map(c => c.name);
+  }
+}
 
 // ---- login ----
 function wireLoginScreen(){
@@ -670,6 +724,7 @@ function subscribeRealtime(){
       .on("postgres_changes", { event:"*", schema:"public", table:"time_segments" }, () => onLiveChange())
       .on("postgres_changes", { event:"*", schema:"public", table:"day_status" }, () => onLiveChange())
       .on("postgres_changes", { event:"*", schema:"public", table:"tasks" }, () => onLiveChange())
+      .on("postgres_changes", { event:"*", schema:"public", table:"task_categories" }, () => loadCategories())
       .subscribe();
   }catch(e){ console.error(e); }
 }
@@ -1042,6 +1097,7 @@ async function adminQuickSetCode(name, code){
 
 // ---- tasks ----
 let taskFilter = "all";
+let categoryFilter = "";
 function wireTasksScreen(){
   document.getElementById("newTaskBtn").addEventListener("click", openNewTaskModal);
   document.querySelectorAll("#taskFilterSwitch .tab-btn").forEach(b => {
@@ -1051,13 +1107,48 @@ function wireTasksScreen(){
       renderTasksBoard();
     });
   });
+  populateCategoryFilterSelect();
+  document.getElementById("categoryFilterSelect").addEventListener("change", e => { categoryFilter = e.target.value; renderTasksBoard(); });
+  document.getElementById("historyPersonSelect").addEventListener("change", renderPersonHistory);
+
+  document.getElementById("categoryToggle").addEventListener("click", () => {
+    const box = document.getElementById("categoryBox");
+    box.classList.toggle("hidden");
+    document.getElementById("categoryToggle").textContent = box.classList.contains("hidden") ? "+ Manage categories" : "− Manage categories";
+    if(!box.classList.contains("hidden")) renderCategoryManageBox();
+  });
+  document.getElementById("addCategoryBtn").addEventListener("click", addCategory);
+}
+
+function populateCategoryFilterSelect(){
+  const sel = document.getElementById("categoryFilterSelect");
+  const current = sel.value;
+  sel.innerHTML = '<option value="">All categories</option>' + TASK_CATEGORIES.map(c => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join("");
+  sel.value = TASK_CATEGORIES.includes(current) ? current : "";
+}
+
+function renderCategoryManageBox(){
+  document.getElementById("categoryChipList").innerHTML = TASK_CATEGORIES.map(c => `<span class="tc-category">${escapeHtml(c)}</span>`).join("");
+}
+
+async function addCategory(){
+  const input = document.querySelector('input[name="newCategory"]');
+  const name = input.value.trim();
+  if(!name) return;
+  if(TASK_CATEGORIES.some(c => c.toLowerCase() === name.toLowerCase())){ alert("That category already exists."); return; }
+  const { error } = await sb.from("task_categories").insert({ name });
+  if(error){ alert("Couldn't add — " + error.message); return; }
+  input.value = "";
+  await loadCategories();
+  renderCategoryManageBox();
+  populateCategoryFilterSelect();
 }
 
 function computeWorkload(){
   const counts = {};
   S.roster.filter(r=>r.active!==false).forEach(p => counts[p.name]=0);
   S.tasks.forEach(t => {
-    if(t.status === "done") return;
+    if(t.status === "done" || t.status === "aborted") return;
     (t.assigned_to||[]).forEach(name => { if(counts[name] !== undefined) counts[name]++; });
   });
   return counts;
@@ -1074,18 +1165,37 @@ async function renderTasksBoard(){
     S.tasks = error ? [] : (data || []);
   }
 
+  const isHistory = taskFilter === "history";
+  document.getElementById("kanbanBoard").classList.toggle("hidden", isHistory);
+  document.getElementById("workloadStrip").classList.toggle("hidden", isHistory);
+  document.getElementById("newTaskBtn").classList.toggle("hidden", isHistory);
+  document.getElementById("categoryFilterSelect").classList.toggle("hidden", isHistory);
+  document.getElementById("personHistoryView").classList.toggle("hidden", !isHistory);
+
+  if(isHistory){
+    const sel = document.getElementById("historyPersonSelect");
+    if(!sel.dataset.filled){
+      sel.innerHTML = S.roster.filter(r=>r.active!==false).map(p => `<option value="${escapeHtml(p.name)}" ${p.name===S.user.name?"selected":""}>${escapeHtml(p.name)}</option>`).join("");
+      sel.dataset.filled = "1";
+    }
+    renderPersonHistory();
+    return;
+  }
+
   const workload = computeWorkload();
   document.getElementById("workloadStrip").innerHTML = Object.keys(workload).map(name => {
     const c = personColor(name);
     return `<span class="workload-chip"><span class="wc-dot" style="background:${c.ink}"></span>${escapeHtml(name)}: <b>${workload[name]}</b> open</span>`;
   }).join("");
 
-  let tasks = S.tasks.slice();
+  let tasks = S.tasks.filter(t => t.status !== "aborted").slice();
   if(taskFilter === "mine") tasks = tasks.filter(t => (t.assigned_to||[]).includes(S.user.name) || t.created_by === S.user.name);
+  if(categoryFilter) tasks = tasks.filter(t => (t.category||"Other / Misc") === categoryFilter);
 
   const cols = [
     { key:"open", label:"Open" },
     { key:"in_progress", label:"In Progress" },
+    { key:"blocked", label:"Blocked" },
     { key:"done", label:"Done" }
   ];
 
@@ -1112,6 +1222,19 @@ async function renderTasksBoard(){
       e.target.value = "";
     });
   });
+  board.querySelectorAll(".tc-delegate-btn").forEach(el => {
+    el.addEventListener("click", e => openDelegateModal(e.target.dataset.taskId, e.target.dataset.from));
+  });
+  board.querySelectorAll(".tc-edit-btn").forEach(el => {
+    el.addEventListener("click", e => openEditTaskModal(e.target.dataset.taskId));
+  });
+  board.querySelectorAll(".tc-history-toggle").forEach(el => {
+    el.addEventListener("click", e => {
+      const log = e.target.nextElementSibling;
+      const open = log.classList.toggle("hidden") === false;
+      e.target.textContent = open ? "▾ Hide history" : `▸ History (${e.target.dataset.count})`;
+    });
+  });
 }
 
 function renderTaskCard(t){
@@ -1119,20 +1242,31 @@ function renderTaskCard(t){
   const dueLabel = t.is_meeting
     ? `${t.due_date||"—"} · ${t.meeting_time||""}`
     : (t.due_date || "No due date");
+  const history = t.history || [];
   return `
     <div class="task-card">
-      <div class="tc-title">${escapeHtml(t.title)}</div>
+      <div class="tc-title-row">
+        <div class="tc-title">${escapeHtml(t.title)}</div>
+        ${editable ? `<button class="tc-edit-btn" data-task-id="${t.id}" title="Edit task">✏️</button>` : ""}
+      </div>
       <div class="tc-meta">
-        ${(t.assigned_to||[]).map(n => { const c = personColor(n); return `<span class="tc-assignee" style="background:${c.bg};color:${c.ink}">${escapeHtml(n)}</span>`; }).join("")}
+        <span class="tc-category">${escapeHtml(t.category||"Other / Misc")}</span>
+        ${(t.assigned_to||[]).map(n => {
+          const c = personColor(n);
+          const canDelegate = S.user.role==="admin" || n===S.user.name;
+          return `<span class="tc-assignee-wrap">
+            <span class="tc-assignee" style="background:${c.bg};color:${c.ink}">${escapeHtml(n)}</span>
+            ${canDelegate ? `<button class="tc-delegate-btn" data-task-id="${t.id}" data-from="${escapeHtml(n)}" title="Delegate to someone else">⇄</button>` : ""}
+          </span>`;
+        }).join("")}
         ${t.is_meeting ? `<span class="tc-meeting">📅 Meeting</span>` : ""}
         <span class="tc-due">${dueLabel}</span>
       </div>
       ${t.description ? `<div class="tt-note" style="margin-bottom:8px;">${escapeHtml(t.description)}</div>` : ""}
+      ${t.status === "blocked" && t.blocked_reason ? `<div class="tc-blocked-note">🚧 ${escapeHtml(t.blocked_reason)}</div>` : ""}
       <div class="tc-actions">
         <select class="task-status-select" data-task-id="${t.id}" ${editable?"":"disabled"}>
-          <option value="open" ${t.status==="open"?"selected":""}>Open</option>
-          <option value="in_progress" ${t.status==="in_progress"?"selected":""}>In Progress</option>
-          <option value="done" ${t.status==="done"?"selected":""}>Done</option>
+          ${Object.keys(TASK_STATUS_LABEL).map(k => `<option value="${k}" ${t.status===k?"selected":""}>${TASK_STATUS_LABEL[k]}</option>`).join("")}
         </select>
         ${editable ? `
           <select class="tc-push-select" data-task-id="${t.id}">
@@ -1144,16 +1278,130 @@ function renderTaskCard(t){
           </select>
         ` : ""}
       </div>
+      ${history.length ? `
+        <button class="tc-history-toggle" data-count="${history.length}">▸ History (${history.length})</button>
+        <div class="tc-history-log hidden">
+          ${history.slice().reverse().map(h => `<div class="tc-history-line"><b>${h.time}</b> ${escapeHtml(h.actor)} — ${escapeHtml(h.text)}</div>`).join("")}
+        </div>
+      ` : ""}
     </div>
   `;
 }
 
+function logTaskHistory(t, text, type, meta){
+  if(!t.history) t.history = [];
+  t.history.push({ time: nowTime(), actor: S.user.name, type: type||"status_change", text, meta: meta||null });
+}
+
 async function updateTaskStatus(id, status){
-  const { error } = await sb.from("tasks").update({ status, updated_at:new Date().toISOString() }).eq("id", id);
-  if(error){ alert("Couldn't update — " + error.message); return; }
   const t = S.tasks.find(x => x.id === id);
-  if(t) t.status = status;
+  if(!t) return;
+  if(status === "blocked"){ openBlockedReasonModal(t); return; }
+  logTaskHistory(t, `Status changed to ${TASK_STATUS_LABEL[status]}`);
+  const { error } = await sb.from("tasks").update({ status, blocked_reason:"", history:t.history, updated_at:new Date().toISOString() }).eq("id", id);
+  if(error){ alert("Couldn't update — " + error.message); return; }
+  t.status = status; t.blocked_reason = "";
   renderTasksBoard();
+}
+
+function openBlockedReasonModal(t){
+  const root = document.getElementById("modalRoot");
+  root.innerHTML = `
+    <div class="modal-backdrop" id="modalBackdrop">
+      <div class="modal">
+        <h3>What's blocking this?</h3>
+        <div class="msub">${escapeHtml(t.title)}</div>
+        <div class="field"><label>Reason</label><textarea id="brReason" placeholder="e.g. Waiting on Priya's budget approval"></textarea></div>
+        <div class="modal-close-row">
+          <button class="ghost-btn" id="brCancel">Cancel</button>
+          <button class="primary-btn" id="brSave" style="width:auto;padding:9px 18px;">Mark blocked</button>
+        </div>
+      </div>
+    </div>
+  `;
+  document.getElementById("brCancel").addEventListener("click", () => { closeModal(); renderTasksBoard(); });
+  document.getElementById("modalBackdrop").addEventListener("click", e => { if(e.target.id==="modalBackdrop"){ closeModal(); renderTasksBoard(); } });
+  document.getElementById("brSave").addEventListener("click", async () => {
+    const reason = document.getElementById("brReason").value.trim();
+    logTaskHistory(t, reason ? `Marked as blocked — ${reason}` : "Marked as blocked", "blocked");
+    const { error } = await sb.from("tasks").update({ status:"blocked", blocked_reason:reason, history:t.history, updated_at:new Date().toISOString() }).eq("id", t.id);
+    if(error){ alert("Couldn't save — " + error.message); return; }
+    t.status = "blocked"; t.blocked_reason = reason;
+    closeModal();
+    renderTasksBoard();
+  });
+}
+
+function openDelegateModal(taskId, fromName){
+  const t = S.tasks.find(x => x.id === taskId);
+  if(!t) return;
+  const options = S.roster.filter(r => r.active !== false && r.name !== fromName);
+  const root = document.getElementById("modalRoot");
+  root.innerHTML = `
+    <div class="modal-backdrop" id="modalBackdrop">
+      <div class="modal">
+        <h3>Delegate task</h3>
+        <div class="msub">${escapeHtml(t.title)} — currently ${escapeHtml(fromName)}</div>
+        <div class="field"><label>Hand off to</label>
+          <select id="dgTo">
+            <option value="">Select someone…</option>
+            ${options.map(p => `<option value="${escapeHtml(p.name)}">${escapeHtml(p.name)}</option>`).join("")}
+          </select>
+        </div>
+        <div class="modal-close-row">
+          <button class="ghost-btn" id="dgCancel">Cancel</button>
+          <button class="primary-btn" id="dgSave" style="width:auto;padding:9px 18px;">Delegate</button>
+        </div>
+      </div>
+    </div>
+  `;
+  document.getElementById("dgCancel").addEventListener("click", closeModal);
+  document.getElementById("modalBackdrop").addEventListener("click", e => { if(e.target.id==="modalBackdrop") closeModal(); });
+  document.getElementById("dgSave").addEventListener("click", async () => {
+    const to = document.getElementById("dgTo").value;
+    if(!to){ alert("Choose who to delegate to."); return; }
+    const newAssigned = (t.assigned_to||[]).filter(n => n !== fromName);
+    if(!newAssigned.includes(to)) newAssigned.push(to);
+    logTaskHistory(t, `Delegated from ${fromName} to ${to}`, "delegated", { from:fromName, to });
+    const { error } = await sb.from("tasks").update({ assigned_to:newAssigned, history:t.history, updated_at:new Date().toISOString() }).eq("id", t.id);
+    if(error){ alert("Couldn't delegate — " + error.message); return; }
+    t.assigned_to = newAssigned;
+    closeModal();
+    renderTasksBoard();
+  });
+}
+
+function computePersonHistory(name){
+  const mine = S.tasks.filter(t => (t.assigned_to||[]).includes(name));
+  const delegated = S.tasks.filter(t => (t.history||[]).some(h => h.type==="delegated" && h.meta && h.meta.from===name));
+  return {
+    completed: mine.filter(t => t.status === "done"),
+    inProgress: mine.filter(t => t.status==="open" || t.status==="in_progress" || t.status==="blocked"),
+    aborted: mine.filter(t => t.status === "aborted"),
+    delegated
+  };
+}
+
+function renderPersonHistory(){
+  const name = document.getElementById("historyPersonSelect").value;
+  const groups = computePersonHistory(name);
+  const sections = [
+    { key:"inProgress", label:"In Progress", items:groups.inProgress },
+    { key:"completed", label:"Completed", items:groups.completed },
+    { key:"delegated", label:"Delegated away", items:groups.delegated },
+    { key:"aborted", label:"Aborted", items:groups.aborted }
+  ];
+  document.getElementById("historyGroups").innerHTML = sections.map(s => `
+    <div class="history-col">
+      <h3>${s.label} (${s.items.length})</h3>
+      ${s.items.length ? s.items.map(t => `
+        <div class="history-item">
+          <div class="hi-title">${escapeHtml(t.title)}</div>
+          <div class="hi-meta">${TASK_STATUS_LABEL[t.status]} · ${t.due_date || "No due date"}</div>
+        </div>
+      `).join("") : `<div class="task-empty">Nothing here</div>`}
+    </div>
+  `).join("");
 }
 
 async function pushTaskDue(id, days){
@@ -1162,7 +1410,9 @@ async function pushTaskDue(id, days){
   const base = t.due_date ? new Date(t.due_date+"T00:00:00") : new Date();
   base.setDate(base.getDate() + (days || 1));
   const newDue = dateStrOf(base);
-  const { error } = await sb.from("tasks").update({ due_date:newDue, updated_at:new Date().toISOString() }).eq("id", id);
+  const oldDue = t.due_date;
+  logTaskHistory(t, `Due date pushed${oldDue ? " from "+oldDue : ""} to ${newDue}`);
+  const { error } = await sb.from("tasks").update({ due_date:newDue, history:t.history, updated_at:new Date().toISOString() }).eq("id", id);
   if(error){ alert("Couldn't push — " + error.message); return; }
   t.due_date = newDue;
   renderTasksBoard();
@@ -1190,7 +1440,9 @@ function openRescheduleModal(id){
   document.getElementById("rsSave").addEventListener("click", async () => {
     const newDate = document.getElementById("rsDate").value;
     if(!newDate){ alert("Pick a date."); return; }
-    const { error } = await sb.from("tasks").update({ due_date:newDate, updated_at:new Date().toISOString() }).eq("id", id);
+    const oldDue = t.due_date;
+    logTaskHistory(t, `Rescheduled${oldDue ? " from "+oldDue : ""} to ${newDate}`);
+    const { error } = await sb.from("tasks").update({ due_date:newDate, history:t.history, updated_at:new Date().toISOString() }).eq("id", id);
     if(error){ alert("Couldn't save — " + error.message); return; }
     t.due_date = newDate;
     closeModal();
@@ -1205,6 +1457,9 @@ function openNewTaskModal(){
       <div class="modal">
         <h3>New task</h3>
         <div class="field"><label>Title</label><input type="text" id="ntTitle" placeholder="What needs to happen?"></div>
+        <div class="field"><label>Category</label>
+          <select id="ntCategory">${TASK_CATEGORIES.map(c => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join("")}</select>
+        </div>
         <div class="field"><label>Description (optional)</label><textarea id="ntDesc"></textarea></div>
         <div class="field"><label>Assign to</label>
           <div id="ntAssignees" style="display:flex;flex-wrap:wrap;gap:8px;">
@@ -1247,16 +1502,103 @@ async function saveNewTask(){
   const isMeeting = document.getElementById("ntMeeting").checked;
   const payload = {
     title,
+    category: document.getElementById("ntCategory").value,
     description: document.getElementById("ntDesc").value,
     assigned_to: assignees,
     created_by: S.user.name,
     is_meeting: isMeeting,
     due_date: document.getElementById("ntDue").value || null,
     meeting_time: isMeeting ? document.getElementById("ntTime").value : null,
-    status: "open"
+    status: "open",
+    blocked_reason: "",
+    history: [{ time: nowTime(), actor: S.user.name, type:"created", text:`Created and assigned to ${assignees.join(", ")}` }]
   };
   const { error } = await sb.from("tasks").insert(payload);
   if(error){ alert("Couldn't create task — " + error.message); return; }
+  closeModal();
+  renderTasksBoard();
+}
+
+function openEditTaskModal(taskId){
+  const t = S.tasks.find(x => x.id === taskId);
+  if(!t) return;
+  const root = document.getElementById("modalRoot");
+  root.innerHTML = `
+    <div class="modal-backdrop" id="modalBackdrop">
+      <div class="modal">
+        <h3>Edit task</h3>
+        <div class="field"><label>Title</label><input type="text" id="etTitle" value="${escapeHtml(t.title)}"></div>
+        <div class="field"><label>Category</label>
+          <select id="etCategory">${TASK_CATEGORIES.map(c => `<option value="${escapeHtml(c)}" ${(t.category||"Other / Misc")===c?"selected":""}>${escapeHtml(c)}</option>`).join("")}</select>
+        </div>
+        <div class="field"><label>Description (optional)</label><textarea id="etDesc">${escapeHtml(t.description||"")}</textarea></div>
+        <div class="field"><label>Assign to</label>
+          <div id="etAssignees" style="display:flex;flex-wrap:wrap;gap:8px;">
+            ${S.roster.filter(r=>r.active!==false).map(p => `
+              <label style="display:flex;align-items:center;gap:5px;font-size:12.5px;border:1px solid var(--line);border-radius:20px;padding:5px 10px;">
+                <input type="checkbox" value="${escapeHtml(p.name)}" ${(t.assigned_to||[]).includes(p.name)?"checked":""} style="margin:0;"> ${escapeHtml(p.name)}
+              </label>
+            `).join("")}
+          </div>
+        </div>
+        <div class="time-row">
+          <div class="time-field"><label>Due date</label><input type="date" id="etDue" value="${t.due_date||""}"></div>
+          <div class="time-field"><label>&nbsp;</label>
+            <label style="display:flex;align-items:center;gap:6px;font-size:13px;padding-top:9px;">
+              <input type="checkbox" id="etMeeting" ${t.is_meeting?"checked":""} style="margin:0;"> This is a meeting
+            </label>
+          </div>
+        </div>
+        <div class="field ${t.is_meeting?"":"hidden"}" id="etTimeWrap"><label>Meeting time</label><input type="time" id="etTime" value="${t.meeting_time||""}"></div>
+        <div class="modal-close-row">
+          <button class="ghost-btn" id="etCancel">Cancel</button>
+          <button class="primary-btn" id="etSave" style="width:auto;padding:9px 18px;">Save changes</button>
+        </div>
+      </div>
+    </div>
+  `;
+  document.getElementById("etMeeting").addEventListener("change", e => {
+    document.getElementById("etTimeWrap").classList.toggle("hidden", !e.target.checked);
+  });
+  document.getElementById("etCancel").addEventListener("click", closeModal);
+  document.getElementById("modalBackdrop").addEventListener("click", e => { if(e.target.id==="modalBackdrop") closeModal(); });
+  document.getElementById("etSave").addEventListener("click", () => saveEditedTask(t));
+}
+
+async function saveEditedTask(t){
+  const newTitle = document.getElementById("etTitle").value.trim();
+  if(!newTitle){ alert("Title can't be empty."); return; }
+  const newDesc = document.getElementById("etDesc").value;
+  const newAssignees = Array.from(document.querySelectorAll("#etAssignees input:checked")).map(el => el.value);
+  if(!newAssignees.length){ alert("Assign it to at least one person."); return; }
+  const newIsMeeting = document.getElementById("etMeeting").checked;
+  const newDue = document.getElementById("etDue").value || null;
+  const newTime = newIsMeeting ? document.getElementById("etTime").value : null;
+  const newCategory = document.getElementById("etCategory").value;
+
+  const changes = [];
+  if(newTitle !== t.title) changes.push(`title changed to "${newTitle}"`);
+  if(newCategory !== (t.category||"Other / Misc")) changes.push(`category changed to ${newCategory}`);
+  if(newDesc !== (t.description||"")) changes.push("description updated");
+  const oldSorted = (t.assigned_to||[]).slice().sort().join(",");
+  const newSorted = newAssignees.slice().sort().join(",");
+  if(oldSorted !== newSorted) changes.push(`assignees changed to ${newAssignees.join(", ")}`);
+  if(newDue !== (t.due_date||null)) changes.push(`due date changed${t.due_date?" from "+t.due_date:""} to ${newDue||"none"}`);
+  if(newIsMeeting !== !!t.is_meeting) changes.push(newIsMeeting ? "marked as a meeting" : "unmarked as a meeting");
+  if(newIsMeeting && newTime !== (t.meeting_time||null)) changes.push(`meeting time changed to ${newTime||"none"}`);
+
+  if(changes.length) logTaskHistory(t, "Edited — " + changes.join("; "), "edited");
+
+  const { error } = await sb.from("tasks").update({
+    title:newTitle, category:newCategory, description:newDesc, assigned_to:newAssignees,
+    due_date:newDue, is_meeting:newIsMeeting, meeting_time:newTime,
+    history:t.history, updated_at:new Date().toISOString()
+  }).eq("id", t.id);
+  if(error){ alert("Couldn't save — " + error.message); return; }
+
+  t.title = newTitle; t.category = newCategory; t.description = newDesc;
+  t.assigned_to = newAssignees; t.due_date = newDue; t.is_meeting = newIsMeeting; t.meeting_time = newTime;
+
   closeModal();
   renderTasksBoard();
 }
@@ -1630,7 +1972,7 @@ function renderRosterTable(){
   body.innerHTML = S.roster.map(r => `
     <tr class="${r.active===false?'row-inactive':''}">
       <td>${escapeHtml(r.name)}</td><td>${escapeHtml(String(r.pin))}</td><td>${r.role}</td>
-      <td><button data-id="${r.id}" data-active="${r.active!==false}">${r.active===false ? "Reactivate" : "Remove"}</button></td>
+      <td><button data-id="${r.id}" data-active="${r.active!==false}">${r.active===false ? "Reactivate" : "Mark as left"}</button></td>
     </tr>
   `).join("");
   body.querySelectorAll("button[data-id]").forEach(btn => {
@@ -1651,11 +1993,71 @@ async function addRosterMember(){
   renderAdminMonth();
 }
 async function toggleRosterMember(id, currentlyActive){
+  const person = S.roster.find(r => r.id === id) || (await sb.from("team_roster").select("*").eq("id", id).single()).data;
+  if(!person) return;
+  if(currentlyActive){
+    const { data: openTasks } = await sb.from("tasks").select("*").in("status", ["open","in_progress","blocked"]);
+    const relevant = (openTasks||[]).filter(t => (t.assigned_to||[]).includes(person.name));
+    if(relevant.length){ openOffboardModal(person, relevant); return; }
+  }
   const { error } = await sb.from("team_roster").update({ active: !currentlyActive }).eq("id", id);
   if(error){ alert("Couldn't update — " + error.message); return; }
   await loadRoster();
   renderRosterTable();
   renderAdminMonth();
+}
+
+function openOffboardModal(person, openTasks){
+  const options = S.roster.filter(r => r.active !== false && r.name !== person.name);
+  const root = document.getElementById("modalRoot");
+  root.innerHTML = `
+    <div class="modal-backdrop" id="modalBackdrop">
+      <div class="modal">
+        <h3>Mark ${escapeHtml(person.name)} as left</h3>
+        <div class="msub">${openTasks.length} open task${openTasks.length>1?"s":""} — reassign each, or leave unassigned.</div>
+        <div id="offboardTaskList">
+          ${openTasks.map(t => `
+            <div class="offboard-task-row" data-task-id="${t.id}">
+              <span class="ot-title">${escapeHtml(t.title)}</span>
+              <select class="ot-reassign">
+                <option value="">Leave unassigned</option>
+                ${options.map(p => `<option value="${escapeHtml(p.name)}">${escapeHtml(p.name)}</option>`).join("")}
+              </select>
+            </div>
+          `).join("")}
+        </div>
+        <div class="modal-close-row">
+          <button class="ghost-btn" id="obCancel">Cancel</button>
+          <button class="primary-btn" id="obSave" style="width:auto;padding:9px 18px;">Confirm &amp; mark as left</button>
+        </div>
+      </div>
+    </div>
+  `;
+  document.getElementById("obCancel").addEventListener("click", closeModal);
+  document.getElementById("modalBackdrop").addEventListener("click", e => { if(e.target.id==="modalBackdrop") closeModal(); });
+  document.getElementById("obSave").addEventListener("click", async () => {
+    const rows = document.querySelectorAll("#offboardTaskList .offboard-task-row");
+    for(const row of rows){
+      const taskId = row.dataset.taskId;
+      const newAssignee = row.querySelector(".ot-reassign").value;
+      const t = openTasks.find(x => x.id === taskId);
+      if(!t) continue;
+      const newAssigned = (t.assigned_to||[]).filter(n => n !== person.name);
+      const history = t.history || [];
+      if(newAssignee){
+        if(!newAssigned.includes(newAssignee)) newAssigned.push(newAssignee);
+        history.push({ time: nowTime(), actor:S.user.name, type:"delegated", text:`Delegated from ${person.name} to ${newAssignee} (${person.name} left the team)`, meta:{from:person.name, to:newAssignee} });
+      } else {
+        history.push({ time: nowTime(), actor:S.user.name, type:"status_change", text:`Unassigned from ${person.name} (left the team)`, meta:null });
+      }
+      await sb.from("tasks").update({ assigned_to:newAssigned, history, updated_at:new Date().toISOString() }).eq("id", taskId);
+    }
+    await sb.from("team_roster").update({ active:false }).eq("id", person.id);
+    closeModal();
+    await loadRoster();
+    renderRosterTable();
+    renderAdminMonth();
+  });
 }
 
 init();
