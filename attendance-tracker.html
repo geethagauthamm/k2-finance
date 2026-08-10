@@ -73,6 +73,38 @@
   .tab-btn:hover{border-color:var(--ink-soft);}
   .tab-btn.active{background:var(--ink);color:#fff;border-color:var(--ink);}
 
+  /* ---------- team today ---------- */
+  .tt-row{display:flex;align-items:center;gap:12px;padding:12px 0;border-bottom:1px solid var(--line);flex-wrap:wrap;}
+  .tt-row:last-child{border-bottom:none;}
+  .tt-name{font-weight:600;min-width:120px;}
+  .tt-code-badge{font-size:11px;font-weight:700;padding:4px 10px;border-radius:20px;color:#fff;white-space:nowrap;}
+  .tt-since{color:var(--muted);font-size:12px;}
+  .tt-note{color:var(--muted);font-size:13px;flex:1;min-width:100px;}
+  .tt-quickset{display:flex;align-items:center;gap:6px;margin-left:auto;}
+  .tt-quickset select{padding:6px 8px;border:1px solid var(--line);border-radius:7px;font-size:12.5px;}
+  .tt-empty{color:var(--muted);font-size:13px;}
+
+  /* ---------- tasks / kanban ---------- */
+  .task-filter-switch{display:flex;gap:6px;}
+  .workload-strip{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:18px;}
+  .workload-chip{background:var(--surface);border:1px solid var(--line);border-radius:20px;padding:6px 14px;font-size:12.5px;font-weight:600;color:var(--ink-soft);display:inline-flex;align-items:center;gap:7px;}
+  .workload-chip b{color:var(--accent-ink);}
+  .wc-dot{width:8px;height:8px;border-radius:50%;display:inline-block;flex-shrink:0;}
+  .kanban{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;}
+  .kanban-col{background:var(--paper);border:1px solid var(--line);border-radius:var(--radius);padding:14px;min-height:120px;}
+  .kanban-col h3{font-size:13px;margin:0 0 12px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);display:flex;justify-content:space-between;}
+  .task-card{background:var(--surface);border:1px solid var(--line);border-radius:9px;padding:12px;margin-bottom:10px;box-shadow:var(--shadow);}
+  .task-card .tc-title{font-weight:600;font-size:13.5px;margin-bottom:6px;}
+  .task-card .tc-meta{display:flex;flex-wrap:wrap;gap:6px;font-size:11.5px;color:var(--muted);margin-bottom:8px;}
+  .task-card .tc-assignee{border-radius:20px;padding:2px 8px;font-weight:600;}
+  .task-card .tc-meeting{background:var(--wfh-soft,var(--leave-soft));color:var(--leave);border-radius:20px;padding:2px 8px;font-weight:600;}
+  .task-card .tc-due{font-weight:600;}
+  .task-card .tc-actions{display:flex;gap:6px;flex-wrap:wrap;align-items:center;}
+  .task-card select{padding:5px 6px;border:1px solid var(--line);border-radius:6px;font-size:11.5px;}
+  .task-card .tc-push-select{border:1px solid var(--line);background:var(--paper);border-radius:6px;padding:5px 7px;font-size:11px;font-weight:600;color:var(--ink-soft);}
+  .task-empty{color:var(--muted);font-size:12.5px;text-align:center;padding:16px 0;}
+  @media(max-width:760px){ .kanban{grid-template-columns:1fr;} }
+
   .config-warning{
     background:var(--absent-soft);color:var(--absent);border:1px solid var(--absent);
     border-radius:9px;padding:12px 16px;font-size:13px;margin-bottom:20px;
@@ -167,6 +199,7 @@
   .tl-badge{font-size:11px;font-weight:700;padding:3px 9px;border-radius:20px;color:#fff;white-space:nowrap;flex-shrink:0;margin-top:1px;}
   .tl-time{color:var(--ink-soft);font-weight:600;white-space:nowrap;flex-shrink:0;width:110px;}
   .tl-ongoing{color:var(--present);}
+  .tl-who{font-weight:600;min-width:100px;flex-shrink:0;}
   .tl-note{color:var(--muted);flex:1;}
   .tl-note-empty{font-style:italic;opacity:.7;}
   .tl-logs{display:flex;flex-direction:column;gap:3px;flex:1;}
@@ -256,6 +289,7 @@
   .roster-add-row input,.roster-add-row select{padding:9px 10px;border:1px solid var(--line);border-radius:7px;font-size:13px;}
   .roster-add-row input[name="rname"]{flex:2;min-width:140px;}
   .roster-add-row input[name="rpin"]{width:90px;}
+  .roster-table{width:100%;border-collapse:collapse;font-size:13px;}
   .summary-head-row{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:16px;}
   .table-scroll{overflow-x:auto;}
   .summary-table{width:100%;border-collapse:collapse;font-size:13px;}
@@ -263,7 +297,6 @@
   .summary-table td{padding:8px 10px;border-bottom:1px solid var(--line);white-space:nowrap;}
   .summary-table td.num{text-align:right;font-variant-numeric:tabular-nums;}
   .summary-table tr:last-child td{border-bottom:none;}
-  .roster-table{width:100%;border-collapse:collapse;font-size:13px;}
   .roster-table th{text-align:left;color:var(--muted);font-weight:600;font-size:11px;text-transform:uppercase;padding:6px 8px;border-bottom:1px solid var(--line);}
   .roster-table td{padding:8px;border-bottom:1px solid var(--line);}
   .roster-table td button{border:1px solid var(--line);background:var(--surface);border-radius:6px;padding:4px 10px;font-size:12px;color:var(--ink-soft);}
@@ -332,14 +365,38 @@
   <!-- ============ SHARED TOPBAR ============ -->
   <div id="mainTopbar" class="topbar hidden">
     <div class="brand"><h1>Team Attendance</h1></div>
-    <div id="adminTabSwitch" class="tab-switch hidden">
+    <div id="mainTabSwitch" class="tab-switch hidden">
       <button class="tab-btn" data-tab="myday">My Day</button>
-      <button class="tab-btn" data-tab="dashboard">Team Dashboard</button>
+      <button class="tab-btn" data-tab="teamtoday">Team Today</button>
+      <button class="tab-btn" data-tab="tasks">Tasks</button>
+      <button class="tab-btn admin-only-tab hidden" data-tab="dashboard">Team Dashboard</button>
     </div>
     <div class="who">
       <span id="whoLabel"></span>
       <button id="mainLogout" class="ghost-btn">Log out</button>
     </div>
+  </div>
+
+  <!-- ============ TEAM TODAY (everyone) ============ -->
+  <div id="teamTodayScreen" class="screen hidden">
+    <div class="card">
+      <h2>Team today</h2>
+      <div class="today-date" id="teamTodayDateLabel"></div>
+      <div id="teamTodayList"></div>
+    </div>
+  </div>
+
+  <!-- ============ TASKS (everyone) ============ -->
+  <div id="tasksScreen" class="screen hidden">
+    <div class="admin-header-row">
+      <div class="task-filter-switch" id="taskFilterSwitch">
+        <button class="tab-btn active" data-filter="all">All tasks</button>
+        <button class="tab-btn" data-filter="mine">My tasks</button>
+      </div>
+      <button class="primary-btn" id="newTaskBtn" style="width:auto;padding:10px 18px;">+ New task</button>
+    </div>
+    <div id="workloadStrip" class="workload-strip"></div>
+    <div class="kanban" id="kanbanBoard"></div>
   </div>
 
   <!-- ============ MEMBER VIEW ("My Day") ============ -->
@@ -396,6 +453,11 @@
 
     <div class="stats-row" id="statsRow"></div>
 
+    <div class="card" style="margin-bottom:18px;">
+      <h2>Today's team activity</h2>
+      <div id="teamLogList"></div>
+    </div>
+
     <div id="pendingApprovalsCard" class="card hidden" style="margin-bottom:18px;">
       <h2>Pending approvals</h2>
       <div id="pendingApprovalsList"></div>
@@ -451,11 +513,8 @@
 <script>
 /* =========================================================================
    CONFIGURE ME — paste your Supabase project credentials below.
-   Same project as your K2 app is fine; this uses its own tables
-   (team_roster, day_status, time_segments) so it won't touch K2's data.
+   Tables used: team_roster, day_status, time_segments, tasks.
    Run attendance-tracker-setup.sql in the Supabase SQL editor first.
-   The anon key is meant to be public/client-side — same as what's already
-   embedded in your K2 app's page source.
    ========================================================================= */
 const SUPABASE_URL = "https://scavuwvhhhonqpfiostz.supabase.co";
 const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNjYXZ1d3ZoaGhvbnFwZmlvc3R6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODI5MDY0ODUsImV4cCI6MjA5ODQ4MjQ4NX0.jq_oHIIW7TIpJS1YEZi5z_h5l0pl_hle5axLZHR7sj0";
@@ -473,6 +532,26 @@ const TIME_CODES = [
 const NONWORK_CODES = new Set(["break","lunch"]);
 const STATUSES = ["present","half-day","absent","leave"];
 const STATUS_LABEL = {present:"Present","half-day":"Half-day",absent:"Absent",leave:"Leave"};
+
+// Consistent, auto-assigned color per person — same person always gets the
+// same color everywhere, no manual setup needed as the roster grows.
+const PERSON_COLORS = [
+  {bg:"#F6E4E8", ink:"#A14D63"},
+  {bg:"#F3E6CC", ink:"#8A6416"},
+  {bg:"#DCEEEC", ink:"#2E7D74"},
+  {bg:"#E4E3F6", ink:"#5A4FA0"},
+  {bg:"#E1F0E3", ink:"#3F7A5C"},
+  {bg:"#F7E5DE", ink:"#B25C3A"},
+  {bg:"#DFEEF7", ink:"#2E6E96"},
+  {bg:"#F0E1EC", ink:"#8C4A78"},
+  {bg:"#EDEEDA", ink:"#6B7239"},
+  {bg:"#E2E6EA", ink:"#47576B"}
+];
+function personColor(name){
+  let hash = 0;
+  for(let i=0;i<String(name).length;i++){ hash = (hash*31 + String(name).charCodeAt(i)) >>> 0; }
+  return PERSON_COLORS[hash % PERSON_COLORS.length];
+}
 
 let sb = null;
 const CONFIGURED = SUPABASE_URL.indexOf("PASTE_") !== 0 && SUPABASE_ANON_KEY.indexOf("PASTE_") !== 0;
@@ -500,7 +579,7 @@ let S = {
   dayStatus:null, currentSegmentId:null,
   todayDayRows:[], todaySegRows:[],
   monthCursor: new Date(), monthEntries:{}, monthDayRows:[], monthSegRows:[],
-  activeTab:"myday"
+  tasks: [], activeTab:"myday"
 };
 
 function init(){
@@ -509,9 +588,9 @@ function init(){
   } else {
     sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
   }
-  wireLoginScreen(); wireMemberScreen(); wireAdminScreen();
+  wireLoginScreen(); wireMemberScreen(); wireAdminScreen(); wireTasksScreen();
   document.getElementById("mainLogout").addEventListener("click", logout);
-  document.querySelectorAll("#adminTabSwitch .tab-btn").forEach(b => {
+  document.querySelectorAll("#mainTabSwitch .tab-btn").forEach(b => {
     b.addEventListener("click", () => switchTab(b.dataset.tab));
   });
   loadRoster();
@@ -550,37 +629,34 @@ async function doLogin(){
   document.getElementById("whoLabel").innerHTML = person.role === "admin"
     ? `Admin: <b>${escapeHtml(person.name)}</b>` : `Hi, <b>${escapeHtml(person.name)}</b>`;
 
-  subscribeRealtime();
+  document.getElementById("mainTabSwitch").classList.remove("hidden");
+  document.querySelectorAll(".admin-only-tab").forEach(b => b.classList.toggle("hidden", person.role !== "admin"));
 
-  if(person.role === "admin"){
-    document.getElementById("adminTabSwitch").classList.remove("hidden");
-    await switchTab("myday");
-  } else {
-    document.getElementById("adminTabSwitch").classList.add("hidden");
-    document.getElementById("memberScreen").classList.remove("hidden");
-    await renderMemberScreen();
-  }
+  subscribeRealtime();
+  await switchTab("myday");
 }
 async function switchTab(tab){
   S.activeTab = tab;
-  document.querySelectorAll("#adminTabSwitch .tab-btn").forEach(b => b.classList.toggle("active", b.dataset.tab === tab));
-  if(tab === "myday"){
-    document.getElementById("adminScreen").classList.add("hidden");
-    document.getElementById("memberScreen").classList.remove("hidden");
-    await renderMemberScreen();
-  } else {
-    document.getElementById("memberScreen").classList.add("hidden");
-    document.getElementById("adminScreen").classList.remove("hidden");
-    await renderAdminMonth();
-  }
+  document.querySelectorAll("#mainTabSwitch .tab-btn").forEach(b => b.classList.toggle("active", b.dataset.tab === tab));
+  document.getElementById("memberScreen").classList.toggle("hidden", tab !== "myday");
+  document.getElementById("teamTodayScreen").classList.toggle("hidden", tab !== "teamtoday");
+  document.getElementById("tasksScreen").classList.toggle("hidden", tab !== "tasks");
+  document.getElementById("adminScreen").classList.toggle("hidden", tab !== "dashboard");
+
+  if(tab === "myday") await renderMemberScreen();
+  else if(tab === "teamtoday") await renderTeamToday();
+  else if(tab === "tasks") await renderTasksBoard();
+  else if(tab === "dashboard") await renderAdminMonth();
 }
 function logout(){
   if(realtimeChannel){ sb.removeChannel(realtimeChannel); realtimeChannel = null; }
   S.user = null; S.currentSegmentId = null;
   document.getElementById("memberScreen").classList.add("hidden");
+  document.getElementById("teamTodayScreen").classList.add("hidden");
+  document.getElementById("tasksScreen").classList.add("hidden");
   document.getElementById("adminScreen").classList.add("hidden");
   document.getElementById("mainTopbar").classList.add("hidden");
-  document.getElementById("adminTabSwitch").classList.add("hidden");
+  document.getElementById("mainTabSwitch").classList.add("hidden");
   document.getElementById("loginScreen").classList.remove("hidden");
   document.getElementById("pinInput").value = "";
 }
@@ -593,12 +669,15 @@ function subscribeRealtime(){
     realtimeChannel = sb.channel("attendance-live")
       .on("postgres_changes", { event:"*", schema:"public", table:"time_segments" }, () => onLiveChange())
       .on("postgres_changes", { event:"*", schema:"public", table:"day_status" }, () => onLiveChange())
+      .on("postgres_changes", { event:"*", schema:"public", table:"tasks" }, () => onLiveChange())
       .subscribe();
   }catch(e){ console.error(e); }
 }
 function onLiveChange(){
   if(!S.user) return;
-  if(S.user.role === "admin" && S.activeTab === "dashboard") renderAdminMonth();
+  if(S.activeTab === "dashboard") renderAdminMonth();
+  else if(S.activeTab === "teamtoday") renderTeamToday();
+  else if(S.activeTab === "tasks") renderTasksBoard();
   else if(S.activeTab === "myday") loadRecent();
 }
 
@@ -643,7 +722,6 @@ function wireMemberScreen(){
   document.getElementById("logoffBtn").addEventListener("click", logOff);
 }
 
-// Reflects a status in the UI only — safe to call on page load without disturbing approval state.
 function applyStatusUI(status){
   S.dayStatus = status;
   document.querySelectorAll("#statusGrid .status-btn").forEach(b => b.classList.toggle("active", b.dataset.status === status));
@@ -668,8 +746,6 @@ function renderApprovalBadge(){
   box.innerHTML = m ? `<div class="approval-pill ${m.cls}">${m.text}</div>` : "";
 }
 
-// Called when the person taps a status button — this one persists, and resets to
-// "pending" only when the status is genuinely changing (not on every page load).
 async function chooseStatus(status){
   const today = todayStr();
   const existing = S.todayDayRows.find(d => d.entry_date === today);
@@ -872,6 +948,319 @@ async function loadRecent(){
   `).join("");
 }
 
+// ---- team today (everyone) ----
+async function renderTeamToday(){
+  const d = new Date();
+  document.getElementById("teamTodayDateLabel").textContent = d.toLocaleDateString(undefined,{weekday:"long",year:"numeric",month:"long",day:"numeric"});
+  await ensureRoster();
+  const today = todayStr();
+  const isAdmin = S.user.role === "admin";
+  const list = document.getElementById("teamTodayList");
+
+  if(!CONFIGURED){ list.innerHTML = `<div class="tt-empty">Configure Supabase first.</div>`; return; }
+
+  const [dayRes, segRes] = await Promise.all([
+    sb.from("day_status").select("*").eq("entry_date", today),
+    sb.from("time_segments").select("*").eq("entry_date", today)
+  ]);
+  const dayRows = dayRes.data || [], segRows = segRes.data || [];
+
+  const rows = S.roster.filter(r => r.active !== false).map(person => {
+    const day = dayRows.find(dd => dd.employee_name === person.name);
+    const segs = segRows.filter(s => s.employee_name === person.name).sort((a,b)=>a.start_time<b.start_time?-1:1);
+    const open = segs.find(s => !s.end_time);
+    return { person, day, segs, open };
+  });
+
+  if(!rows.length){ list.innerHTML = `<div class="tt-empty">No team members yet.</div>`; return; }
+
+  list.innerHTML = rows.map(({person, day, segs, open}) => {
+    let statusHtml;
+    if(day && (day.status === "absent" || day.status === "leave" || day.status === "half-day") && !open){
+      statusHtml = `<span class="status-pill" data-status="${day.status}">${STATUS_LABEL[day.status]}</span>${day.approval_status ? `<span class="approval-mini ${day.approval_status}">${day.approval_status}</span>` : ""}`;
+    } else if(open){
+      const m = tcMeta(open.code);
+      const lastLog = (open.logs||[])[((open.logs||[]).length||1)-1];
+      statusHtml = `
+        <span class="tt-code-badge" style="background:${m.color}">${m.label}</span>
+        <span class="tt-since">since ${open.start_time}</span>
+        ${lastLog ? `<span class="tt-note">${escapeHtml(lastLog.text)}</span>` : ""}
+      `;
+    } else if(segs.length){
+      const last = segs[segs.length-1];
+      const m = tcMeta(last.code);
+      statusHtml = `<span class="tt-code-badge" style="background:${m.color};opacity:.6">${m.label} (ended ${last.end_time})</span>`;
+    } else {
+      statusHtml = `<span class="tt-empty">No entry yet</span>`;
+    }
+
+    const quickSet = isAdmin ? `
+      <div class="tt-quickset">
+        <select data-name="${escapeHtml(person.name)}" class="tt-quickset-select">
+          <option value="">Quick-set…</option>
+          ${TIME_CODES.map(tc => `<option value="${tc.code}">${tc.label}</option>`).join("")}
+        </select>
+      </div>` : "";
+
+    return `<div class="tt-row">
+      <span class="tt-name">${escapeHtml(person.name)}</span>
+      ${statusHtml}
+      ${quickSet}
+    </div>`;
+  }).join("");
+
+  if(isAdmin){
+    list.querySelectorAll(".tt-quickset-select").forEach(sel => {
+      sel.addEventListener("change", e => {
+        if(e.target.value) adminQuickSetCode(e.target.dataset.name, e.target.value);
+        e.target.value = "";
+      });
+    });
+  }
+}
+
+async function adminQuickSetCode(name, code){
+  const today = todayStr();
+  const now = nowTime();
+
+  const { data: dayData } = await sb.from("day_status").select("*").eq("employee_name", name).eq("entry_date", today).maybeSingle();
+  if(!dayData || (dayData.status !== "present" && dayData.status !== "half-day")){
+    await sb.from("day_status").upsert(
+      { employee_name:name, entry_date:today, status:"present", approval_status:null, approved_by:null, approved_at:null, updated_at:new Date().toISOString() },
+      { onConflict:"employee_name,entry_date" }
+    );
+  }
+
+  const { data: openSeg } = await sb.from("time_segments").select("*").eq("employee_name", name).eq("entry_date", today).is("end_time", null).maybeSingle();
+  if(openSeg){
+    await sb.from("time_segments").update({ end_time: now }).eq("id", openSeg.id);
+  }
+  await sb.from("time_segments").insert({ employee_name:name, entry_date:today, code, start_time:now, end_time:null, logs:[] });
+
+  renderTeamToday();
+}
+
+// ---- tasks ----
+let taskFilter = "all";
+function wireTasksScreen(){
+  document.getElementById("newTaskBtn").addEventListener("click", openNewTaskModal);
+  document.querySelectorAll("#taskFilterSwitch .tab-btn").forEach(b => {
+    b.addEventListener("click", () => {
+      taskFilter = b.dataset.filter;
+      document.querySelectorAll("#taskFilterSwitch .tab-btn").forEach(x => x.classList.toggle("active", x===b));
+      renderTasksBoard();
+    });
+  });
+}
+
+function computeWorkload(){
+  const counts = {};
+  S.roster.filter(r=>r.active!==false).forEach(p => counts[p.name]=0);
+  S.tasks.forEach(t => {
+    if(t.status === "done") return;
+    (t.assigned_to||[]).forEach(name => { if(counts[name] !== undefined) counts[name]++; });
+  });
+  return counts;
+}
+
+function canEditTask(t){
+  return S.user.role === "admin" || t.created_by === S.user.name || (t.assigned_to||[]).includes(S.user.name);
+}
+
+async function renderTasksBoard(){
+  await ensureRoster();
+  if(CONFIGURED){
+    const { data, error } = await sb.from("tasks").select("*").order("due_date", { ascending:true, nullsFirst:false });
+    S.tasks = error ? [] : (data || []);
+  }
+
+  const workload = computeWorkload();
+  document.getElementById("workloadStrip").innerHTML = Object.keys(workload).map(name => {
+    const c = personColor(name);
+    return `<span class="workload-chip"><span class="wc-dot" style="background:${c.ink}"></span>${escapeHtml(name)}: <b>${workload[name]}</b> open</span>`;
+  }).join("");
+
+  let tasks = S.tasks.slice();
+  if(taskFilter === "mine") tasks = tasks.filter(t => (t.assigned_to||[]).includes(S.user.name) || t.created_by === S.user.name);
+
+  const cols = [
+    { key:"open", label:"Open" },
+    { key:"in_progress", label:"In Progress" },
+    { key:"done", label:"Done" }
+  ];
+
+  const board = document.getElementById("kanbanBoard");
+  board.innerHTML = cols.map(col => {
+    const colTasks = tasks.filter(t => t.status === col.key);
+    return `
+      <div class="kanban-col">
+        <h3>${col.label} <span>${colTasks.length}</span></h3>
+        ${colTasks.length ? colTasks.map(t => renderTaskCard(t)).join("") : `<div class="task-empty">Nothing here</div>`}
+      </div>
+    `;
+  }).join("");
+
+  board.querySelectorAll(".task-status-select").forEach(el => {
+    el.addEventListener("change", e => updateTaskStatus(e.target.dataset.taskId, e.target.value));
+  });
+  board.querySelectorAll(".tc-push-select").forEach(el => {
+    el.addEventListener("change", e => {
+      const val = e.target.value;
+      const id = e.target.dataset.taskId;
+      if(val === "custom") openRescheduleModal(id);
+      else if(val) pushTaskDue(id, parseInt(val, 10));
+      e.target.value = "";
+    });
+  });
+}
+
+function renderTaskCard(t){
+  const editable = canEditTask(t);
+  const dueLabel = t.is_meeting
+    ? `${t.due_date||"—"} · ${t.meeting_time||""}`
+    : (t.due_date || "No due date");
+  return `
+    <div class="task-card">
+      <div class="tc-title">${escapeHtml(t.title)}</div>
+      <div class="tc-meta">
+        ${(t.assigned_to||[]).map(n => { const c = personColor(n); return `<span class="tc-assignee" style="background:${c.bg};color:${c.ink}">${escapeHtml(n)}</span>`; }).join("")}
+        ${t.is_meeting ? `<span class="tc-meeting">📅 Meeting</span>` : ""}
+        <span class="tc-due">${dueLabel}</span>
+      </div>
+      ${t.description ? `<div class="tt-note" style="margin-bottom:8px;">${escapeHtml(t.description)}</div>` : ""}
+      <div class="tc-actions">
+        <select class="task-status-select" data-task-id="${t.id}" ${editable?"":"disabled"}>
+          <option value="open" ${t.status==="open"?"selected":""}>Open</option>
+          <option value="in_progress" ${t.status==="in_progress"?"selected":""}>In Progress</option>
+          <option value="done" ${t.status==="done"?"selected":""}>Done</option>
+        </select>
+        ${editable ? `
+          <select class="tc-push-select" data-task-id="${t.id}">
+            <option value="">Push…</option>
+            <option value="1">+1 day</option>
+            <option value="3">+3 days</option>
+            <option value="7">+1 week</option>
+            <option value="custom">Pick date…</option>
+          </select>
+        ` : ""}
+      </div>
+    </div>
+  `;
+}
+
+async function updateTaskStatus(id, status){
+  const { error } = await sb.from("tasks").update({ status, updated_at:new Date().toISOString() }).eq("id", id);
+  if(error){ alert("Couldn't update — " + error.message); return; }
+  const t = S.tasks.find(x => x.id === id);
+  if(t) t.status = status;
+  renderTasksBoard();
+}
+
+async function pushTaskDue(id, days){
+  const t = S.tasks.find(x => x.id === id);
+  if(!t) return;
+  const base = t.due_date ? new Date(t.due_date+"T00:00:00") : new Date();
+  base.setDate(base.getDate() + (days || 1));
+  const newDue = dateStrOf(base);
+  const { error } = await sb.from("tasks").update({ due_date:newDue, updated_at:new Date().toISOString() }).eq("id", id);
+  if(error){ alert("Couldn't push — " + error.message); return; }
+  t.due_date = newDue;
+  renderTasksBoard();
+}
+
+function openRescheduleModal(id){
+  const t = S.tasks.find(x => x.id === id);
+  if(!t) return;
+  const root = document.getElementById("modalRoot");
+  root.innerHTML = `
+    <div class="modal-backdrop" id="modalBackdrop">
+      <div class="modal">
+        <h3>Reschedule</h3>
+        <div class="msub">${escapeHtml(t.title)}</div>
+        <div class="field"><label>New due date</label><input type="date" id="rsDate" value="${t.due_date||""}"></div>
+        <div class="modal-close-row">
+          <button class="ghost-btn" id="rsCancel">Cancel</button>
+          <button class="primary-btn" id="rsSave" style="width:auto;padding:9px 18px;">Save</button>
+        </div>
+      </div>
+    </div>
+  `;
+  document.getElementById("rsCancel").addEventListener("click", closeModal);
+  document.getElementById("modalBackdrop").addEventListener("click", e => { if(e.target.id==="modalBackdrop") closeModal(); });
+  document.getElementById("rsSave").addEventListener("click", async () => {
+    const newDate = document.getElementById("rsDate").value;
+    if(!newDate){ alert("Pick a date."); return; }
+    const { error } = await sb.from("tasks").update({ due_date:newDate, updated_at:new Date().toISOString() }).eq("id", id);
+    if(error){ alert("Couldn't save — " + error.message); return; }
+    t.due_date = newDate;
+    closeModal();
+    renderTasksBoard();
+  });
+}
+
+function openNewTaskModal(){
+  const root = document.getElementById("modalRoot");
+  root.innerHTML = `
+    <div class="modal-backdrop" id="modalBackdrop">
+      <div class="modal">
+        <h3>New task</h3>
+        <div class="field"><label>Title</label><input type="text" id="ntTitle" placeholder="What needs to happen?"></div>
+        <div class="field"><label>Description (optional)</label><textarea id="ntDesc"></textarea></div>
+        <div class="field"><label>Assign to</label>
+          <div id="ntAssignees" style="display:flex;flex-wrap:wrap;gap:8px;">
+            ${S.roster.filter(r=>r.active!==false).map(p => `
+              <label style="display:flex;align-items:center;gap:5px;font-size:12.5px;border:1px solid var(--line);border-radius:20px;padding:5px 10px;">
+                <input type="checkbox" value="${escapeHtml(p.name)}" ${p.name===S.user.name?"checked":""} style="margin:0;"> ${escapeHtml(p.name)}
+              </label>
+            `).join("")}
+          </div>
+        </div>
+        <div class="time-row">
+          <div class="time-field"><label>Due date</label><input type="date" id="ntDue"></div>
+          <div class="time-field"><label>&nbsp;</label>
+            <label style="display:flex;align-items:center;gap:6px;font-size:13px;padding-top:9px;">
+              <input type="checkbox" id="ntMeeting" style="margin:0;"> This is a meeting
+            </label>
+          </div>
+        </div>
+        <div class="field hidden" id="ntTimeWrap"><label>Meeting time</label><input type="time" id="ntTime"></div>
+        <div class="modal-close-row">
+          <button class="ghost-btn" id="ntCancel">Cancel</button>
+          <button class="primary-btn" id="ntSave" style="width:auto;padding:9px 18px;">Create task</button>
+        </div>
+      </div>
+    </div>
+  `;
+  document.getElementById("ntMeeting").addEventListener("change", e => {
+    document.getElementById("ntTimeWrap").classList.toggle("hidden", !e.target.checked);
+  });
+  document.getElementById("ntCancel").addEventListener("click", closeModal);
+  document.getElementById("modalBackdrop").addEventListener("click", e => { if(e.target.id==="modalBackdrop") closeModal(); });
+  document.getElementById("ntSave").addEventListener("click", saveNewTask);
+}
+
+async function saveNewTask(){
+  const title = document.getElementById("ntTitle").value.trim();
+  if(!title){ alert("Give the task a title."); return; }
+  const assignees = Array.from(document.querySelectorAll("#ntAssignees input:checked")).map(el => el.value);
+  if(!assignees.length){ alert("Assign it to at least one person."); return; }
+  const isMeeting = document.getElementById("ntMeeting").checked;
+  const payload = {
+    title,
+    description: document.getElementById("ntDesc").value,
+    assigned_to: assignees,
+    created_by: S.user.name,
+    is_meeting: isMeeting,
+    due_date: document.getElementById("ntDue").value || null,
+    meeting_time: isMeeting ? document.getElementById("ntTime").value : null,
+    status: "open"
+  };
+  const { error } = await sb.from("tasks").insert(payload);
+  if(error){ alert("Couldn't create task — " + error.message); return; }
+  closeModal();
+  renderTasksBoard();
+}
+
 // ---- admin ----
 function wireAdminScreen(){
   document.getElementById("prevMonth").addEventListener("click", () => { S.monthCursor.setMonth(S.monthCursor.getMonth()-1); renderAdminMonth(); });
@@ -1062,7 +1451,6 @@ function downloadSummaryCsv(){
   URL.revokeObjectURL(url);
 }
 
-
 let modalDraftSegments = [];
 
 function openCellDetail(name, date){
@@ -1129,15 +1517,12 @@ function openCellDetail(name, date){
     if(chosenStatus === "present"){
       patch.approval_status = null; patch.approved_by = null; patch.approved_at = null;
     } else if(!existing || existing.status !== chosenStatus || !existing.approval_status){
-      // Admin setting this status directly counts as their own approval decision.
       patch.approval_status = "approved"; patch.approved_by = S.user.name; patch.approved_at = new Date().toISOString();
     }
 
     const { error: dayErr } = await sb.from("day_status").upsert(patch, { onConflict:"employee_name,entry_date" });
     if(dayErr){ alert("Couldn't save — " + dayErr.message); return; }
 
-    // Segments: wipe this day's segments and reinsert the edited set — simplest way to
-    // correctly handle edits, deletes, and new segments in one pass.
     const { error: delErr } = await sb.from("time_segments").delete().eq("employee_name", name).eq("entry_date", date);
     if(delErr){ alert("Couldn't update segments — " + delErr.message); return; }
     const toInsert = modalDraftSegments.filter(s => !s._deleted).map(s => ({
@@ -1266,7 +1651,6 @@ async function addRosterMember(){
   renderAdminMonth();
 }
 async function toggleRosterMember(id, currentlyActive){
-  // Soft-delete only — keeps attendance history intact.
   const { error } = await sb.from("team_roster").update({ active: !currentlyActive }).eq("id", id);
   if(error){ alert("Couldn't update — " + error.message); return; }
   await loadRoster();
