@@ -72,6 +72,7 @@
   .tab-btn{border:1px solid var(--line);background:var(--surface);padding:8px 16px;border-radius:8px;font-size:13px;font-weight:600;color:var(--ink-soft);transition:all .12s;}
   .tab-btn:hover{border-color:var(--ink-soft);}
   .tab-btn.active{background:var(--ink);color:#fff;border-color:var(--ink);}
+  .tab-badge{background:var(--absent);color:#fff;font-size:10px;font-weight:700;border-radius:20px;padding:1px 6px;margin-left:4px;}
 
   /* ---------- team today ---------- */
   .tt-row{display:flex;align-items:center;gap:12px;padding:12px 0;border-bottom:1px solid var(--line);flex-wrap:wrap;}
@@ -87,36 +88,46 @@
   /* ---------- tasks / kanban ---------- */
   .task-filter-switch{display:flex;gap:6px;}
   .workload-strip{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:18px;}
-  .workload-chip{background:var(--surface);border:1px solid var(--line);border-radius:20px;padding:6px 14px;font-size:12.5px;font-weight:600;color:var(--ink-soft);display:inline-flex;align-items:center;gap:7px;}
+  .workload-chip{background:var(--surface);border:1px solid var(--line);border-radius:20px;padding:6px 14px;font-size:12.5px;font-weight:600;color:var(--ink-soft);display:inline-flex;align-items:center;gap:7px;cursor:pointer;font-family:inherit;}
+  .workload-chip:hover{border-color:var(--ink-soft);}
   .workload-chip b{color:var(--accent-ink);}
   .wc-dot{width:8px;height:8px;border-radius:50%;display:inline-block;flex-shrink:0;}
-  .kanban{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;}
-  .kanban-col{background:var(--paper);border:1px solid var(--line);border-radius:var(--radius);padding:14px;min-height:120px;}
-  .kanban-col h3{font-size:13px;margin:0 0 12px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);display:flex;justify-content:space-between;}
-  .task-card{background:var(--surface);border:1px solid var(--line);border-radius:9px;padding:12px;margin-bottom:10px;box-shadow:var(--shadow);}
-  .task-card .tc-title-row{display:flex;align-items:flex-start;justify-content:space-between;gap:8px;margin-bottom:6px;}
-  .task-card .tc-title{font-weight:600;font-size:13.5px;}
-  .tc-category{background:var(--paper);border:1px solid var(--line);color:var(--ink-soft);border-radius:5px;padding:2px 8px;font-weight:600;font-size:11px;}
-  .tc-edit-btn{border:none;background:none;cursor:pointer;font-size:12px;padding:0;opacity:.55;flex-shrink:0;}
-  .tc-edit-btn:hover{opacity:1;}
-  .task-card .tc-meta{display:flex;flex-wrap:wrap;gap:6px;font-size:11.5px;color:var(--muted);margin-bottom:8px;}
-  .task-card .tc-assignee{border-radius:20px;padding:2px 8px;font-weight:600;}
-  .task-card .tc-meeting{background:var(--wfh-soft,var(--leave-soft));color:var(--leave);border-radius:20px;padding:2px 8px;font-weight:600;}
-  .task-card .tc-due{font-weight:600;}
-  .task-card .tc-actions{display:flex;gap:6px;flex-wrap:wrap;align-items:center;}
-  .task-card select{padding:5px 6px;border:1px solid var(--line);border-radius:6px;font-size:11.5px;}
-  .task-card .tc-push-select{border:1px solid var(--line);background:var(--paper);border-radius:6px;padding:5px 7px;font-size:11px;font-weight:600;color:var(--ink-soft);}
+  .task-table{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);overflow:hidden;}
+  .tt-header-row{display:grid;grid-template-columns:1.3fr 2.2fr 1.3fr 1fr 1fr 0.4fr;padding:10px 16px;background:var(--paper);font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.03em;}
+  .tt-row{display:grid;grid-template-columns:1.3fr 2.2fr 1.3fr 1fr 1fr 0.4fr;padding:12px 16px;align-items:center;border-top:1px solid var(--line);font-size:13px;gap:8px;}
+  .tt-category{color:var(--muted);font-size:12px;}
+  .tt-title{font-weight:600;color:var(--ink);}
+  .tt-owner{display:flex;flex-wrap:wrap;gap:4px;}
+  .tt-status{font-weight:600;font-size:12px;}
+  .tt-date{color:var(--muted);font-size:12px;}
+  .tt-expand-btn{border:none;background:none;cursor:pointer;color:var(--muted);font-size:13px;justify-self:end;padding:4px;}
+  .tt-detail-row{padding:16px;background:var(--paper);border-top:1px solid var(--line);}
+  .tt-detail-controls{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:4px;}
+  .tt-delegate-row{display:flex;gap:10px;flex-wrap:wrap;margin-top:10px;}
+  .tc-category{color:var(--ink-soft);font-weight:600;font-size:11px;}
+  .task-card select{padding:5px 4px;border:1px solid var(--line);border-radius:6px;font-size:11px;}
+  .task-status-select{min-width:110px;}
+  .tc-push-select{min-width:100px;background:var(--paper);color:var(--ink-soft);font-weight:600;}
+  .tc-edit-btn,.tc-addnote-btn{border:1px solid var(--line);background:var(--surface);border-radius:6px;padding:6px 12px;font-size:11.5px;font-weight:600;color:var(--ink-soft);}
+  .tc-assignee{border-radius:20px;padding:2px 8px;font-weight:600;font-size:11.5px;}
+  .tc-meeting{background:var(--wfh-soft,var(--leave-soft));color:var(--leave);border-radius:20px;padding:2px 8px;font-weight:600;font-size:10.5px;margin-left:6px;}
   .task-empty{color:var(--muted);font-size:12.5px;text-align:center;padding:16px 0;}
   .category-chip-list{display:flex;flex-wrap:wrap;gap:8px;margin-top:14px;}
   .category-chip-list .tc-category{font-size:12px;padding:5px 10px;}
-  @media(max-width:980px){ .kanban{grid-template-columns:repeat(2,1fr);} }
-  @media(max-width:760px){ .kanban{grid-template-columns:1fr;} }
+  @media(max-width:760px){
+    .tt-header-row{display:none;}
+    .tt-row{grid-template-columns:1fr auto;grid-template-areas:"title expand" "meta meta";}
+    .tt-title{grid-area:title;}
+    .tt-expand-btn{grid-area:expand;}
+    .tt-category,.tt-owner,.tt-status,.tt-date{grid-area:meta;display:inline-flex;margin-right:10px;}
+  }
 
   .tc-blocked-note{background:var(--absent-soft);color:var(--absent);border-radius:7px;padding:7px 10px;font-size:12px;margin-bottom:8px;}
-  .tc-delegate-btn{border:none;background:none;color:var(--muted);font-size:11px;cursor:pointer;padding:0 2px;text-decoration:underline;}
-  .tc-assignee-wrap{display:inline-flex;align-items:center;gap:3px;}
-  .tc-history-toggle{border:none;background:none;color:var(--accent-ink);font-size:11.5px;font-weight:600;cursor:pointer;padding:0;margin-top:6px;}
-  .tc-history-log{margin-top:8px;padding-top:8px;border-top:1px dashed var(--line);display:flex;flex-direction:column;gap:5px;}
+  .tc-delegate-btn{border:1px solid var(--line);background:var(--surface);border-radius:6px;padding:5px 10px;font-size:11px;color:var(--ink-soft);}
+  .tc-notes{background:var(--surface);border-radius:7px;padding:8px 10px;margin-bottom:8px;display:flex;flex-direction:column;gap:5px;}
+  .tc-note-line{font-size:12px;color:var(--ink-soft);}
+  .tc-note-line b{color:var(--muted);font-weight:600;margin-right:5px;}
+  .tc-history-log{display:flex;flex-direction:column;gap:5px;}
   .tc-history-line{font-size:11.5px;color:var(--muted);}
   .tc-history-line b{color:var(--ink-soft);font-weight:600;margin-right:5px;}
 
@@ -283,6 +294,10 @@
   table.grid{border-collapse:collapse;width:100%;font-size:12px;}
   table.grid th,table.grid td{border-bottom:1px solid var(--line);border-right:1px solid var(--line);padding:0;}
   table.grid th{background:var(--paper);font-weight:600;color:var(--ink-soft);padding:8px 4px;}
+  th.day-col.is-weekend{background:#E4E7EB;}
+  th.day-col.is-holiday{background:var(--half-soft);color:var(--accent-ink);}
+  td.day-cell.is-weekend .chip.empty{background:#E4E7EB;}
+  td.day-cell.is-holiday .chip.empty{background:var(--half-soft);}
   table.grid td.name-cell{padding:8px 12px;font-weight:600;white-space:nowrap;background:var(--surface);position:sticky;left:0;border-right:1.5px solid var(--line);}
   th.day-col{min-width:30px;text-align:center;}
   td.day-cell{width:30px;height:32px;text-align:center;cursor:pointer;}
@@ -324,6 +339,14 @@
   .summary-table td{padding:8px 10px;border-bottom:1px solid var(--line);white-space:nowrap;}
   .summary-table td.num{text-align:right;font-variant-numeric:tabular-nums;}
   .summary-table tr:last-child td{border-bottom:none;}
+  .summary-expand-btn{border:none;background:none;cursor:pointer;font-size:12px;color:var(--ink-soft);padding:2px 8px;}
+  .summary-detail-row td{padding:0 10px 12px;border-bottom:1px solid var(--line);}
+  .summary-daywise{display:flex;flex-direction:column;gap:6px;background:var(--paper);border-radius:8px;padding:10px 14px;}
+  .sdw-row{display:flex;align-items:center;gap:14px;font-size:12.5px;padding:5px 0;border-bottom:1px solid var(--line);}
+  .sdw-row:last-child{border-bottom:none;}
+  .sdw-date{width:92px;color:var(--muted);flex-shrink:0;}
+  .sdw-hours{font-weight:600;min-width:60px;}
+  .sdw-break{color:var(--muted);}
   .roster-table th{text-align:left;color:var(--muted);font-weight:600;font-size:11px;text-transform:uppercase;padding:6px 8px;border-bottom:1px solid var(--line);}
   .roster-table td{padding:8px;border-bottom:1px solid var(--line);}
   .roster-table td button{border:1px solid var(--line);background:var(--surface);border-radius:6px;padding:4px 10px;font-size:12px;color:var(--ink-soft);}
@@ -395,7 +418,7 @@
     <div id="mainTabSwitch" class="tab-switch hidden">
       <button class="tab-btn" data-tab="myday">My Day</button>
       <button class="tab-btn" data-tab="teamtoday">Team Today</button>
-      <button class="tab-btn" data-tab="tasks">Tasks</button>
+      <button class="tab-btn" data-tab="tasks">Team Log <span id="tasksBadge" class="tab-badge hidden"></span></button>
       <button class="tab-btn admin-only-tab hidden" data-tab="dashboard">Team Dashboard</button>
     </div>
     <div class="who">
@@ -424,10 +447,19 @@
       <select id="categoryFilterSelect" style="padding:8px 10px;border:1px solid var(--line);border-radius:8px;font-size:12.5px;">
         <option value="">All categories</option>
       </select>
+      <select id="personFilterSelect" style="padding:8px 10px;border:1px solid var(--line);border-radius:8px;font-size:12.5px;">
+        <option value="">Everyone</option>
+      </select>
+      <button class="ghost-btn" id="exportTasksBtn">⬇ Export</button>
       <button class="primary-btn" id="newTaskBtn" style="width:auto;padding:10px 18px;">+ New task</button>
     </div>
     <div id="workloadStrip" class="workload-strip"></div>
-    <div class="kanban" id="kanbanBoard"></div>
+    <div class="task-table" id="kanbanBoard">
+      <div class="tt-header-row">
+        <div>Category</div><div>Task</div><div>Owner</div><div>Status</div><div>Date</div><div></div>
+      </div>
+      <div id="taskTableBody"></div>
+    </div>
 
     <div id="personHistoryView" class="hidden">
       <div class="field" style="max-width:280px;">
@@ -524,6 +556,8 @@
       <span><i style="background:var(--absent)"></i>Absent</span>
       <span><i style="background:var(--leave)"></i>Leave</span>
       <span><i style="background:var(--line)"></i>No entry</span>
+      <span><i style="background:#E4E7EB"></i>Weekend</span>
+      <span><i style="background:var(--half-soft)"></i>Holiday</span>
     </div>
 
     <div class="card" style="margin-top:18px;">
@@ -533,6 +567,22 @@
       </div>
       <div class="table-scroll">
         <table class="summary-table" id="summaryTable"></table>
+      </div>
+    </div>
+
+    <button id="holidayToggle" class="roster-toggle">+ Manage holidays</button>
+    <div id="holidayBox" class="roster-box hidden">
+      <div class="card">
+        <h2>Holidays</h2>
+        <div class="roster-add-row">
+          <input type="date" name="holidayDate">
+          <input name="holidayLabel" placeholder="e.g. Diwali">
+          <button id="addHolidayBtn" class="ghost-btn">+ Add</button>
+        </div>
+        <table class="roster-table">
+          <thead><tr><th>Date</th><th>Label</th><th></th></tr></thead>
+          <tbody id="holidayTableBody"></tbody>
+        </table>
       </div>
     </div>
 
@@ -564,7 +614,8 @@
 <script>
 /* =========================================================================
    CONFIGURE ME — paste your Supabase project credentials below.
-   Tables used: team_roster, day_status, time_segments, tasks, task_categories.
+   Tables used: team_roster, day_status, time_segments, tasks,
+   task_categories, holidays.
    Run attendance-tracker-setup.sql in the Supabase SQL editor first.
    ========================================================================= */
 const SUPABASE_URL = "https://scavuwvhhhonqpfiostz.supabase.co";
@@ -584,7 +635,15 @@ const NONWORK_CODES = new Set(["break","lunch"]);
 const STATUSES = ["present","half-day","absent","leave"];
 const STATUS_LABEL = {present:"Present","half-day":"Half-day",absent:"Absent",leave:"Leave"};
 const TASK_STATUS_LABEL = {open:"Open", in_progress:"In Progress", blocked:"Blocked", done:"Done", aborted:"Aborted"};
-let TASK_CATEGORIES = []; // loaded from Supabase at runtime
+const TASK_STATUS_COLOR = {
+  open:        { ink:"#8A6416", soft:"#F3E6CC" },
+  in_progress: { ink:"#2E6E96", soft:"#DFEEF7" },
+  blocked:     { ink:"#B25C3A", soft:"#F7E5DE" },
+  done:        { ink:"#3F7A5C", soft:"#E1F0E3" },
+  aborted:     { ink:"#8A8578", soft:"#EDEEDA" }
+};
+let TASK_CATEGORIES = [];
+let HOLIDAYS = [];
 
 const PERSON_COLORS = [
   {bg:"#F6E4E8", ink:"#A14D63"}, {bg:"#F3E6CC", ink:"#8A6416"}, {bg:"#DCEEEC", ink:"#2E7D74"},
@@ -618,6 +677,13 @@ function fmtDuration(mins){
   if(mins<0) mins=0;
   return Math.floor(mins/60)+"h "+(mins%60)+"m";
 }
+function isWeekend(year, month, day){
+  return new Date(year, month, day).getDay() === 0;
+}
+function getHoliday(year, month, day){
+  const dateStr = year+"-"+pad(month+1)+"-"+pad(day);
+  return HOLIDAYS.find(h => h.date === dateStr);
+}
 
 let S = {
   roster: [], rosterLoaded:false, user:null,
@@ -640,6 +706,7 @@ function init(){
   });
   loadRoster();
   loadCategories();
+  loadHolidays();
 }
 
 async function loadRoster(){
@@ -657,9 +724,13 @@ function ensureRoster(){ return S.rosterLoaded ? Promise.resolve() : loadRoster(
 async function loadCategories(){
   if(!CONFIGURED) return;
   const { data, error } = await sb.from("task_categories").select("*").order("name");
-  if(!error && data && data.length){
-    TASK_CATEGORIES = data.map(c => c.name);
-  }
+  if(!error && data && data.length) TASK_CATEGORIES = data.map(c => c.name);
+}
+
+async function loadHolidays(){
+  if(!CONFIGURED) return;
+  const { data, error } = await sb.from("holidays").select("*").order("date");
+  HOLIDAYS = error ? [] : (data || []);
 }
 
 // ---- login ----
@@ -677,7 +748,7 @@ async function doLogin(){
   if(!person){ err.textContent = "Couldn't find that person — try reloading."; return; }
   if(String(person.pin) !== pin){ err.textContent = "Incorrect PIN."; return; }
 
-  S.user = { id:person.id, name:person.name, role:person.role };
+  S.user = { id:person.id, name:person.name, role:person.role, tasks_last_seen: person.tasks_last_seen || null };
   document.getElementById("loginScreen").classList.add("hidden");
   document.getElementById("mainTopbar").classList.remove("hidden");
   document.getElementById("whoLabel").innerHTML = person.role === "admin"
@@ -687,6 +758,7 @@ async function doLogin(){
   document.querySelectorAll(".admin-only-tab").forEach(b => b.classList.toggle("hidden", person.role !== "admin"));
 
   subscribeRealtime();
+  updateTaskBadge();
   await switchTab("myday");
 }
 async function switchTab(tab){
@@ -699,7 +771,7 @@ async function switchTab(tab){
 
   if(tab === "myday") await renderMemberScreen();
   else if(tab === "teamtoday") await renderTeamToday();
-  else if(tab === "tasks") await renderTasksBoard();
+  else if(tab === "tasks"){ await renderTasksBoard(); await markTasksSeen(); }
   else if(tab === "dashboard") await renderAdminMonth();
 }
 function logout(){
@@ -715,6 +787,26 @@ function logout(){
   document.getElementById("pinInput").value = "";
 }
 
+// ---- task badge ----
+async function updateTaskBadge(){
+  if(!CONFIGURED || !S.user) return;
+  const lastSeen = S.user.tasks_last_seen || "2020-01-01T00:00:00.000Z";
+  const { data, error } = await sb.from("tasks").select("id, assigned_to, updated_at").gt("updated_at", lastSeen);
+  const badge = document.getElementById("tasksBadge");
+  if(error || !badge) return;
+  const count = (data||[]).filter(t => (t.assigned_to||[]).includes(S.user.name)).length;
+  if(count > 0){ badge.textContent = count; badge.classList.remove("hidden"); }
+  else { badge.classList.add("hidden"); }
+}
+async function markTasksSeen(){
+  if(!CONFIGURED || !S.user) return;
+  const now = new Date().toISOString();
+  await sb.from("team_roster").update({ tasks_last_seen: now }).eq("id", S.user.id);
+  S.user.tasks_last_seen = now;
+  const badge = document.getElementById("tasksBadge");
+  if(badge) badge.classList.add("hidden");
+}
+
 // ---- realtime ----
 let realtimeChannel = null;
 function subscribeRealtime(){
@@ -725,6 +817,7 @@ function subscribeRealtime(){
       .on("postgres_changes", { event:"*", schema:"public", table:"day_status" }, () => onLiveChange())
       .on("postgres_changes", { event:"*", schema:"public", table:"tasks" }, () => onLiveChange())
       .on("postgres_changes", { event:"*", schema:"public", table:"task_categories" }, () => loadCategories())
+      .on("postgres_changes", { event:"*", schema:"public", table:"holidays" }, () => { loadHolidays(); if(S.activeTab==="dashboard") renderAdminMonth(); })
       .subscribe();
   }catch(e){ console.error(e); }
 }
@@ -734,6 +827,7 @@ function onLiveChange(){
   else if(S.activeTab === "teamtoday") renderTeamToday();
   else if(S.activeTab === "tasks") renderTasksBoard();
   else if(S.activeTab === "myday") loadRecent();
+  if(S.activeTab !== "tasks") updateTaskBadge();
 }
 
 // ---- shared: day summary from fetched rows ----
@@ -1098,8 +1192,10 @@ async function adminQuickSetCode(name, code){
 // ---- tasks ----
 let taskFilter = "all";
 let categoryFilter = "";
+let personFilter = "";
 function wireTasksScreen(){
   document.getElementById("newTaskBtn").addEventListener("click", openNewTaskModal);
+  document.getElementById("exportTasksBtn").addEventListener("click", downloadTasksCsv);
   document.querySelectorAll("#taskFilterSwitch .tab-btn").forEach(b => {
     b.addEventListener("click", () => {
       taskFilter = b.dataset.filter;
@@ -1109,6 +1205,8 @@ function wireTasksScreen(){
   });
   populateCategoryFilterSelect();
   document.getElementById("categoryFilterSelect").addEventListener("change", e => { categoryFilter = e.target.value; renderTasksBoard(); });
+  populatePersonFilterSelect();
+  document.getElementById("personFilterSelect").addEventListener("change", e => { personFilter = e.target.value; renderTasksBoard(); });
   document.getElementById("historyPersonSelect").addEventListener("change", renderPersonHistory);
 
   document.getElementById("categoryToggle").addEventListener("click", () => {
@@ -1118,6 +1216,13 @@ function wireTasksScreen(){
     if(!box.classList.contains("hidden")) renderCategoryManageBox();
   });
   document.getElementById("addCategoryBtn").addEventListener("click", addCategory);
+}
+
+function populatePersonFilterSelect(){
+  const sel = document.getElementById("personFilterSelect");
+  const current = sel.value;
+  sel.innerHTML = '<option value="">Everyone</option>' + S.roster.filter(r=>r.active!==false).map(p => `<option value="${escapeHtml(p.name)}">${escapeHtml(p.name)}</option>`).join("");
+  sel.value = current;
 }
 
 function populateCategoryFilterSelect(){
@@ -1158,6 +1263,48 @@ function canEditTask(t){
   return S.user.role === "admin" || t.created_by === S.user.name || (t.assigned_to||[]).includes(S.user.name);
 }
 
+function getFilteredSortedTasks(){
+  let tasks = S.tasks.filter(t => t.status !== "aborted").slice();
+  if(taskFilter === "mine") tasks = tasks.filter(t => (t.assigned_to||[]).includes(S.user.name) || t.created_by === S.user.name);
+  if(categoryFilter) tasks = tasks.filter(t => (t.category||"Other / Misc") === categoryFilter);
+  if(personFilter) tasks = tasks.filter(t => (t.assigned_to||[]).includes(personFilter));
+
+  const statusOrder = { blocked:0, in_progress:1, open:2, done:3 };
+  tasks.sort((a,b) => {
+    const so = (statusOrder[a.status]??9) - (statusOrder[b.status]??9);
+    if(so !== 0) return so;
+    return (a.due_date||"9999") < (b.due_date||"9999") ? -1 : 1;
+  });
+  return tasks;
+}
+
+function downloadTasksCsv(){
+  const tasks = getFilteredSortedTasks();
+  const header = ["Category","Task","Owner(s)","Status","Days Pending","Due Date","Created By","Description"];
+  const lines = [header.join(",")];
+  tasks.forEach(t => {
+    let days = "";
+    if(t.status !== "done" && t.created_at){
+      days = Math.floor((Date.now() - new Date(t.created_at).getTime()) / 86400000);
+    }
+    const row = [
+      t.category || "Other / Misc", t.title, (t.assigned_to||[]).join("; "),
+      TASK_STATUS_LABEL[t.status] || t.status, days, t.due_date || "", t.created_by || "", t.description || ""
+    ];
+    lines.push(row.map(v => `"${String(v).replace(/"/g,'""')}"`).join(","));
+  });
+  const csv = lines.join("\n");
+  const blob = new Blob([csv], { type:"text/csv" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `team-log-tasks-${todayStr()}.csv`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
 async function renderTasksBoard(){
   await ensureRoster();
   if(CONFIGURED){
@@ -1169,7 +1316,10 @@ async function renderTasksBoard(){
   document.getElementById("kanbanBoard").classList.toggle("hidden", isHistory);
   document.getElementById("workloadStrip").classList.toggle("hidden", isHistory);
   document.getElementById("newTaskBtn").classList.toggle("hidden", isHistory);
+  document.getElementById("exportTasksBtn").classList.toggle("hidden", isHistory);
   document.getElementById("categoryFilterSelect").classList.toggle("hidden", isHistory);
+  document.getElementById("personFilterSelect").classList.toggle("hidden", isHistory);
+  populatePersonFilterSelect();
   document.getElementById("personHistoryView").classList.toggle("hidden", !isHistory);
 
   if(isHistory){
@@ -1185,31 +1335,29 @@ async function renderTasksBoard(){
   const workload = computeWorkload();
   document.getElementById("workloadStrip").innerHTML = Object.keys(workload).map(name => {
     const c = personColor(name);
-    return `<span class="workload-chip"><span class="wc-dot" style="background:${c.ink}"></span>${escapeHtml(name)}: <b>${workload[name]}</b> open</span>`;
+    return `<button class="workload-chip" data-person="${escapeHtml(name)}"><span class="wc-dot" style="background:${c.ink}"></span>${escapeHtml(name)}: <b>${workload[name]}</b> open</button>`;
   }).join("");
+  document.querySelectorAll(".workload-chip").forEach(el => {
+    el.addEventListener("click", e => {
+      const name = e.currentTarget.dataset.person;
+      personFilter = name;
+      document.getElementById("personFilterSelect").value = name;
+      renderTasksBoard();
+    });
+  });
 
-  let tasks = S.tasks.filter(t => t.status !== "aborted").slice();
-  if(taskFilter === "mine") tasks = tasks.filter(t => (t.assigned_to||[]).includes(S.user.name) || t.created_by === S.user.name);
-  if(categoryFilter) tasks = tasks.filter(t => (t.category||"Other / Misc") === categoryFilter);
-
-  const cols = [
-    { key:"open", label:"Open" },
-    { key:"in_progress", label:"In Progress" },
-    { key:"blocked", label:"Blocked" },
-    { key:"done", label:"Done" }
-  ];
-
+  const tasks = getFilteredSortedTasks();
+  const body = document.getElementById("taskTableBody");
+  body.innerHTML = tasks.length ? tasks.map(t => renderTaskRow(t)).join("") : `<div class="task-empty" style="padding:24px;">No tasks match this view</div>`;
   const board = document.getElementById("kanbanBoard");
-  board.innerHTML = cols.map(col => {
-    const colTasks = tasks.filter(t => t.status === col.key);
-    return `
-      <div class="kanban-col">
-        <h3>${col.label} <span>${colTasks.length}</span></h3>
-        ${colTasks.length ? colTasks.map(t => renderTaskCard(t)).join("") : `<div class="task-empty">Nothing here</div>`}
-      </div>
-    `;
-  }).join("");
 
+  board.querySelectorAll(".tt-expand-btn").forEach(el => {
+    el.addEventListener("click", e => {
+      const detail = document.querySelector(`.tt-detail-row[data-detail-id="${e.currentTarget.dataset.taskId}"]`);
+      const open = detail.classList.toggle("hidden") === false;
+      e.currentTarget.innerHTML = open ? `<i>▾</i>` : `<i>▸</i>`;
+    });
+  });
   board.querySelectorAll(".task-status-select").forEach(el => {
     el.addEventListener("change", e => updateTaskStatus(e.target.dataset.taskId, e.target.value));
   });
@@ -1228,64 +1376,88 @@ async function renderTasksBoard(){
   board.querySelectorAll(".tc-edit-btn").forEach(el => {
     el.addEventListener("click", e => openEditTaskModal(e.target.dataset.taskId));
   });
-  board.querySelectorAll(".tc-history-toggle").forEach(el => {
-    el.addEventListener("click", e => {
-      const log = e.target.nextElementSibling;
-      const open = log.classList.toggle("hidden") === false;
-      e.target.textContent = open ? "▾ Hide history" : `▸ History (${e.target.dataset.count})`;
-    });
+  board.querySelectorAll(".tc-addnote-btn").forEach(el => {
+    el.addEventListener("click", e => openAddNoteModal(e.target.dataset.taskId));
   });
 }
 
-function renderTaskCard(t){
+function renderTaskRow(t){
   const editable = canEditTask(t);
   const dueLabel = t.is_meeting
     ? `${t.due_date||"—"} · ${t.meeting_time||""}`
     : (t.due_date || "No due date");
-  const history = t.history || [];
-  return `
-    <div class="task-card">
-      <div class="tc-title-row">
-        <div class="tc-title">${escapeHtml(t.title)}</div>
-        ${editable ? `<button class="tc-edit-btn" data-task-id="${t.id}" title="Edit task">✏️</button>` : ""}
-      </div>
-      <div class="tc-meta">
-        <span class="tc-category">${escapeHtml(t.category||"Other / Misc")}</span>
-        ${(t.assigned_to||[]).map(n => {
-          const c = personColor(n);
-          const canDelegate = S.user.role==="admin" || n===S.user.name;
-          return `<span class="tc-assignee-wrap">
-            <span class="tc-assignee" style="background:${c.bg};color:${c.ink}">${escapeHtml(n)}</span>
-            ${canDelegate ? `<button class="tc-delegate-btn" data-task-id="${t.id}" data-from="${escapeHtml(n)}" title="Delegate to someone else">⇄</button>` : ""}
-          </span>`;
-        }).join("")}
-        ${t.is_meeting ? `<span class="tc-meeting">📅 Meeting</span>` : ""}
-        <span class="tc-due">${dueLabel}</span>
-      </div>
-      ${t.description ? `<div class="tt-note" style="margin-bottom:8px;">${escapeHtml(t.description)}</div>` : ""}
+  const allHistory = t.history || [];
+  const notes = allHistory.filter(h => h.type === "note");
+  const auditTrail = allHistory.filter(h => h.type !== "note");
+  const sc = TASK_STATUS_COLOR[t.status] || TASK_STATUS_COLOR.open;
+
+  let days = null;
+  if(t.status !== "done" && t.status !== "aborted" && t.created_at){
+    days = Math.floor((Date.now() - new Date(t.created_at).getTime()) / 86400000);
+  }
+  const statusLabel = TASK_STATUS_LABEL[t.status] + (days !== null && days >= 1 ? ` · ${days}d` : "");
+
+  const mainRow = `
+    <div class="tt-row" style="border-left:3px solid ${sc.ink};">
+      <div class="tt-category">${escapeHtml(t.category||"Other / Misc")}</div>
+      <div class="tt-title">${escapeHtml(t.title)}${t.is_meeting ? ` <span class="tc-meeting">Meeting</span>` : ""}</div>
+      <div class="tt-owner">${(t.assigned_to||[]).map(n => {
+        const c = personColor(n);
+        return `<span class="tc-assignee" style="background:${c.bg};color:${c.ink}">${escapeHtml(n)}</span>`;
+      }).join("")}</div>
+      <div class="tt-status" style="color:${sc.ink};">${statusLabel}</div>
+      <div class="tt-date">${dueLabel}</div>
+      <button class="tt-expand-btn" data-task-id="${t.id}"><i>▸</i></button>
+    </div>
+  `;
+
+  const detailHtml = `
+    <div class="tt-detail-row hidden" data-detail-id="${t.id}">
+      ${t.description ? `<div class="tt-note" style="margin-bottom:10px;">${escapeHtml(t.description)}</div>` : ""}
       ${t.status === "blocked" && t.blocked_reason ? `<div class="tc-blocked-note">🚧 ${escapeHtml(t.blocked_reason)}</div>` : ""}
-      <div class="tc-actions">
-        <select class="task-status-select" data-task-id="${t.id}" ${editable?"":"disabled"}>
+
+      <div class="tt-detail-controls">
+        <select class="task-status-select" data-task-id="${t.id}" ${editable?"":"disabled"} style="background:${sc.soft};color:${sc.ink};border-color:${sc.ink}55;">
           ${Object.keys(TASK_STATUS_LABEL).map(k => `<option value="${k}" ${t.status===k?"selected":""}>${TASK_STATUS_LABEL[k]}</option>`).join("")}
         </select>
         ${editable ? `
           <select class="tc-push-select" data-task-id="${t.id}">
-            <option value="">Push…</option>
+            <option value="">Reschedule…</option>
             <option value="1">+1 day</option>
             <option value="3">+3 days</option>
             <option value="7">+1 week</option>
             <option value="custom">Pick date…</option>
           </select>
+          <button class="tc-edit-btn" data-task-id="${t.id}">Edit</button>
+          <button class="tc-addnote-btn" data-task-id="${t.id}">+ Add note</button>
         ` : ""}
       </div>
-      ${history.length ? `
-        <button class="tc-history-toggle" data-count="${history.length}">▸ History (${history.length})</button>
-        <div class="tc-history-log hidden">
-          ${history.slice().reverse().map(h => `<div class="tc-history-line"><b>${h.time}</b> ${escapeHtml(h.actor)} — ${escapeHtml(h.text)}</div>`).join("")}
+
+      ${(t.assigned_to||[]).some(n => S.user.role==="admin" || n===S.user.name) ? `
+        <div class="tt-delegate-row">
+          ${(t.assigned_to||[]).filter(n => S.user.role==="admin" || n===S.user.name).map(n => `
+            <button class="tc-delegate-btn" data-task-id="${t.id}" data-from="${escapeHtml(n)}">⇄ Delegate ${escapeHtml(n)}'s part</button>
+          `).join("")}
+        </div>
+      ` : ""}
+
+      ${notes.length ? `
+        <div class="section-lbl" style="margin:12px 0 6px;">Notes</div>
+        <div class="tc-notes">
+          ${notes.slice().reverse().map(n => `<div class="tc-note-line"><b>${n.time}</b> ${escapeHtml(n.actor)}: ${escapeHtml(n.text)}</div>`).join("")}
+        </div>
+      ` : ""}
+
+      ${auditTrail.length ? `
+        <div class="section-lbl" style="margin:12px 0 6px;">History</div>
+        <div class="tc-history-log">
+          ${auditTrail.slice().reverse().map(h => `<div class="tc-history-line"><b>${h.time}</b> ${escapeHtml(h.actor)} — ${escapeHtml(h.text)}</div>`).join("")}
         </div>
       ` : ""}
     </div>
   `;
+
+  return mainRow + detailHtml;
 }
 
 function logTaskHistory(t, text, type, meta){
@@ -1445,6 +1617,36 @@ function openRescheduleModal(id){
     const { error } = await sb.from("tasks").update({ due_date:newDate, history:t.history, updated_at:new Date().toISOString() }).eq("id", id);
     if(error){ alert("Couldn't save — " + error.message); return; }
     t.due_date = newDate;
+    closeModal();
+    renderTasksBoard();
+  });
+}
+
+function openAddNoteModal(taskId){
+  const t = S.tasks.find(x => x.id === taskId);
+  if(!t) return;
+  const root = document.getElementById("modalRoot");
+  root.innerHTML = `
+    <div class="modal-backdrop" id="modalBackdrop">
+      <div class="modal">
+        <h3>Add a note</h3>
+        <div class="msub">${escapeHtml(t.title)}</div>
+        <div class="field"><textarea id="anText" placeholder="What's the update?"></textarea></div>
+        <div class="modal-close-row">
+          <button class="ghost-btn" id="anCancel">Cancel</button>
+          <button class="primary-btn" id="anSave" style="width:auto;padding:9px 18px;">Add note</button>
+        </div>
+      </div>
+    </div>
+  `;
+  document.getElementById("anCancel").addEventListener("click", closeModal);
+  document.getElementById("modalBackdrop").addEventListener("click", e => { if(e.target.id==="modalBackdrop") closeModal(); });
+  document.getElementById("anSave").addEventListener("click", async () => {
+    const text = document.getElementById("anText").value.trim();
+    if(!text) return;
+    logTaskHistory(t, text, "note");
+    const { error } = await sb.from("tasks").update({ history:t.history, updated_at:new Date().toISOString() }).eq("id", t.id);
+    if(error){ alert("Couldn't save — " + error.message); return; }
     closeModal();
     renderTasksBoard();
   });
@@ -1615,6 +1817,46 @@ function wireAdminScreen(){
   });
   document.getElementById("addRosterBtn").addEventListener("click", addRosterMember);
   document.getElementById("downloadSummaryCsv").addEventListener("click", downloadSummaryCsv);
+  document.getElementById("holidayToggle").addEventListener("click", () => {
+    const box = document.getElementById("holidayBox");
+    box.classList.toggle("hidden");
+    document.getElementById("holidayToggle").textContent = box.classList.contains("hidden") ? "+ Manage holidays" : "− Manage holidays";
+    if(!box.classList.contains("hidden")) renderHolidayTable();
+  });
+  document.getElementById("addHolidayBtn").addEventListener("click", addHoliday);
+}
+
+function renderHolidayTable(){
+  const body = document.getElementById("holidayTableBody");
+  const sorted = HOLIDAYS.slice().sort((a,b) => a.date < b.date ? -1 : 1);
+  body.innerHTML = sorted.length ? sorted.map(h => `
+    <tr>
+      <td>${h.date}</td><td>${escapeHtml(h.label)}</td>
+      <td><button data-id="${h.id}">Remove</button></td>
+    </tr>
+  `).join("") : `<tr><td colspan="3" style="color:var(--muted);">No holidays added yet.</td></tr>`;
+  body.querySelectorAll("button[data-id]").forEach(btn => {
+    btn.addEventListener("click", async () => {
+      await sb.from("holidays").delete().eq("id", btn.dataset.id);
+      await loadHolidays();
+      renderHolidayTable();
+      renderAdminMonth();
+    });
+  });
+}
+
+async function addHoliday(){
+  const dateInput = document.querySelector('input[name="holidayDate"]');
+  const labelInput = document.querySelector('input[name="holidayLabel"]');
+  const date = dateInput.value;
+  const label = labelInput.value.trim();
+  if(!date || !label){ alert("Pick a date and enter a label."); return; }
+  const { error } = await sb.from("holidays").insert({ date, label });
+  if(error){ alert("Couldn't add — " + error.message); return; }
+  dateInput.value = ""; labelInput.value = "";
+  await loadHolidays();
+  renderHolidayTable();
+  renderAdminMonth();
 }
 
 async function renderAdminMonth(){
@@ -1704,7 +1946,12 @@ function renderGrid(year, month, nDays){
   const table = document.getElementById("gridTable");
   const activeRoster = S.roster.filter(r => r.active !== false);
   let thead = "<thead><tr><th class='name-cell'>Name</th>";
-  for(let d=1; d<=nDays; d++) thead += `<th class="day-col">${d}</th>`;
+  for(let d=1; d<=nDays; d++){
+    const holiday = getHoliday(year, month, d);
+    const cls = holiday ? "is-holiday" : (isWeekend(year, month, d) ? "is-weekend" : "");
+    const title = holiday ? ` title="${escapeHtml(holiday.label)}"` : "";
+    thead += `<th class="day-col ${cls}"${title}>${d}</th>`;
+  }
   thead += "</tr></thead>";
   let tbody = "<tbody>";
   activeRoster.forEach(person => {
@@ -1714,7 +1961,9 @@ function renderGrid(year, month, nDays){
       const sum = S.monthEntries[person.name+"|"+dateStr];
       const status = sum ? sum.status : "";
       const dot = sum && sum.approval_status === "pending" ? '<span class="pending-dot" title="Pending approval"></span>' : "";
-      tbody += `<td class="day-cell" data-name="${escapeHtml(person.name)}" data-date="${dateStr}"><div class="chip ${status||"empty"}"></div>${dot}</td>`;
+      const holiday = getHoliday(year, month, d);
+      const dayCls = holiday ? "is-holiday" : (isWeekend(year, month, d) ? "is-weekend" : "");
+      tbody += `<td class="day-cell ${dayCls}" data-name="${escapeHtml(person.name)}" data-date="${dateStr}"><div class="chip ${status||"empty"}"></div>${dot}</td>`;
     }
     tbody += "</tr>";
   });
@@ -1728,7 +1977,7 @@ function renderGrid(year, month, nDays){
 function computeMonthlySummary(year, month, nDays){
   const summary = {};
   S.roster.filter(r => r.active !== false).forEach(p => {
-    summary[p.name] = { name:p.name, present:0, halfDay:0, absent:0, leave:0, workedMin:0, breakMin:0, daysLogged:0 };
+    summary[p.name] = { name:p.name, present:0, halfDay:0, absent:0, leave:0, workedMin:0, breakMin:0, daysLogged:0, dayBreakdown:[] };
   });
   for(let d=1; d<=nDays; d++){
     const dateStr = year+"-"+pad(month+1)+"-"+pad(d);
@@ -1743,6 +1992,7 @@ function computeMonthlySummary(year, month, nDays){
       else if(sum.status === "leave") row.leave++;
       row.workedMin += sum.workedMin || 0;
       row.breakMin += sum.breakMin || 0;
+      row.dayBreakdown.push({ date: dateStr, status: sum.status, workedMin: sum.workedMin||0, breakMin: sum.breakMin||0 });
     });
   }
   return Object.values(summary);
@@ -1755,11 +2005,12 @@ function renderMonthlySummary(year, month, nDays){
   const table = document.getElementById("summaryTable");
   table.innerHTML = `
     <thead><tr>
-      <th>Name</th><th>Present</th><th>Half-day</th><th>Absent</th><th>Leave</th><th>Hours worked</th><th>Break time</th>
+      <th></th><th>Name</th><th>Present</th><th>Half-day</th><th>Absent</th><th>Leave</th><th>Hours worked</th><th>Break time</th>
     </tr></thead>
     <tbody>
-      ${rows.map(r => `
-        <tr>
+      ${rows.map((r,i) => `
+        <tr class="summary-row">
+          <td><button class="summary-expand-btn" data-idx="${i}">▸</button></td>
           <td>${escapeHtml(r.name)}</td>
           <td class="num">${r.present}</td>
           <td class="num">${r.halfDay}</td>
@@ -1768,9 +2019,31 @@ function renderMonthlySummary(year, month, nDays){
           <td class="num">${fmtDuration(r.workedMin)}</td>
           <td class="num">${fmtDuration(r.breakMin)}</td>
         </tr>
+        <tr class="summary-detail-row hidden" data-detail-idx="${i}">
+          <td colspan="8">
+            <div class="summary-daywise">
+              ${r.dayBreakdown.length ? r.dayBreakdown.map(d => `
+                <div class="sdw-row">
+                  <span class="sdw-date">${d.date}</span>
+                  <span class="status-pill" data-status="${d.status}">${STATUS_LABEL[d.status]||d.status}</span>
+                  <span class="sdw-hours">${fmtDuration(d.workedMin)}</span>
+                  ${d.breakMin ? `<span class="sdw-break">Break ${fmtDuration(d.breakMin)}</span>` : ""}
+                </div>
+              `).join("") : `<div class="task-empty">No entries this month</div>`}
+            </div>
+          </td>
+        </tr>
       `).join("")}
     </tbody>
   `;
+  table.querySelectorAll(".summary-expand-btn").forEach(btn => {
+    btn.addEventListener("click", e => {
+      const idx = e.currentTarget.dataset.idx;
+      const detailRow = table.querySelector(`tr[data-detail-idx="${idx}"]`);
+      const open = detailRow.classList.toggle("hidden") === false;
+      e.currentTarget.textContent = open ? "▾" : "▸";
+    });
+  });
 }
 
 function downloadSummaryCsv(){
