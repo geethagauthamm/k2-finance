@@ -1,0 +1,2355 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>OnIt</title>
+<link rel="icon" type="image/png" href="favicon.png">
+<meta name="theme-color" content="#1C1B1A">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="OnIt">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="manifest" href="manifest.json">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+  :root{
+    --ink:#1C1B1A;
+    --ink-soft:#4A4740;
+    --paper:#F6F5F1;
+    --surface:#FFFFFF;
+    --line:#E4E1D8;
+    --muted:#8A8578;
+    --accent:#B8842E;
+    --accent-ink:#6E4E16;
+    --accent-soft:#F3E6CC;
+    --present:#3F7A5C;
+    --present-soft:#E3EFE8;
+    --absent:#B5433D;
+    --absent-soft:#F6E4E2;
+    --leave:#3E6B99;
+    --leave-soft:#E3EBF3;
+    --half:#B8842E;
+    --half-soft:#F3E6CC;
+    --c-office:#4A6FA1;
+    --c-home:#8B5FA3;
+    --c-field:#4F8F6B;
+    --c-set:#C97B2E;
+    --c-postprod:#A15C8C;
+    --c-travel:#3F8FA1;
+    --c-break:#9C9689;
+    --c-lunch:#C97B4A;
+    --radius:10px;
+    --shadow:0 1px 2px rgba(28,27,26,0.04), 0 4px 16px rgba(28,27,26,0.05);
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:var(--paper);
+    color:var(--ink);
+    font-family:'Inter',system-ui,sans-serif;
+    min-height:100vh;
+    -webkit-font-smoothing:antialiased;
+  }
+  h1,h2,h3,.num{font-family:'Space Grotesk',system-ui,sans-serif;}
+  .hidden{display:none !important;}
+  button{font-family:inherit;cursor:pointer;}
+  input,select,textarea{font-family:inherit;}
+
+  #app{max-width:1080px;margin:0 auto;padding:0 16px 60px;}
+
+  .topbar{
+    display:flex;align-items:center;justify-content:space-between;
+    padding:18px 0;border-bottom:1px solid var(--line);margin-bottom:24px;
+  }
+  .brand{display:flex;align-items:center;gap:10px;}
+  .brand h1{font-size:19px;font-weight:600;margin:0;letter-spacing:-0.01em;}
+  .who{display:flex;align-items:center;gap:12px;font-size:14px;color:var(--ink-soft);}
+  .who b{color:var(--ink);font-weight:600;}
+  .ghost-btn{
+    background:transparent;border:1px solid var(--line);color:var(--ink-soft);
+    padding:7px 14px;border-radius:8px;font-size:13px;font-weight:500;
+    transition:all .15s;
+  }
+  .ghost-btn:hover{border-color:var(--ink-soft);color:var(--ink);}
+  .tab-switch{display:flex;gap:6px;}
+  .tab-btn{border:1px solid var(--line);background:var(--surface);padding:8px 16px;border-radius:8px;font-size:13px;font-weight:600;color:var(--ink-soft);transition:all .12s;}
+  .tab-btn:hover{border-color:var(--ink-soft);}
+  .tab-btn.active{background:var(--ink);color:#fff;border-color:var(--ink);}
+  .tab-badge{background:var(--absent);color:#fff;font-size:10px;font-weight:700;border-radius:20px;padding:1px 6px;margin-left:4px;}
+
+  /* ---------- team today ---------- */
+  .tt-row{display:flex;align-items:center;gap:12px;padding:12px 0;border-bottom:1px solid var(--line);flex-wrap:wrap;}
+  .tt-row:last-child{border-bottom:none;}
+  .tt-name{font-weight:600;min-width:120px;}
+  .tt-code-badge{font-size:11px;font-weight:700;padding:4px 10px;border-radius:20px;color:#fff;white-space:nowrap;}
+  .tt-since{color:var(--muted);font-size:12px;}
+  .tt-note{color:var(--muted);font-size:13px;flex:1;min-width:100px;}
+  .tt-quickset{display:flex;align-items:center;gap:6px;margin-left:auto;}
+  .tt-quickset select{padding:6px 8px;border:1px solid var(--line);border-radius:7px;font-size:12.5px;}
+  .tt-empty{color:var(--muted);font-size:13px;}
+
+  /* ---------- tasks / kanban ---------- */
+  .task-filter-switch{display:flex;gap:6px;}
+  .workload-strip{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:18px;}
+  .workload-chip{background:var(--surface);border:1px solid var(--line);border-radius:20px;padding:6px 14px;font-size:12.5px;font-weight:600;color:var(--ink-soft);display:inline-flex;align-items:center;gap:7px;cursor:pointer;font-family:inherit;}
+  .workload-chip:hover{border-color:var(--ink-soft);}
+  .workload-chip b{color:var(--accent-ink);}
+  .wc-dot{width:8px;height:8px;border-radius:50%;display:inline-block;flex-shrink:0;}
+  .task-table{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);overflow:hidden;}
+  .tt-header-row{display:grid;grid-template-columns:1.3fr 2.2fr 1.3fr 1fr 1fr 0.4fr;padding:10px 16px;background:var(--paper);font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.03em;}
+  .tt-row{display:grid;grid-template-columns:1.3fr 2.2fr 1.3fr 1fr 1fr 0.4fr;padding:12px 16px;align-items:center;border-top:1px solid var(--line);font-size:13px;gap:8px;}
+  .tt-category{color:var(--muted);font-size:12px;}
+  .tt-title{font-weight:600;color:var(--ink);}
+  .tt-owner{display:flex;flex-wrap:wrap;gap:4px;}
+  .tt-status{font-weight:600;font-size:12px;}
+  .tt-date{color:var(--muted);font-size:12px;}
+  .tt-expand-btn{border:none;background:none;cursor:pointer;color:var(--muted);font-size:13px;justify-self:end;padding:4px;}
+  .tt-detail-row{padding:16px;background:var(--paper);border-top:1px solid var(--line);}
+  .tt-detail-controls{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:4px;}
+  .tt-delegate-row{display:flex;gap:10px;flex-wrap:wrap;margin-top:10px;}
+  .tc-category{color:var(--ink-soft);font-weight:600;font-size:11px;}
+  .task-card select{padding:5px 4px;border:1px solid var(--line);border-radius:6px;font-size:11px;}
+  .task-status-select{min-width:110px;}
+  .tc-push-select{min-width:100px;background:var(--paper);color:var(--ink-soft);font-weight:600;}
+  .tc-edit-btn,.tc-addnote-btn{border:1px solid var(--line);background:var(--surface);border-radius:6px;padding:6px 12px;font-size:11.5px;font-weight:600;color:var(--ink-soft);}
+  .tc-assignee{border-radius:20px;padding:2px 8px;font-weight:600;font-size:11.5px;}
+  .tc-meeting{background:var(--wfh-soft,var(--leave-soft));color:var(--leave);border-radius:20px;padding:2px 8px;font-weight:600;font-size:10.5px;margin-left:6px;}
+  .task-empty{color:var(--muted);font-size:12.5px;text-align:center;padding:16px 0;}
+  .category-chip-list{display:flex;flex-wrap:wrap;gap:8px;margin-top:14px;}
+  .category-chip-list .tc-category{font-size:12px;padding:5px 10px;}
+  @media(max-width:760px){
+    .tt-header-row{display:none;}
+    .tt-row{grid-template-columns:1fr auto;grid-template-areas:"title expand" "meta meta";}
+    .tt-title{grid-area:title;}
+    .tt-expand-btn{grid-area:expand;}
+    .tt-category,.tt-owner,.tt-status,.tt-date{grid-area:meta;display:inline-flex;margin-right:10px;}
+  }
+
+  .tc-blocked-note{background:var(--absent-soft);color:var(--absent);border-radius:7px;padding:7px 10px;font-size:12px;margin-bottom:8px;}
+  .tc-delegate-btn{border:1px solid var(--line);background:var(--surface);border-radius:6px;padding:5px 10px;font-size:11px;color:var(--ink-soft);}
+  .tc-notes{background:var(--surface);border-radius:7px;padding:8px 10px;margin-bottom:8px;display:flex;flex-direction:column;gap:5px;}
+  .tc-note-line{font-size:12px;color:var(--ink-soft);}
+  .tc-note-line b{color:var(--muted);font-weight:600;margin-right:5px;}
+  .tc-history-log{display:flex;flex-direction:column;gap:5px;}
+  .tc-history-line{font-size:11.5px;color:var(--muted);}
+  .tc-history-line b{color:var(--ink-soft);font-weight:600;margin-right:5px;}
+
+  .history-groups{display:grid;grid-template-columns:repeat(2,1fr);gap:16px;margin-top:18px;}
+  .history-col h3{font-size:12.5px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);margin:0 0 10px;}
+  .history-item{background:var(--surface);border:1px solid var(--line);border-radius:9px;padding:10px 12px;margin-bottom:8px;font-size:12.5px;}
+  .history-item .hi-title{font-weight:600;margin-bottom:3px;}
+  .history-item .hi-meta{color:var(--muted);font-size:11.5px;}
+  @media(max-width:760px){ .history-groups{grid-template-columns:1fr;} }
+
+  .offboard-task-row{display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--line);flex-wrap:wrap;}
+  .offboard-task-row:last-child{border-bottom:none;}
+  .offboard-task-row .ot-title{font-weight:600;font-size:13px;flex:1;min-width:140px;}
+  .offboard-task-row select{padding:6px 8px;border:1px solid var(--line);border-radius:7px;font-size:12.5px;}
+
+  .config-warning{
+    background:var(--absent-soft);color:var(--absent);border:1px solid var(--absent);
+    border-radius:9px;padding:12px 16px;font-size:13px;margin-bottom:20px;
+  }
+
+  /* ---------- login ---------- */
+  #loginScreen{min-height:80vh;display:flex;align-items:center;justify-content:center;}
+  .login-card{
+    background:var(--surface);border:1px solid var(--line);border-radius:14px;
+    padding:36px 32px;width:100%;max-width:360px;box-shadow:var(--shadow);
+  }
+  .login-brand{display:flex;align-items:center;gap:10px;margin-bottom:6px;}
+  .login-brand .mark{
+    width:30px;height:30px;border-radius:8px;background:var(--ink);
+    display:flex;align-items:center;justify-content:center;
+    color:var(--accent-soft);font-family:'Space Grotesk';font-weight:700;font-size:15px;
+  }
+  .login-card h1{font-size:20px;margin:0;}
+  .login-sub{color:var(--muted);font-size:13px;margin:4px 0 26px;}
+  .field{margin-bottom:16px;}
+  .field label{display:block;font-size:12px;font-weight:600;color:var(--ink-soft);margin-bottom:6px;text-transform:uppercase;letter-spacing:.04em;}
+  .field select,.field input{
+    width:100%;padding:11px 12px;border:1px solid var(--line);border-radius:8px;
+    font-size:15px;background:var(--paper);color:var(--ink);
+  }
+  .field select:focus,.field input:focus,textarea:focus{outline:2px solid var(--accent);outline-offset:1px;}
+  .primary-btn{
+    width:100%;background:var(--ink);color:#fff;border:none;border-radius:8px;
+    padding:12px;font-size:14px;font-weight:600;margin-top:4px;transition:opacity .15s;
+  }
+  .primary-btn:hover{opacity:.88;}
+  .error-msg{color:var(--absent);font-size:13px;margin-top:12px;min-height:16px;}
+  .login-foot{margin-top:18px;font-size:12px;color:var(--muted);text-align:center;}
+
+  /* ---------- shared cards ---------- */
+  .card{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:22px;box-shadow:var(--shadow);}
+  .card + .card{margin-top:18px;}
+  .card h2{font-size:15px;margin:0 0 16px;font-weight:600;}
+  .today-date{color:var(--muted);font-size:13px;margin:-12px 0 18px;}
+
+  /* ---------- day status ---------- */
+  .status-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(100px,1fr));gap:10px;margin-bottom:6px;}
+  .status-btn{
+    border:1.5px solid var(--line);background:var(--surface);border-radius:9px;
+    padding:12px 10px;font-size:13px;font-weight:600;color:var(--ink-soft);
+    display:flex;flex-direction:column;align-items:center;gap:6px;transition:all .12s;
+  }
+  .status-btn .dot{width:9px;height:9px;border-radius:50%;}
+  .status-btn[data-status="present"] .dot{background:var(--present);}
+  .status-btn[data-status="absent"] .dot{background:var(--absent);}
+  .status-btn[data-status="leave"] .dot{background:var(--leave);}
+  .status-btn[data-status="half-day"] .dot{background:var(--half);}
+  .status-btn.active[data-status="present"]{background:var(--present-soft);border-color:var(--present);color:var(--present);}
+  .status-btn.active[data-status="absent"]{background:var(--absent-soft);border-color:var(--absent);color:var(--absent);}
+  .status-btn.active[data-status="leave"]{background:var(--leave-soft);border-color:var(--leave);color:var(--leave);}
+  .status-btn.active[data-status="half-day"]{background:var(--half-soft);border-color:var(--half);color:var(--half);}
+
+  /* ---------- time-code log ---------- */
+  .section-lbl{font-size:12px;font-weight:600;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.04em;margin:20px 0 10px;}
+  .time-code-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(92px,1fr));gap:8px;}
+  .tcode-btn{
+    border:1.5px solid var(--line);background:var(--surface);border-radius:9px;
+    padding:11px 6px;font-size:12.5px;font-weight:600;color:var(--ink-soft);
+    display:flex;flex-direction:column;align-items:center;gap:5px;transition:all .12s;
+  }
+  .tcode-btn .dot{width:8px;height:8px;border-radius:50%;}
+  .tcode-btn.current{box-shadow:0 0 0 2px var(--ink) inset;}
+
+  .current-segment{
+    background:var(--paper);border:1px dashed var(--line);border-radius:9px;
+    padding:14px 16px;margin:16px 0;font-size:13px;
+  }
+  .current-segment.active{border-style:solid;}
+  .cs-row{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;}
+  .cs-badge{display:flex;align-items:center;gap:8px;font-weight:600;}
+  .cs-badge .dot{width:9px;height:9px;border-radius:50%;}
+  .cs-since{color:var(--muted);font-size:12px;}
+  .current-segment textarea{
+    width:100%;border:1px solid var(--line);border-radius:7px;padding:9px 10px;
+    font-size:13px;background:var(--surface);min-height:44px;resize:vertical;
+  }
+  .cs-save-row{display:flex;align-items:center;gap:12px;margin-top:10px;}
+  .cs-save-row .ghost-btn{padding:8px 16px;}
+  .cs-logs{display:flex;flex-direction:column;gap:5px;margin-bottom:10px;}
+  .cs-log-line{font-size:12.5px;color:var(--ink-soft);background:var(--surface);border:1px solid var(--line);border-radius:6px;padding:6px 9px;}
+  .cs-log-line b{color:var(--muted);font-weight:600;margin-right:6px;}
+  .empty-note{color:var(--muted);font-size:13px;padding:4px 0;}
+
+  .timeline{display:flex;flex-direction:column;}
+  .tl-row{display:flex;align-items:flex-start;gap:10px;padding:9px 0;border-bottom:1px solid var(--line);font-size:13px;}
+  .tl-row:last-child{border-bottom:none;}
+  .tl-badge{font-size:11px;font-weight:700;padding:3px 9px;border-radius:20px;color:#fff;white-space:nowrap;flex-shrink:0;margin-top:1px;}
+  .tl-time{color:var(--ink-soft);font-weight:600;white-space:nowrap;flex-shrink:0;width:110px;}
+  .tl-ongoing{color:var(--present);}
+  .tl-who{font-weight:600;min-width:100px;flex-shrink:0;}
+  .tl-note{color:var(--muted);flex:1;}
+  .tl-note-empty{font-style:italic;opacity:.7;}
+  .tl-logs{display:flex;flex-direction:column;gap:3px;flex:1;}
+  .tl-log-line{color:var(--muted);}
+  .tl-log-line b{color:var(--ink-soft);font-weight:600;margin-right:6px;}
+
+  .logoff-row{display:flex;align-items:center;gap:12px;margin-top:18px;}
+  .logoff-row .primary-btn{width:auto;padding:11px 24px;}
+  .saved-flag{font-size:13px;color:var(--present);font-weight:600;opacity:0;transition:opacity .2s;}
+  .saved-flag.show{opacity:1;}
+
+  .absent-note textarea{width:100%;border:1px solid var(--line);border-radius:8px;padding:11px 12px;font-size:14px;min-height:70px;background:var(--paper);}
+
+  /* ---------- recent list ---------- */
+  .recent-list{display:flex;flex-direction:column;}
+  .recent-row{padding:12px 0;border-bottom:1px solid var(--line);}
+  .recent-row:last-child{border-bottom:none;}
+  .recent-top{display:flex;align-items:center;gap:10px;font-size:13px;margin-bottom:4px;flex-wrap:wrap;}
+  .recent-top .rdate{width:82px;color:var(--muted);flex-shrink:0;}
+  .status-pill{font-size:11px;font-weight:700;padding:3px 9px;border-radius:20px;text-transform:uppercase;letter-spacing:.03em;flex-shrink:0;}
+  .status-pill[data-status="present"]{background:var(--present-soft);color:var(--present);}
+  .status-pill[data-status="absent"]{background:var(--absent-soft);color:var(--absent);}
+  .status-pill[data-status="leave"]{background:var(--leave-soft);color:var(--leave);}
+  .status-pill[data-status="half-day"]{background:var(--half-soft);color:var(--half);}
+  .approval-pill{display:inline-block;font-size:12px;font-weight:600;padding:6px 12px;border-radius:8px;margin:2px 0 16px;}
+  .approval-pill.pending{background:var(--half-soft);color:var(--half-ink,var(--accent-ink));}
+  .approval-pill.approved{background:var(--present-soft);color:var(--present);}
+  .approval-pill.rejected{background:var(--absent-soft);color:var(--absent);}
+  .approval-mini{font-size:10.5px;font-weight:700;padding:2px 7px;border-radius:20px;margin-left:6px;text-transform:uppercase;letter-spacing:.02em;}
+  .approval-mini.pending{background:var(--half-soft);color:var(--accent-ink);}
+  .approval-mini.approved{background:var(--present-soft);color:var(--present);}
+  .approval-mini.rejected{background:var(--absent-soft);color:var(--absent);}
+  .recent-top .rhours{color:var(--ink-soft);font-weight:600;}
+  .recent-top .rrange{color:var(--muted);}
+  .recent-path{font-size:12px;color:var(--muted);padding-left:92px;}
+
+  /* ---------- admin ---------- */
+  .admin-header-row{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:16px;}
+  .month-nav{display:flex;align-items:center;gap:10px;}
+  .month-nav button{width:30px;height:30px;border:1px solid var(--line);background:var(--surface);border-radius:7px;font-size:14px;color:var(--ink-soft);}
+  .month-nav button:hover{border-color:var(--ink-soft);}
+  .month-label{font-weight:600;font-size:15px;min-width:130px;text-align:center;}
+
+  .stats-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px;margin-bottom:18px;}
+  .stat-box{background:var(--surface);border:1px solid var(--line);border-radius:9px;padding:12px 14px;}
+  .stat-box .num{font-size:22px;font-weight:700;}
+  .stat-box .lbl{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;margin-top:2px;}
+  .stat-box[data-k="present"] .num{color:var(--present);}
+  .stat-box[data-k="absent"] .num{color:var(--absent);}
+  .stat-box[data-k="leave"] .num{color:var(--leave);}
+  .stat-box[data-k="half-day"] .num{color:var(--half);}
+
+  .grid-scroll{overflow-x:auto;border:1px solid var(--line);border-radius:var(--radius);}
+  table.grid{border-collapse:collapse;width:100%;font-size:12px;}
+  table.grid th,table.grid td{border-bottom:1px solid var(--line);border-right:1px solid var(--line);padding:0;}
+  table.grid th{background:var(--paper);font-weight:600;color:var(--ink-soft);padding:8px 4px;}
+  th.day-col.is-weekend{background:#E4E7EB;}
+  th.day-col.is-holiday{background:var(--half-soft);color:var(--accent-ink);}
+  td.day-cell.is-weekend .chip.empty{background:#E4E7EB;}
+  td.day-cell.is-holiday .chip.empty{background:var(--half-soft);}
+  table.grid td.name-cell{padding:8px 12px;font-weight:600;white-space:nowrap;background:var(--surface);position:sticky;left:0;border-right:1.5px solid var(--line);}
+  th.day-col{min-width:30px;text-align:center;}
+  td.day-cell{width:30px;height:32px;text-align:center;cursor:pointer;}
+  td.day-cell:hover{opacity:.75;}
+  .chip{width:100%;height:100%;display:block;}
+  .chip.present{background:var(--present);}
+  .chip.absent{background:var(--absent);}
+  .chip.leave{background:var(--leave);}
+  .chip.half-day{background:var(--half);}
+  .chip.empty{background:transparent;}
+  td.day-cell{position:relative;}
+  .pending-dot{position:absolute;top:2px;right:2px;width:6px;height:6px;border-radius:50%;background:var(--half);box-shadow:0 0 0 1px var(--surface);}
+
+  .approval-row{display:flex;align-items:center;gap:12px;padding:11px 0;border-bottom:1px solid var(--line);flex-wrap:wrap;}
+  .approval-row:last-child{border-bottom:none;}
+  .approval-row .arow-name{font-weight:600;min-width:110px;}
+  .approval-row .arow-date{color:var(--muted);font-size:13px;min-width:90px;}
+  .approval-row .arow-note{color:var(--muted);font-size:13px;flex:1;min-width:120px;}
+  .approval-row .arow-actions{display:flex;gap:8px;}
+  .approve-btn,.reject-btn{border:1px solid var(--line);border-radius:7px;padding:6px 14px;font-size:12.5px;font-weight:600;}
+  .approve-btn{background:var(--present-soft);color:var(--present);border-color:var(--present);}
+  .reject-btn{background:var(--absent-soft);color:var(--absent);border-color:var(--absent);}
+
+  .legend{display:flex;gap:14px;flex-wrap:wrap;margin:14px 0 4px;font-size:12px;color:var(--ink-soft);}
+  .legend span{display:inline-flex;align-items:center;gap:6px;}
+  .legend i{width:9px;height:9px;border-radius:2px;display:inline-block;}
+
+  .roster-toggle{margin-top:22px;font-size:13px;font-weight:600;color:var(--accent-ink);background:none;border:none;padding:0;}
+  .roster-box{margin-top:14px;}
+  .roster-add-row{display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap;}
+  .roster-add-row input,.roster-add-row select{padding:9px 10px;border:1px solid var(--line);border-radius:7px;font-size:13px;}
+  .roster-add-row input[name="rname"]{flex:2;min-width:140px;}
+  .roster-add-row input[name="rpin"]{width:90px;}
+  .roster-table{width:100%;border-collapse:collapse;font-size:13px;}
+  .summary-head-row{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:16px;}
+  .table-scroll{overflow-x:auto;}
+  .summary-table{width:100%;border-collapse:collapse;font-size:13px;}
+  .summary-table th{text-align:left;color:var(--muted);font-weight:600;font-size:11px;text-transform:uppercase;letter-spacing:.03em;padding:8px 10px;border-bottom:1px solid var(--line);white-space:nowrap;}
+  .summary-table td{padding:8px 10px;border-bottom:1px solid var(--line);white-space:nowrap;}
+  .summary-table td.num{text-align:right;font-variant-numeric:tabular-nums;}
+  .summary-table tr:last-child td{border-bottom:none;}
+  .summary-expand-btn{border:none;background:none;cursor:pointer;font-size:12px;color:var(--ink-soft);padding:2px 8px;}
+  .summary-detail-row td{padding:0 10px 12px;border-bottom:1px solid var(--line);}
+  .summary-daywise{display:flex;flex-direction:column;gap:6px;background:var(--paper);border-radius:8px;padding:10px 14px;}
+  .sdw-row{display:flex;align-items:center;gap:14px;font-size:12.5px;padding:5px 0;border-bottom:1px solid var(--line);}
+  .sdw-row:last-child{border-bottom:none;}
+  .sdw-date{width:92px;color:var(--muted);flex-shrink:0;}
+  .sdw-hours{font-weight:600;min-width:60px;}
+  .sdw-break{color:var(--muted);}
+  .roster-table th{text-align:left;color:var(--muted);font-weight:600;font-size:11px;text-transform:uppercase;padding:6px 8px;border-bottom:1px solid var(--line);}
+  .roster-table td{padding:8px;border-bottom:1px solid var(--line);}
+  .roster-table td button{border:1px solid var(--line);background:var(--surface);border-radius:6px;padding:4px 10px;font-size:12px;color:var(--ink-soft);}
+  .roster-table td button:hover{border-color:var(--absent);color:var(--absent);}
+  .row-inactive td{opacity:.45;}
+
+  .modal-backdrop{position:fixed;inset:0;background:rgba(28,27,26,0.4);display:flex;align-items:center;justify-content:center;z-index:50;padding:16px;}
+  .modal{background:var(--surface);border-radius:12px;padding:24px;max-width:420px;width:100%;box-shadow:var(--shadow);max-height:86vh;overflow-y:auto;}
+  .modal h3{margin:0 0 4px;font-size:16px;}
+  .modal .msub{color:var(--muted);font-size:13px;margin-bottom:16px;}
+  .modal-close-row{display:flex;justify-content:flex-end;gap:8px;margin-top:18px;}
+  .modal-status-row{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px;}
+  .modal-status-row button{border:1.5px solid var(--line);background:var(--surface);border-radius:8px;padding:8px 12px;font-size:12.5px;font-weight:600;color:var(--ink-soft);}
+  .modal-status-row button.active{border-color:var(--ink);color:var(--ink);background:var(--paper);}
+  .modal-summary{display:flex;gap:14px;font-size:13px;color:var(--ink-soft);margin-bottom:12px;flex-wrap:wrap;}
+  .modal-approval-row{display:flex;align-items:center;gap:8px;margin-bottom:14px;flex-wrap:wrap;}
+  .seg-edit-row{border:1px solid var(--line);border-radius:9px;padding:10px 12px;margin-bottom:10px;}
+  .seg-code{padding:6px 8px;border:1px solid var(--line);border-radius:6px;font-size:12.5px;margin-right:6px;}
+  .seg-start,.seg-end{padding:6px 8px;border:1px solid var(--line);border-radius:6px;font-size:12.5px;width:100px;margin-right:6px;}
+  .seg-delete{border:1px solid var(--line);background:var(--surface);border-radius:6px;padding:5px 9px;font-size:12px;color:var(--absent);}
+  .seg-logs{margin-top:9px;padding-top:9px;border-top:1px dashed var(--line);}
+  .seg-log-row{display:flex;gap:6px;margin-bottom:6px;align-items:center;}
+  .seg-log-time{width:80px;padding:5px 6px;border:1px solid var(--line);border-radius:6px;font-size:12px;flex-shrink:0;}
+  .seg-log-text{flex:1;padding:5px 8px;border:1px solid var(--line);border-radius:6px;font-size:12.5px;}
+  .seg-log-delete{border:none;background:none;color:var(--muted);font-size:16px;cursor:pointer;padding:0 4px;}
+  .seg-log-add{font-size:12px;padding:5px 10px;}
+  .modal-summary b{color:var(--ink);}
+
+  @media(max-width:600px){
+    .status-grid{grid-template-columns:repeat(2,1fr);}
+    .time-code-grid{grid-template-columns:repeat(3,1fr);}
+    .recent-path{padding-left:0;margin-top:4px;}
+  }
+</style>
+</head>
+<body>
+
+<div id="app">
+
+  <div id="configWarning" class="config-warning hidden">
+    ⚠️ Supabase isn't configured yet — open this file and fill in <code>SUPABASE_URL</code> and <code>SUPABASE_ANON_KEY</code> near the top of the script, and run the setup SQL first.
+  </div>
+
+  <!-- ============ LOGIN ============ -->
+  <div id="loginScreen" class="screen">
+    <div class="login-card">
+      <div class="login-brand">
+        <div class="mark">K2</div>
+        <h1>OnIt</h1>
+      </div>
+      <p class="login-sub">Select your name and enter your PIN.</p>
+      <div class="field">
+        <label>Name</label>
+        <select id="nameSelect"><option value="">Loading team…</option></select>
+      </div>
+      <div class="field">
+        <label>PIN</label>
+        <input id="pinInput" type="password" inputmode="numeric" maxlength="6" placeholder="••••">
+      </div>
+      <button id="loginBtn" class="primary-btn">Log in</button>
+      <div id="loginError" class="error-msg"></div>
+      <div class="login-foot">Not on the list? Ask your admin to add you.</div>
+    </div>
+  </div>
+
+  <!-- ============ SHARED TOPBAR ============ -->
+  <div id="mainTopbar" class="topbar hidden">
+    <div class="brand"><h1>OnIt</h1></div>
+    <div id="mainTabSwitch" class="tab-switch hidden">
+      <button class="tab-btn" data-tab="myday">My Day</button>
+      <button class="tab-btn" data-tab="teamtoday">Team Today</button>
+      <button class="tab-btn" data-tab="tasks">Team Log <span id="tasksBadge" class="tab-badge hidden"></span></button>
+      <button class="tab-btn admin-only-tab hidden" data-tab="dashboard">Team Dashboard</button>
+    </div>
+    <div class="who">
+      <span id="whoLabel"></span>
+      <button id="mainLogout" class="ghost-btn">Log out</button>
+    </div>
+  </div>
+
+  <!-- ============ TEAM TODAY (everyone) ============ -->
+  <div id="teamTodayScreen" class="screen hidden">
+    <div class="card">
+      <h2>Team today</h2>
+      <div class="today-date" id="teamTodayDateLabel"></div>
+      <div id="teamTodayList"></div>
+    </div>
+  </div>
+
+  <!-- ============ TASKS (everyone) ============ -->
+  <div id="tasksScreen" class="screen hidden">
+    <div class="admin-header-row">
+      <div class="task-filter-switch" id="taskFilterSwitch">
+        <button class="tab-btn active" data-filter="all">All tasks</button>
+        <button class="tab-btn" data-filter="mine">My tasks</button>
+        <button class="tab-btn" data-filter="history">History</button>
+      </div>
+      <select id="categoryFilterSelect" style="padding:8px 10px;border:1px solid var(--line);border-radius:8px;font-size:12.5px;">
+        <option value="">All categories</option>
+      </select>
+      <select id="personFilterSelect" style="padding:8px 10px;border:1px solid var(--line);border-radius:8px;font-size:12.5px;">
+        <option value="">Everyone</option>
+      </select>
+      <button class="ghost-btn" id="exportTasksBtn">⬇ Export</button>
+      <button class="primary-btn" id="newTaskBtn" style="width:auto;padding:10px 18px;">+ New task</button>
+    </div>
+    <div id="workloadStrip" class="workload-strip"></div>
+    <div class="task-table" id="kanbanBoard">
+      <div class="tt-header-row">
+        <div>Category</div><div>Task</div><div>Owner</div><div>Status</div><div>Date</div><div></div>
+      </div>
+      <div id="taskTableBody"></div>
+    </div>
+
+    <div id="personHistoryView" class="hidden">
+      <div class="field" style="max-width:280px;">
+        <label>Person</label>
+        <select id="historyPersonSelect"></select>
+      </div>
+      <div class="history-groups" id="historyGroups"></div>
+    </div>
+
+    <button id="categoryToggle" class="roster-toggle admin-only-tab hidden">+ Manage categories</button>
+    <div id="categoryBox" class="roster-box hidden">
+      <div class="card">
+        <h2>Task categories</h2>
+        <div class="roster-add-row">
+          <input name="newCategory" placeholder="New category name">
+          <button id="addCategoryBtn" class="ghost-btn">+ Add</button>
+        </div>
+        <div id="categoryChipList" class="category-chip-list"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ MEMBER VIEW ("My Day") ============ -->
+  <div id="memberScreen" class="screen hidden">
+    <div class="card">
+      <h2>Today</h2>
+      <div class="today-date" id="todayDateLabel"></div>
+
+      <div class="status-grid" id="statusGrid">
+        <button class="status-btn" data-status="present"><span class="dot"></span>Present</button>
+        <button class="status-btn" data-status="half-day"><span class="dot"></span>Half-day</button>
+        <button class="status-btn" data-status="absent"><span class="dot"></span>Absent</button>
+        <button class="status-btn" data-status="leave"><span class="dot"></span>Leave</button>
+      </div>
+
+      <div id="approvalBadge"></div>
+
+      <div id="absentNoteWrap" class="field absent-note hidden" style="margin-top:16px;">
+        <label>Reason (optional)</label>
+        <textarea id="absentNote" placeholder="e.g. planned leave, sick..."></textarea>
+      </div>
+
+      <div id="timeLogSection" class="hidden">
+        <div class="section-lbl">What are you doing right now?</div>
+        <div class="time-code-grid" id="timeCodeGrid"></div>
+
+        <div id="currentSegmentBox" class="current-segment"></div>
+
+        <div class="section-lbl">Today's timeline</div>
+        <div id="timelineList" class="timeline"></div>
+
+        <div class="logoff-row">
+          <button id="logoffBtn" class="primary-btn">Log off for today</button>
+          <span id="savedFlag" class="saved-flag">Saved ✓</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Last 7 days</h2>
+      <div id="recentList" class="recent-list"><div class="empty-note">Loading…</div></div>
+    </div>
+  </div>
+
+  <!-- ============ ADMIN VIEW ("Team Dashboard") ============ -->
+  <div id="adminScreen" class="screen hidden">
+    <div class="admin-header-row">
+      <div class="month-nav">
+        <button id="prevMonth">‹</button>
+        <div class="month-label" id="monthLabel">—</div>
+        <button id="nextMonth">›</button>
+      </div>
+    </div>
+
+    <div class="stats-row" id="statsRow"></div>
+
+    <div class="card" style="margin-bottom:18px;">
+      <h2>Today's team activity</h2>
+      <div id="teamLogList"></div>
+    </div>
+
+    <div id="pendingApprovalsCard" class="card hidden" style="margin-bottom:18px;">
+      <h2>Pending approvals</h2>
+      <div id="pendingApprovalsList"></div>
+    </div>
+
+    <div class="grid-scroll">
+      <table class="grid" id="gridTable"></table>
+    </div>
+
+    <div class="legend">
+      <span><i style="background:var(--present)"></i>Present</span>
+      <span><i style="background:var(--half)"></i>Half-day</span>
+      <span><i style="background:var(--absent)"></i>Absent</span>
+      <span><i style="background:var(--leave)"></i>Leave</span>
+      <span><i style="background:var(--line)"></i>No entry</span>
+      <span><i style="background:#E4E7EB"></i>Weekend</span>
+      <span><i style="background:var(--half-soft)"></i>Holiday</span>
+    </div>
+
+    <div class="card" style="margin-top:18px;">
+      <div class="summary-head-row">
+        <h2 style="margin:0;">Monthly summary — <span id="summaryMonthLabel"></span></h2>
+        <button id="downloadSummaryCsv" class="ghost-btn">⬇ Download CSV</button>
+      </div>
+      <div class="table-scroll">
+        <table class="summary-table" id="summaryTable"></table>
+      </div>
+    </div>
+
+    <button id="holidayToggle" class="roster-toggle">+ Manage holidays</button>
+    <div id="holidayBox" class="roster-box hidden">
+      <div class="card">
+        <h2>Holidays</h2>
+        <div class="roster-add-row">
+          <input type="date" name="holidayDate">
+          <input name="holidayLabel" placeholder="e.g. Diwali">
+          <button id="addHolidayBtn" class="ghost-btn">+ Add</button>
+        </div>
+        <table class="roster-table">
+          <thead><tr><th>Date</th><th>Label</th><th></th></tr></thead>
+          <tbody id="holidayTableBody"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <button id="rosterToggle" class="roster-toggle">+ Manage team roster</button>
+    <div id="rosterBox" class="roster-box hidden">
+      <div class="card">
+        <h2>Team roster</h2>
+        <div class="roster-add-row">
+          <input name="rname" placeholder="Full name">
+          <input name="rpin" placeholder="4-digit PIN" maxlength="6">
+          <select name="rrole">
+            <option value="member">Member</option>
+            <option value="admin">Admin</option>
+          </select>
+          <button id="addRosterBtn" class="ghost-btn">+ Add</button>
+        </div>
+        <table class="roster-table">
+          <thead><tr><th>Name</th><th>PIN</th><th>Role</th><th></th></tr></thead>
+          <tbody id="rosterTableBody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<div id="modalRoot"></div>
+
+<script>
+/* =========================================================================
+   CONFIGURE ME — paste your Supabase project credentials below.
+   Tables used: team_roster, day_status, time_segments, tasks,
+   task_categories, holidays.
+   Run attendance-tracker-setup.sql in the Supabase SQL editor first.
+   ========================================================================= */
+const SUPABASE_URL = "https://scavuwvhhhonqpfiostz.supabase.co";
+const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNjYXZ1d3ZoaGhvbnFwZmlvc3R6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODI5MDY0ODUsImV4cCI6MjA5ODQ4MjQ4NX0.jq_oHIIW7TIpJS1YEZi5z_h5l0pl_hle5axLZHR7sj0";
+
+const TIME_CODES = [
+  {code:"office",   label:"Office",       color:"var(--c-office)"},
+  {code:"home",     label:"Home / WFH",   color:"var(--c-home)"},
+  {code:"field",    label:"Field",        color:"var(--c-field)"},
+  {code:"set",      label:"Set / Shoot",  color:"var(--c-set)"},
+  {code:"postprod", label:"Post-Prod",    color:"var(--c-postprod)"},
+  {code:"travel",   label:"Travel",       color:"var(--c-travel)"},
+  {code:"break",    label:"Break",        color:"var(--c-break)"},
+  {code:"lunch",    label:"Lunch",        color:"var(--c-lunch)"}
+];
+const NONWORK_CODES = new Set(["break","lunch"]);
+const STATUSES = ["present","half-day","absent","leave"];
+const STATUS_LABEL = {present:"Present","half-day":"Half-day",absent:"Absent",leave:"Leave"};
+const TASK_STATUS_LABEL = {open:"Open", in_progress:"In Progress", blocked:"Blocked", done:"Done", aborted:"Aborted"};
+const TASK_STATUS_COLOR = {
+  open:        { ink:"#8A6416", soft:"#F3E6CC" },
+  in_progress: { ink:"#2E6E96", soft:"#DFEEF7" },
+  blocked:     { ink:"#B25C3A", soft:"#F7E5DE" },
+  done:        { ink:"#3F7A5C", soft:"#E1F0E3" },
+  aborted:     { ink:"#8A8578", soft:"#EDEEDA" }
+};
+let TASK_CATEGORIES = [];
+let HOLIDAYS = [];
+
+const PERSON_COLORS = [
+  {bg:"#F6E4E8", ink:"#A14D63"}, {bg:"#F3E6CC", ink:"#8A6416"}, {bg:"#DCEEEC", ink:"#2E7D74"},
+  {bg:"#E4E3F6", ink:"#5A4FA0"}, {bg:"#E1F0E3", ink:"#3F7A5C"}, {bg:"#F7E5DE", ink:"#B25C3A"},
+  {bg:"#DFEEF7", ink:"#2E6E96"}, {bg:"#F0E1EC", ink:"#8C4A78"}, {bg:"#EDEEDA", ink:"#6B7239"},
+  {bg:"#E2E6EA", ink:"#47576B"}
+];
+function personColor(name){
+  let hash = 0;
+  for(let i=0;i<String(name).length;i++){ hash = (hash*31 + String(name).charCodeAt(i)) >>> 0; }
+  return PERSON_COLORS[hash % PERSON_COLORS.length];
+}
+
+let sb = null;
+const CONFIGURED = SUPABASE_URL.indexOf("PASTE_") !== 0 && SUPABASE_ANON_KEY.indexOf("PASTE_") !== 0;
+
+function tcMeta(code){ return TIME_CODES.find(t => t.code === code) || {label:code, color:"var(--muted)"}; }
+function pad(n){ return String(n).padStart(2,"0"); }
+function dateStrOf(d){ return d.getFullYear()+"-"+pad(d.getMonth()+1)+"-"+pad(d.getDate()); }
+function todayStr(){ return dateStrOf(new Date()); }
+function pastDate(n){ const d = new Date(); d.setDate(d.getDate()-n); return dateStrOf(d); }
+function nowTime(){ const d = new Date(); return pad(d.getHours())+":"+pad(d.getMinutes()); }
+function fmtMonthLabel(d){ return d.toLocaleString(undefined,{month:"long",year:"numeric"}); }
+function daysInMonth(d){ return new Date(d.getFullYear(), d.getMonth()+1, 0).getDate(); }
+function escapeHtml(s){ return String(s||"").replace(/[&<>"']/g, m => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[m])); }
+function minutesBetween(a,b){
+  const [ah,am]=a.split(":").map(Number), [bh,bm]=b.split(":").map(Number);
+  return (bh*60+bm)-(ah*60+am);
+}
+function fmtDuration(mins){
+  if(mins<0) mins=0;
+  return Math.floor(mins/60)+"h "+(mins%60)+"m";
+}
+function fmtHistoryStamp(entry){
+  return entry.date ? `${entry.date} ${entry.time}` : entry.time;
+}
+function isWeekend(year, month, day){
+  return new Date(year, month, day).getDay() === 0;
+}
+function getHoliday(year, month, day){
+  const dateStr = year+"-"+pad(month+1)+"-"+pad(day);
+  return HOLIDAYS.find(h => h.date === dateStr);
+}
+
+let S = {
+  roster: [], rosterLoaded:false, user:null,
+  dayStatus:null, currentSegmentId:null,
+  todayDayRows:[], todaySegRows:[],
+  monthCursor: new Date(), monthEntries:{}, monthDayRows:[], monthSegRows:[],
+  tasks: [], activeTab:"myday"
+};
+
+function init(){
+  if(!CONFIGURED){
+    document.getElementById("configWarning").classList.remove("hidden");
+  } else {
+    sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+  }
+  wireLoginScreen(); wireMemberScreen(); wireAdminScreen(); wireTasksScreen();
+  document.getElementById("mainLogout").addEventListener("click", logout);
+  document.querySelectorAll("#mainTabSwitch .tab-btn").forEach(b => {
+    b.addEventListener("click", () => switchTab(b.dataset.tab));
+  });
+  loadRoster();
+  loadCategories();
+  loadHolidays();
+}
+
+async function loadRoster(){
+  const sel = document.getElementById("nameSelect");
+  if(!CONFIGURED){ sel.innerHTML = '<option value="">Configure Supabase first</option>'; return; }
+  const { data, error } = await sb.from("team_roster").select("*").eq("active", true).order("name");
+  if(error){ sel.innerHTML = '<option value="">Error loading team</option>'; console.error(error); return; }
+  S.roster = data || [];
+  S.rosterLoaded = true;
+  sel.innerHTML = '<option value="">Select your name…</option>' +
+    S.roster.map(r => `<option value="${r.id}">${escapeHtml(r.name)}</option>`).join("");
+}
+function ensureRoster(){ return S.rosterLoaded ? Promise.resolve() : loadRoster(); }
+
+async function loadCategories(){
+  if(!CONFIGURED) return;
+  const { data, error } = await sb.from("task_categories").select("*").order("name");
+  if(!error && data && data.length) TASK_CATEGORIES = data.map(c => c.name);
+}
+
+async function loadHolidays(){
+  if(!CONFIGURED) return;
+  const { data, error } = await sb.from("holidays").select("*").order("date");
+  HOLIDAYS = error ? [] : (data || []);
+}
+
+// ---- login ----
+function wireLoginScreen(){
+  document.getElementById("loginBtn").addEventListener("click", doLogin);
+  document.getElementById("pinInput").addEventListener("keydown", e => { if(e.key==="Enter") doLogin(); });
+}
+async function doLogin(){
+  const err = document.getElementById("loginError"); err.textContent = "";
+  await ensureRoster();
+  const id = document.getElementById("nameSelect").value;
+  const pin = document.getElementById("pinInput").value.trim();
+  if(!id){ err.textContent = "Select your name."; return; }
+  const person = S.roster.find(r => r.id === id);
+  if(!person){ err.textContent = "Couldn't find that person — try reloading."; return; }
+  if(String(person.pin) !== pin){ err.textContent = "Incorrect PIN."; return; }
+
+  S.user = { id:person.id, name:person.name, role:person.role, tasks_last_seen: person.tasks_last_seen || null };
+  document.getElementById("loginScreen").classList.add("hidden");
+  document.getElementById("mainTopbar").classList.remove("hidden");
+  document.getElementById("whoLabel").innerHTML = person.role === "admin"
+    ? `Admin: <b>${escapeHtml(person.name)}</b>` : `Hi, <b>${escapeHtml(person.name)}</b>`;
+
+  document.getElementById("mainTabSwitch").classList.remove("hidden");
+  document.querySelectorAll(".admin-only-tab").forEach(b => b.classList.toggle("hidden", person.role !== "admin"));
+
+  subscribeRealtime();
+  updateTaskBadge();
+  await switchTab("myday");
+}
+async function switchTab(tab){
+  S.activeTab = tab;
+  document.querySelectorAll("#mainTabSwitch .tab-btn").forEach(b => b.classList.toggle("active", b.dataset.tab === tab));
+  document.getElementById("memberScreen").classList.toggle("hidden", tab !== "myday");
+  document.getElementById("teamTodayScreen").classList.toggle("hidden", tab !== "teamtoday");
+  document.getElementById("tasksScreen").classList.toggle("hidden", tab !== "tasks");
+  document.getElementById("adminScreen").classList.toggle("hidden", tab !== "dashboard");
+
+  if(tab === "myday") await renderMemberScreen();
+  else if(tab === "teamtoday") await renderTeamToday();
+  else if(tab === "tasks"){ await renderTasksBoard(); await markTasksSeen(); }
+  else if(tab === "dashboard") await renderAdminMonth();
+}
+function logout(){
+  if(realtimeChannel){ sb.removeChannel(realtimeChannel); realtimeChannel = null; }
+  S.user = null; S.currentSegmentId = null;
+  document.getElementById("memberScreen").classList.add("hidden");
+  document.getElementById("teamTodayScreen").classList.add("hidden");
+  document.getElementById("tasksScreen").classList.add("hidden");
+  document.getElementById("adminScreen").classList.add("hidden");
+  document.getElementById("mainTopbar").classList.add("hidden");
+  document.getElementById("mainTabSwitch").classList.add("hidden");
+  document.getElementById("loginScreen").classList.remove("hidden");
+  document.getElementById("pinInput").value = "";
+}
+
+// ---- task badge ----
+async function updateTaskBadge(){
+  if(!CONFIGURED || !S.user) return;
+  const lastSeen = S.user.tasks_last_seen || "2020-01-01T00:00:00.000Z";
+  const { data, error } = await sb.from("tasks").select("id, assigned_to, updated_at").gt("updated_at", lastSeen);
+  const badge = document.getElementById("tasksBadge");
+  if(error || !badge) return;
+  const count = (data||[]).filter(t => (t.assigned_to||[]).includes(S.user.name)).length;
+  if(count > 0){ badge.textContent = count; badge.classList.remove("hidden"); }
+  else { badge.classList.add("hidden"); }
+}
+async function markTasksSeen(){
+  if(!CONFIGURED || !S.user) return;
+  const now = new Date().toISOString();
+  await sb.from("team_roster").update({ tasks_last_seen: now }).eq("id", S.user.id);
+  S.user.tasks_last_seen = now;
+  const badge = document.getElementById("tasksBadge");
+  if(badge) badge.classList.add("hidden");
+}
+
+// ---- realtime ----
+let realtimeChannel = null;
+function subscribeRealtime(){
+  if(!CONFIGURED) return;
+  try{
+    realtimeChannel = sb.channel("attendance-live")
+      .on("postgres_changes", { event:"*", schema:"public", table:"time_segments" }, () => onLiveChange())
+      .on("postgres_changes", { event:"*", schema:"public", table:"day_status" }, () => onLiveChange())
+      .on("postgres_changes", { event:"*", schema:"public", table:"tasks" }, () => onLiveChange())
+      .on("postgres_changes", { event:"*", schema:"public", table:"task_categories" }, () => loadCategories())
+      .on("postgres_changes", { event:"*", schema:"public", table:"holidays" }, () => { loadHolidays(); if(S.activeTab==="dashboard") renderAdminMonth(); })
+      .subscribe();
+  }catch(e){ console.error(e); }
+}
+function onLiveChange(){
+  if(!S.user) return;
+  if(S.activeTab === "dashboard") renderAdminMonth();
+  else if(S.activeTab === "teamtoday") renderTeamToday();
+  else if(S.activeTab === "tasks") renderTasksBoard();
+  else if(S.activeTab === "myday") loadRecent();
+  if(S.activeTab !== "tasks") updateTaskBadge();
+}
+
+// ---- shared: day summary from fetched rows ----
+function computeDaySummary(name, date, dayRows, segRows){
+  const day = dayRows.find(d => d.employee_name===name && d.entry_date===date);
+  const segs = segRows.filter(s => s.employee_name===name && s.entry_date===date)
+    .sort((a,b) => a.start_time < b.start_time ? -1 : 1);
+  if(!day && !segs.length) return null;
+
+  let workedMin = 0, breakMin = 0;
+  const nowT = date === todayStr() ? nowTime() : null;
+  segs.forEach(s => {
+    const end = s.end_time || nowT || s.start_time;
+    const mins = Math.max(0, minutesBetween(s.start_time, end));
+    if(NONWORK_CODES.has(s.code)) breakMin += mins; else workedMin += mins;
+  });
+  const path = [];
+  segs.forEach(s => { const lbl = tcMeta(s.code).label; if(path[path.length-1] !== lbl) path.push(lbl); });
+
+  return {
+    status: day ? day.status : (segs.length ? "present" : null),
+    note: day ? day.note : "",
+    approval_status: day ? day.approval_status : null,
+    approved_by: day ? day.approved_by : null,
+    firstStart: segs[0] ? segs[0].start_time : null,
+    lastEnd: segs.length ? (segs[segs.length-1].end_time || (date===todayStr() ? "ongoing" : segs[segs.length-1].start_time)) : null,
+    workedMin, breakMin, path: path.join(" → "), segs
+  };
+}
+
+// ---- member: status ----
+function wireMemberScreen(){
+  document.getElementById("statusGrid").addEventListener("click", e => {
+    const btn = e.target.closest(".status-btn");
+    if(!btn) return;
+    chooseStatus(btn.dataset.status);
+  });
+  document.getElementById("absentNote").addEventListener("blur", e => {
+    saveAbsentNote(e.target.value);
+  });
+  document.getElementById("logoffBtn").addEventListener("click", logOff);
+}
+
+function applyStatusUI(status){
+  S.dayStatus = status;
+  document.querySelectorAll("#statusGrid .status-btn").forEach(b => b.classList.toggle("active", b.dataset.status === status));
+  const showTimeLog = status === "present" || status === "half-day";
+  document.getElementById("timeLogSection").classList.toggle("hidden", !showTimeLog);
+  document.getElementById("absentNoteWrap").classList.toggle("hidden", showTimeLog);
+  renderApprovalBadge();
+  if(showTimeLog) renderTimeLog();
+}
+
+function renderApprovalBadge(){
+  const box = document.getElementById("approvalBadge");
+  if(!box) return;
+  const day = S.todayDayRows.find(d => d.entry_date === todayStr());
+  if(!day || day.status === "present" || !day.approval_status){ box.innerHTML = ""; return; }
+  const map = {
+    pending:  { cls:"pending",  text:"⏳ Pending approval" },
+    approved: { cls:"approved", text:`✓ Approved${day.approved_by ? " by "+escapeHtml(day.approved_by) : ""}` },
+    rejected: { cls:"rejected", text:`✗ Rejected${day.approved_by ? " by "+escapeHtml(day.approved_by) : ""} — change your status to resubmit` }
+  };
+  const m = map[day.approval_status];
+  box.innerHTML = m ? `<div class="approval-pill ${m.cls}">${m.text}</div>` : "";
+}
+
+async function chooseStatus(status){
+  const today = todayStr();
+  const existing = S.todayDayRows.find(d => d.entry_date === today);
+  const patch = { employee_name:S.user.name, entry_date:today, status, updated_at:new Date().toISOString() };
+  if(status === "present"){
+    patch.approval_status = null; patch.approved_by = null; patch.approved_at = null;
+  } else if(!existing || existing.status !== status || !existing.approval_status){
+    patch.approval_status = "pending"; patch.approved_by = null; patch.approved_at = null;
+  }
+  applyStatusUI(status);
+
+  if(!CONFIGURED) return;
+  const { data, error } = await sb.from("day_status").upsert(patch, { onConflict:"employee_name,entry_date" }).select().single();
+  if(!error && data){
+    const idx = S.todayDayRows.findIndex(d => d.entry_date === today);
+    if(idx>=0) S.todayDayRows[idx] = data; else S.todayDayRows.push(data);
+    renderApprovalBadge();
+  }
+}
+
+async function saveAbsentNote(note){
+  if(!CONFIGURED || !S.user) return;
+  const { data, error } = await sb.from("day_status")
+    .upsert({ employee_name:S.user.name, entry_date:todayStr(), status:S.dayStatus, note, updated_at:new Date().toISOString() }, { onConflict:"employee_name,entry_date" })
+    .select().single();
+  if(!error && data){
+    const idx = S.todayDayRows.findIndex(d => d.employee_name===S.user.name && d.entry_date===todayStr());
+    if(idx>=0) S.todayDayRows[idx] = data; else S.todayDayRows.push(data);
+  }
+}
+
+async function renderMemberScreen(){
+  const d = new Date();
+  document.getElementById("todayDateLabel").textContent = d.toLocaleDateString(undefined,{weekday:"long",year:"numeric",month:"long",day:"numeric"});
+  const today = todayStr();
+
+  if(CONFIGURED){
+    const [dayRes, segRes] = await Promise.all([
+      sb.from("day_status").select("*").eq("employee_name", S.user.name).eq("entry_date", today),
+      sb.from("time_segments").select("*").eq("employee_name", S.user.name).eq("entry_date", today).order("start_time")
+    ]);
+    S.todayDayRows = dayRes.data || [];
+    S.todaySegRows = segRes.data || [];
+  } else {
+    S.todayDayRows = []; S.todaySegRows = [];
+  }
+
+  const existingDay = S.todayDayRows.find(d2 => d2.entry_date === today);
+  const status = existingDay ? existingDay.status : "present";
+  document.getElementById("absentNote").value = existingDay ? (existingDay.note||"") : "";
+  applyStatusUI(status);
+
+  const open = S.todaySegRows.find(s => !s.end_time);
+  S.currentSegmentId = open ? open.id : null;
+
+  renderTimeCodeGrid();
+  renderTimeLog();
+  loadRecent();
+}
+
+function renderTimeCodeGrid(){
+  const grid = document.getElementById("timeCodeGrid");
+  grid.innerHTML = TIME_CODES.map(tc => `
+    <button class="tcode-btn" data-code="${tc.code}">
+      <span class="dot" style="background:${tc.color}"></span>${tc.label}
+    </button>
+  `).join("");
+  grid.querySelectorAll(".tcode-btn").forEach(btn => {
+    btn.addEventListener("click", () => startSegment(btn.dataset.code));
+  });
+}
+
+async function startSegment(code){
+  if(!CONFIGURED){ alert("Configure Supabase first."); return; }
+  const now = nowTime();
+  const name = S.user.name, date = todayStr();
+
+  const open = S.todaySegRows.find(s => !s.end_time);
+  if(open){
+    await sb.from("time_segments").update({ end_time: now }).eq("id", open.id);
+    open.end_time = now;
+  }
+  const { data, error } = await sb.from("time_segments")
+    .insert({ employee_name:name, entry_date:date, code, start_time:now, end_time:null, logs:[] })
+    .select().single();
+  if(error){ alert("Couldn't start — " + error.message); return; }
+  S.todaySegRows.push(data);
+  S.currentSegmentId = data.id;
+  renderTimeLog();
+}
+
+async function addLogEntry(){
+  const seg = S.todaySegRows.find(s => s.id === S.currentSegmentId);
+  const box = document.getElementById("currentNote");
+  if(!seg || !box) return;
+  const text = box.value.trim();
+  if(!text) return;
+  const newLogs = [...(seg.logs||[]), { time: nowTime(), text }];
+  const { error } = await sb.from("time_segments").update({ logs: newLogs }).eq("id", seg.id);
+  if(error){ alert("Couldn't save — " + error.message); return; }
+  seg.logs = newLogs;
+  renderTimeLog();
+  const flag = document.getElementById("noteSavedFlag");
+  if(flag){ flag.classList.add("show"); setTimeout(() => flag.classList.remove("show"), 1500); }
+}
+
+function renderTimeLog(){
+  const segs = [...S.todaySegRows].sort((a,b) => a.start_time < b.start_time ? -1 : 1);
+
+  document.querySelectorAll(".tcode-btn").forEach(b => b.classList.toggle("current", S.currentSegmentId && segs.find(s=>s.id===S.currentSegmentId && s.code===b.dataset.code)));
+
+  const csBox = document.getElementById("currentSegmentBox");
+  const openSeg = segs.find(s => s.id === S.currentSegmentId && !s.end_time);
+  if(openSeg){
+    const m = tcMeta(openSeg.code);
+    csBox.classList.add("active");
+    const logs = openSeg.logs || [];
+    const logsHtml = logs.length ? `
+      <div class="cs-logs">
+        ${logs.map(l => `<div class="cs-log-line"><b>${l.time}</b> — ${escapeHtml(l.text)}</div>`).join("")}
+      </div>` : "";
+    csBox.innerHTML = `
+      <div class="cs-row">
+        <div class="cs-badge"><span class="dot" style="background:${m.color}"></span>${m.label}</div>
+        <div class="cs-since">since ${openSeg.start_time}</div>
+      </div>
+      ${logsHtml}
+      <textarea id="currentNote" placeholder="Add what you're doing right now, then Save…"></textarea>
+      <div class="cs-save-row">
+        <button id="saveNoteBtn" class="ghost-btn">+ Add to log</button>
+        <span id="noteSavedFlag" class="saved-flag">Saved ✓</span>
+      </div>
+    `;
+    document.getElementById("currentNote").addEventListener("keydown", e => {
+      if(e.key === "Enter" && !e.shiftKey){ e.preventDefault(); addLogEntry(); }
+    });
+    document.getElementById("saveNoteBtn").addEventListener("click", addLogEntry);
+  } else {
+    csBox.classList.remove("active");
+    csBox.innerHTML = `<div class="empty-note">Tap a code above to start logging your day.</div>`;
+  }
+
+  const list = document.getElementById("timelineList");
+  if(!segs.length){
+    list.innerHTML = `<div class="empty-note">Nothing logged yet today.</div>`;
+    return;
+  }
+  list.innerHTML = segs.map(s => {
+    const m = tcMeta(s.code);
+    const timeStr = s.end_time ? `${s.start_time}–${s.end_time}` : `${s.start_time}–<span class="tl-ongoing">ongoing</span>`;
+    const logs = s.logs || [];
+    const notesHtml = logs.length
+      ? `<div class="tl-logs">${logs.map(l => `<div class="tl-log-line"><b>${l.time}</b> ${escapeHtml(l.text)}</div>`).join("")}</div>`
+      : `<span class="tl-note tl-note-empty">No notes added</span>`;
+    return `<div class="tl-row">
+      <span class="tl-badge" style="background:${m.color}">${m.label}</span>
+      <span class="tl-time">${timeStr}</span>
+      ${notesHtml}
+    </div>`;
+  }).join("");
+}
+
+async function logOff(){
+  if(!CONFIGURED){ alert("Configure Supabase first."); return; }
+  const open = S.todaySegRows.find(s => !s.end_time);
+  if(open){
+    const now = nowTime();
+    await sb.from("time_segments").update({ end_time: now }).eq("id", open.id);
+    open.end_time = now;
+  }
+  S.currentSegmentId = null;
+  renderTimeLog();
+  const flag = document.getElementById("savedFlag");
+  if(flag){ flag.classList.add("show"); setTimeout(() => flag.classList.remove("show"), 1800); }
+  loadRecent();
+}
+
+async function loadRecent(){
+  const box = document.getElementById("recentList");
+  if(!CONFIGURED){ box.innerHTML = '<div class="empty-note">Configure Supabase first.</div>'; return; }
+  const start = pastDate(6), end = todayStr();
+  const [dayRes, segRes] = await Promise.all([
+    sb.from("day_status").select("*").eq("employee_name", S.user.name).gte("entry_date", start).lte("entry_date", end),
+    sb.from("time_segments").select("*").eq("employee_name", S.user.name).gte("entry_date", start).lte("entry_date", end)
+  ]);
+  const dayRows = dayRes.data || [], segRows = segRes.data || [];
+  const dates = []; for(let i=0;i<7;i++) dates.push(pastDate(i));
+  const rows = dates.map(d => ({ date:d, sum: computeDaySummary(S.user.name, d, dayRows, segRows) })).filter(r => r.sum);
+  if(!rows.length){ box.innerHTML = '<div class="empty-note">No entries yet.</div>'; return; }
+  box.innerHTML = rows.map(({date,sum}) => `
+    <div class="recent-row">
+      <div class="recent-top">
+        <span class="rdate">${date}</span>
+        ${sum.status ? `<span class="status-pill" data-status="${sum.status}">${STATUS_LABEL[sum.status]}</span>` : ""}
+        ${sum.approval_status ? `<span class="approval-mini ${sum.approval_status}">${sum.approval_status}</span>` : ""}
+        ${sum.segs.length ? `<span class="rhours">${fmtDuration(sum.workedMin)}</span><span class="rrange">${sum.firstStart||"—"}–${sum.lastEnd||"—"}</span>` : ""}
+      </div>
+      ${sum.path ? `<div class="recent-path">${escapeHtml(sum.path)}</div>` : (sum.note ? `<div class="recent-path">${escapeHtml(sum.note)}</div>` : "")}
+    </div>
+  `).join("");
+}
+
+// ---- team today (everyone) ----
+async function renderTeamToday(){
+  const d = new Date();
+  document.getElementById("teamTodayDateLabel").textContent = d.toLocaleDateString(undefined,{weekday:"long",year:"numeric",month:"long",day:"numeric"});
+  await ensureRoster();
+  const today = todayStr();
+  const isAdmin = S.user.role === "admin";
+  const list = document.getElementById("teamTodayList");
+
+  if(!CONFIGURED){ list.innerHTML = `<div class="tt-empty">Configure Supabase first.</div>`; return; }
+
+  const [dayRes, segRes] = await Promise.all([
+    sb.from("day_status").select("*").eq("entry_date", today),
+    sb.from("time_segments").select("*").eq("entry_date", today)
+  ]);
+  const dayRows = dayRes.data || [], segRows = segRes.data || [];
+
+  const rows = S.roster.filter(r => r.active !== false).map(person => {
+    const day = dayRows.find(dd => dd.employee_name === person.name);
+    const segs = segRows.filter(s => s.employee_name === person.name).sort((a,b)=>a.start_time<b.start_time?-1:1);
+    const open = segs.find(s => !s.end_time);
+    return { person, day, segs, open };
+  });
+
+  if(!rows.length){ list.innerHTML = `<div class="tt-empty">No team members yet.</div>`; return; }
+
+  list.innerHTML = rows.map(({person, day, segs, open}) => {
+    let statusHtml;
+    if(day && (day.status === "absent" || day.status === "leave" || day.status === "half-day") && !open){
+      statusHtml = `<span class="status-pill" data-status="${day.status}">${STATUS_LABEL[day.status]}</span>${day.approval_status ? `<span class="approval-mini ${day.approval_status}">${day.approval_status}</span>` : ""}`;
+    } else if(open){
+      const m = tcMeta(open.code);
+      const lastLog = (open.logs||[])[((open.logs||[]).length||1)-1];
+      statusHtml = `
+        <span class="tt-code-badge" style="background:${m.color}">${m.label}</span>
+        <span class="tt-since">since ${open.start_time}</span>
+        ${lastLog ? `<span class="tt-note">${escapeHtml(lastLog.text)}</span>` : ""}
+      `;
+    } else if(segs.length){
+      const last = segs[segs.length-1];
+      const m = tcMeta(last.code);
+      statusHtml = `<span class="tt-code-badge" style="background:${m.color};opacity:.6">${m.label} (ended ${last.end_time})</span>`;
+    } else {
+      statusHtml = `<span class="tt-empty">No entry yet</span>`;
+    }
+
+    const quickSet = isAdmin ? `
+      <div class="tt-quickset">
+        <select data-name="${escapeHtml(person.name)}" class="tt-quickset-select">
+          <option value="">Quick-set…</option>
+          ${TIME_CODES.map(tc => `<option value="${tc.code}">${tc.label}</option>`).join("")}
+        </select>
+      </div>` : "";
+
+    return `<div class="tt-row">
+      <span class="tt-name">${escapeHtml(person.name)}</span>
+      ${statusHtml}
+      ${quickSet}
+    </div>`;
+  }).join("");
+
+  if(isAdmin){
+    list.querySelectorAll(".tt-quickset-select").forEach(sel => {
+      sel.addEventListener("change", e => {
+        if(e.target.value) adminQuickSetCode(e.target.dataset.name, e.target.value);
+        e.target.value = "";
+      });
+    });
+  }
+}
+
+async function adminQuickSetCode(name, code){
+  const today = todayStr();
+  const now = nowTime();
+
+  const { data: dayData } = await sb.from("day_status").select("*").eq("employee_name", name).eq("entry_date", today).maybeSingle();
+  if(!dayData || (dayData.status !== "present" && dayData.status !== "half-day")){
+    await sb.from("day_status").upsert(
+      { employee_name:name, entry_date:today, status:"present", approval_status:null, approved_by:null, approved_at:null, updated_at:new Date().toISOString() },
+      { onConflict:"employee_name,entry_date" }
+    );
+  }
+
+  const { data: openSeg } = await sb.from("time_segments").select("*").eq("employee_name", name).eq("entry_date", today).is("end_time", null).maybeSingle();
+  if(openSeg){
+    await sb.from("time_segments").update({ end_time: now }).eq("id", openSeg.id);
+  }
+  await sb.from("time_segments").insert({ employee_name:name, entry_date:today, code, start_time:now, end_time:null, logs:[] });
+
+  renderTeamToday();
+}
+
+// ---- tasks ----
+let taskFilter = "all";
+let categoryFilter = "";
+let personFilter = "";
+function wireTasksScreen(){
+  document.getElementById("newTaskBtn").addEventListener("click", openNewTaskModal);
+  document.getElementById("exportTasksBtn").addEventListener("click", downloadTasksCsv);
+  document.querySelectorAll("#taskFilterSwitch .tab-btn").forEach(b => {
+    b.addEventListener("click", () => {
+      taskFilter = b.dataset.filter;
+      document.querySelectorAll("#taskFilterSwitch .tab-btn").forEach(x => x.classList.toggle("active", x===b));
+      renderTasksBoard();
+    });
+  });
+  populateCategoryFilterSelect();
+  document.getElementById("categoryFilterSelect").addEventListener("change", e => { categoryFilter = e.target.value; renderTasksBoard(); });
+  populatePersonFilterSelect();
+  document.getElementById("personFilterSelect").addEventListener("change", e => { personFilter = e.target.value; renderTasksBoard(); });
+  document.getElementById("historyPersonSelect").addEventListener("change", renderPersonHistory);
+
+  document.getElementById("categoryToggle").addEventListener("click", () => {
+    const box = document.getElementById("categoryBox");
+    box.classList.toggle("hidden");
+    document.getElementById("categoryToggle").textContent = box.classList.contains("hidden") ? "+ Manage categories" : "− Manage categories";
+    if(!box.classList.contains("hidden")) renderCategoryManageBox();
+  });
+  document.getElementById("addCategoryBtn").addEventListener("click", addCategory);
+}
+
+function populatePersonFilterSelect(){
+  const sel = document.getElementById("personFilterSelect");
+  const current = sel.value;
+  sel.innerHTML = '<option value="">Everyone</option>' + S.roster.filter(r=>r.active!==false).map(p => `<option value="${escapeHtml(p.name)}">${escapeHtml(p.name)}</option>`).join("");
+  sel.value = current;
+}
+
+function populateCategoryFilterSelect(){
+  const sel = document.getElementById("categoryFilterSelect");
+  const current = sel.value;
+  sel.innerHTML = '<option value="">All categories</option>' + TASK_CATEGORIES.map(c => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join("");
+  sel.value = TASK_CATEGORIES.includes(current) ? current : "";
+}
+
+function renderCategoryManageBox(){
+  document.getElementById("categoryChipList").innerHTML = TASK_CATEGORIES.map(c => `<span class="tc-category">${escapeHtml(c)}</span>`).join("");
+}
+
+async function addCategory(){
+  const input = document.querySelector('input[name="newCategory"]');
+  const name = input.value.trim();
+  if(!name) return;
+  if(TASK_CATEGORIES.some(c => c.toLowerCase() === name.toLowerCase())){ alert("That category already exists."); return; }
+  const { error } = await sb.from("task_categories").insert({ name });
+  if(error){ alert("Couldn't add — " + error.message); return; }
+  input.value = "";
+  await loadCategories();
+  renderCategoryManageBox();
+  populateCategoryFilterSelect();
+}
+
+function computeWorkload(){
+  const counts = {};
+  S.roster.filter(r=>r.active!==false).forEach(p => counts[p.name]=0);
+  S.tasks.forEach(t => {
+    if(t.status === "done" || t.status === "aborted") return;
+    (t.assigned_to||[]).forEach(name => { if(counts[name] !== undefined) counts[name]++; });
+  });
+  return counts;
+}
+
+function canEditTask(t){
+  return S.user.role === "admin" || t.created_by === S.user.name || (t.assigned_to||[]).includes(S.user.name);
+}
+
+function getFilteredSortedTasks(){
+  let tasks = S.tasks.slice();
+  if(taskFilter === "mine") tasks = tasks.filter(t => (t.assigned_to||[]).includes(S.user.name) || t.created_by === S.user.name);
+  if(categoryFilter) tasks = tasks.filter(t => (t.category||"Other / Misc") === categoryFilter);
+  if(personFilter) tasks = tasks.filter(t => (t.assigned_to||[]).includes(personFilter));
+
+  const statusOrder = { blocked:0, in_progress:1, open:2, done:3, aborted:4 };
+  tasks.sort((a,b) => {
+    const so = (statusOrder[a.status]??9) - (statusOrder[b.status]??9);
+    if(so !== 0) return so;
+    return (a.due_date||"9999") < (b.due_date||"9999") ? -1 : 1;
+  });
+  return tasks;
+}
+
+function downloadTasksCsv(){
+  const tasks = getFilteredSortedTasks();
+  const header = ["Category","Task","Owner(s)","Status","Days Pending","Due Date","Created By","Description"];
+  const lines = [header.join(",")];
+  tasks.forEach(t => {
+    let days = "";
+    if(t.status !== "done" && t.created_at){
+      days = Math.floor((Date.now() - new Date(t.created_at).getTime()) / 86400000);
+    }
+    const row = [
+      t.category || "Other / Misc", t.title, (t.assigned_to||[]).join("; "),
+      TASK_STATUS_LABEL[t.status] || t.status, days, t.due_date || "", t.created_by || "", t.description || ""
+    ];
+    lines.push(row.map(v => `"${String(v).replace(/"/g,'""')}"`).join(","));
+  });
+  const csv = lines.join("\n");
+  const blob = new Blob([csv], { type:"text/csv" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `team-log-tasks-${todayStr()}.csv`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+async function renderTasksBoard(){
+  await ensureRoster();
+  if(CONFIGURED){
+    const { data, error } = await sb.from("tasks").select("*").order("due_date", { ascending:true, nullsFirst:false });
+    S.tasks = error ? [] : (data || []);
+  }
+
+  const isHistory = taskFilter === "history";
+  document.getElementById("kanbanBoard").classList.toggle("hidden", isHistory);
+  document.getElementById("workloadStrip").classList.toggle("hidden", isHistory);
+  document.getElementById("newTaskBtn").classList.toggle("hidden", isHistory);
+  document.getElementById("exportTasksBtn").classList.toggle("hidden", isHistory);
+  document.getElementById("categoryFilterSelect").classList.toggle("hidden", isHistory);
+  document.getElementById("personFilterSelect").classList.toggle("hidden", isHistory);
+  populatePersonFilterSelect();
+  document.getElementById("personHistoryView").classList.toggle("hidden", !isHistory);
+
+  if(isHistory){
+    const sel = document.getElementById("historyPersonSelect");
+    if(!sel.dataset.filled){
+      sel.innerHTML = S.roster.filter(r=>r.active!==false).map(p => `<option value="${escapeHtml(p.name)}" ${p.name===S.user.name?"selected":""}>${escapeHtml(p.name)}</option>`).join("");
+      sel.dataset.filled = "1";
+    }
+    renderPersonHistory();
+    return;
+  }
+
+  const workload = computeWorkload();
+  document.getElementById("workloadStrip").innerHTML = Object.keys(workload).map(name => {
+    const c = personColor(name);
+    return `<button class="workload-chip" data-person="${escapeHtml(name)}"><span class="wc-dot" style="background:${c.ink}"></span>${escapeHtml(name)}: <b>${workload[name]}</b> active</button>`;
+  }).join("");
+  document.querySelectorAll(".workload-chip").forEach(el => {
+    el.addEventListener("click", e => {
+      const name = e.currentTarget.dataset.person;
+      personFilter = name;
+      document.getElementById("personFilterSelect").value = name;
+      renderTasksBoard();
+    });
+  });
+
+  const tasks = getFilteredSortedTasks();
+  const body = document.getElementById("taskTableBody");
+  body.innerHTML = tasks.length ? tasks.map(t => renderTaskRow(t)).join("") : `<div class="task-empty" style="padding:24px;">No tasks match this view</div>`;
+  const board = document.getElementById("kanbanBoard");
+
+  board.querySelectorAll(".tt-expand-btn").forEach(el => {
+    el.addEventListener("click", e => {
+      const detail = document.querySelector(`.tt-detail-row[data-detail-id="${e.currentTarget.dataset.taskId}"]`);
+      const open = detail.classList.toggle("hidden") === false;
+      e.currentTarget.innerHTML = open ? `<i>▾</i>` : `<i>▸</i>`;
+    });
+  });
+  board.querySelectorAll(".task-status-select").forEach(el => {
+    el.addEventListener("change", e => updateTaskStatus(e.target.dataset.taskId, e.target.value));
+  });
+  board.querySelectorAll(".tc-push-select").forEach(el => {
+    el.addEventListener("change", e => {
+      const val = e.target.value;
+      const id = e.target.dataset.taskId;
+      if(val === "custom") openRescheduleModal(id);
+      else if(val) pushTaskDue(id, parseInt(val, 10));
+      e.target.value = "";
+    });
+  });
+  board.querySelectorAll(".tc-delegate-btn").forEach(el => {
+    el.addEventListener("click", e => openDelegateModal(e.target.dataset.taskId, e.target.dataset.from));
+  });
+  board.querySelectorAll(".tc-edit-btn").forEach(el => {
+    el.addEventListener("click", e => openEditTaskModal(e.target.dataset.taskId));
+  });
+  board.querySelectorAll(".tc-addnote-btn").forEach(el => {
+    el.addEventListener("click", e => openAddNoteModal(e.target.dataset.taskId));
+  });
+}
+
+function renderTaskRow(t){
+  const editable = canEditTask(t);
+  const dueLabel = t.is_meeting
+    ? `${t.due_date||"—"} · ${t.meeting_time||""}`
+    : (t.due_date || "No due date");
+  const allHistory = t.history || [];
+  const notes = allHistory.filter(h => h.type === "note");
+  const auditTrail = allHistory.filter(h => h.type !== "note");
+  const sc = TASK_STATUS_COLOR[t.status] || TASK_STATUS_COLOR.open;
+
+  let days = null;
+  if(t.status !== "done" && t.status !== "aborted" && t.created_at){
+    days = Math.floor((Date.now() - new Date(t.created_at).getTime()) / 86400000);
+  }
+  const statusLabel = TASK_STATUS_LABEL[t.status] + (days !== null && days >= 1 ? ` · ${days}d` : "");
+
+  const mainRow = `
+    <div class="tt-row" style="border-left:3px solid ${sc.ink};">
+      <div class="tt-category">${escapeHtml(t.category||"Other / Misc")}</div>
+      <div class="tt-title">${escapeHtml(t.title)}${t.is_meeting ? ` <span class="tc-meeting">Meeting</span>` : ""}</div>
+      <div class="tt-owner">${(t.assigned_to||[]).map(n => {
+        const c = personColor(n);
+        return `<span class="tc-assignee" style="background:${c.bg};color:${c.ink}">${escapeHtml(n)}</span>`;
+      }).join("")}</div>
+      <div class="tt-status" style="color:${sc.ink};">${statusLabel}</div>
+      <div class="tt-date">${dueLabel}</div>
+      <button class="tt-expand-btn" data-task-id="${t.id}"><i>▸</i></button>
+    </div>
+  `;
+
+  const detailHtml = `
+    <div class="tt-detail-row hidden" data-detail-id="${t.id}">
+      ${t.description ? `<div class="tt-note" style="margin-bottom:10px;">${escapeHtml(t.description)}</div>` : ""}
+      ${t.status === "blocked" && t.blocked_reason ? `<div class="tc-blocked-note">🚧 ${escapeHtml(t.blocked_reason)}</div>` : ""}
+
+      <div class="tt-detail-controls">
+        <select class="task-status-select" data-task-id="${t.id}" ${editable?"":"disabled"} style="background:${sc.soft};color:${sc.ink};border-color:${sc.ink}55;">
+          ${Object.keys(TASK_STATUS_LABEL).map(k => `<option value="${k}" ${t.status===k?"selected":""}>${TASK_STATUS_LABEL[k]}</option>`).join("")}
+        </select>
+        ${editable ? `
+          <select class="tc-push-select" data-task-id="${t.id}">
+            <option value="">Reschedule…</option>
+            <option value="1">+1 day</option>
+            <option value="3">+3 days</option>
+            <option value="7">+1 week</option>
+            <option value="custom">Pick date…</option>
+          </select>
+          <button class="tc-edit-btn" data-task-id="${t.id}">Edit</button>
+          <button class="tc-addnote-btn" data-task-id="${t.id}">+ Add note</button>
+        ` : ""}
+      </div>
+
+      ${(t.assigned_to||[]).some(n => S.user.role==="admin" || n===S.user.name) ? `
+        <div class="tt-delegate-row">
+          ${(t.assigned_to||[]).filter(n => S.user.role==="admin" || n===S.user.name).map(n => `
+            <button class="tc-delegate-btn" data-task-id="${t.id}" data-from="${escapeHtml(n)}">⇄ Delegate ${escapeHtml(n)}'s part</button>
+          `).join("")}
+        </div>
+      ` : ""}
+
+      ${notes.length ? `
+        <div class="section-lbl" style="margin:12px 0 6px;">Notes</div>
+        <div class="tc-notes">
+          ${notes.slice().reverse().map(n => `<div class="tc-note-line"><b>${fmtHistoryStamp(n)}</b> ${escapeHtml(n.actor)}: ${escapeHtml(n.text)}</div>`).join("")}
+        </div>
+      ` : ""}
+
+      ${auditTrail.length ? `
+        <div class="section-lbl" style="margin:12px 0 6px;">History</div>
+        <div class="tc-history-log">
+          ${auditTrail.slice().reverse().map(h => `<div class="tc-history-line"><b>${fmtHistoryStamp(h)}</b> ${escapeHtml(h.actor)} — ${escapeHtml(h.text)}</div>`).join("")}
+        </div>
+      ` : ""}
+    </div>
+  `;
+
+  return mainRow + detailHtml;
+}
+
+function logTaskHistory(t, text, type, meta){
+  if(!t.history) t.history = [];
+  t.history.push({ time: nowTime(), date: todayStr(), actor: S.user.name, type: type||"status_change", text, meta: meta||null });
+}
+
+async function updateTaskStatus(id, status){
+  const t = S.tasks.find(x => x.id === id);
+  if(!t) return;
+  if(status === "blocked"){ openBlockedReasonModal(t); return; }
+  logTaskHistory(t, `Status changed to ${TASK_STATUS_LABEL[status]}`);
+  const { error } = await sb.from("tasks").update({ status, blocked_reason:"", history:t.history, updated_at:new Date().toISOString() }).eq("id", id);
+  if(error){ alert("Couldn't update — " + error.message); return; }
+  t.status = status; t.blocked_reason = "";
+  renderTasksBoard();
+}
+
+function openBlockedReasonModal(t){
+  const root = document.getElementById("modalRoot");
+  root.innerHTML = `
+    <div class="modal-backdrop" id="modalBackdrop">
+      <div class="modal">
+        <h3>What's blocking this?</h3>
+        <div class="msub">${escapeHtml(t.title)}</div>
+        <div class="field"><label>Reason</label><textarea id="brReason" placeholder="e.g. Waiting on Priya's budget approval"></textarea></div>
+        <div class="modal-close-row">
+          <button class="ghost-btn" id="brCancel">Cancel</button>
+          <button class="primary-btn" id="brSave" style="width:auto;padding:9px 18px;">Mark blocked</button>
+        </div>
+      </div>
+    </div>
+  `;
+  document.getElementById("brCancel").addEventListener("click", () => { closeModal(); renderTasksBoard(); });
+  document.getElementById("modalBackdrop").addEventListener("click", e => { if(e.target.id==="modalBackdrop"){ closeModal(); renderTasksBoard(); } });
+  document.getElementById("brSave").addEventListener("click", async () => {
+    const reason = document.getElementById("brReason").value.trim();
+    logTaskHistory(t, reason ? `Marked as blocked — ${reason}` : "Marked as blocked", "blocked");
+    const { error } = await sb.from("tasks").update({ status:"blocked", blocked_reason:reason, history:t.history, updated_at:new Date().toISOString() }).eq("id", t.id);
+    if(error){ alert("Couldn't save — " + error.message); return; }
+    t.status = "blocked"; t.blocked_reason = reason;
+    closeModal();
+    renderTasksBoard();
+  });
+}
+
+function openDelegateModal(taskId, fromName){
+  const t = S.tasks.find(x => x.id === taskId);
+  if(!t) return;
+  const options = S.roster.filter(r => r.active !== false && r.name !== fromName);
+  const root = document.getElementById("modalRoot");
+  root.innerHTML = `
+    <div class="modal-backdrop" id="modalBackdrop">
+      <div class="modal">
+        <h3>Delegate task</h3>
+        <div class="msub">${escapeHtml(t.title)} — currently ${escapeHtml(fromName)}</div>
+        <div class="field"><label>Hand off to</label>
+          <select id="dgTo">
+            <option value="">Select someone…</option>
+            ${options.map(p => `<option value="${escapeHtml(p.name)}">${escapeHtml(p.name)}</option>`).join("")}
+          </select>
+        </div>
+        <div class="modal-close-row">
+          <button class="ghost-btn" id="dgCancel">Cancel</button>
+          <button class="primary-btn" id="dgSave" style="width:auto;padding:9px 18px;">Delegate</button>
+        </div>
+      </div>
+    </div>
+  `;
+  document.getElementById("dgCancel").addEventListener("click", closeModal);
+  document.getElementById("modalBackdrop").addEventListener("click", e => { if(e.target.id==="modalBackdrop") closeModal(); });
+  document.getElementById("dgSave").addEventListener("click", async () => {
+    const to = document.getElementById("dgTo").value;
+    if(!to){ alert("Choose who to delegate to."); return; }
+    const newAssigned = (t.assigned_to||[]).filter(n => n !== fromName);
+    if(!newAssigned.includes(to)) newAssigned.push(to);
+    logTaskHistory(t, `Delegated from ${fromName} to ${to}`, "delegated", { from:fromName, to });
+    const { error } = await sb.from("tasks").update({ assigned_to:newAssigned, history:t.history, updated_at:new Date().toISOString() }).eq("id", t.id);
+    if(error){ alert("Couldn't delegate — " + error.message); return; }
+    t.assigned_to = newAssigned;
+    closeModal();
+    renderTasksBoard();
+  });
+}
+
+function computePersonHistory(name){
+  const mine = S.tasks.filter(t => (t.assigned_to||[]).includes(name));
+  const delegated = S.tasks.filter(t => (t.history||[]).some(h => h.type==="delegated" && h.meta && h.meta.from===name));
+  return {
+    completed: mine.filter(t => t.status === "done"),
+    inProgress: mine.filter(t => t.status==="open" || t.status==="in_progress" || t.status==="blocked"),
+    aborted: mine.filter(t => t.status === "aborted"),
+    delegated
+  };
+}
+
+function renderPersonHistory(){
+  const name = document.getElementById("historyPersonSelect").value;
+  const groups = computePersonHistory(name);
+  const sections = [
+    { key:"inProgress", label:"In Progress", items:groups.inProgress },
+    { key:"completed", label:"Completed", items:groups.completed },
+    { key:"delegated", label:"Delegated away", items:groups.delegated },
+    { key:"aborted", label:"Aborted", items:groups.aborted }
+  ];
+  document.getElementById("historyGroups").innerHTML = sections.map(s => `
+    <div class="history-col">
+      <h3>${s.label} (${s.items.length})</h3>
+      ${s.items.length ? s.items.map(t => `
+        <div class="history-item">
+          <div class="hi-title">${escapeHtml(t.title)}</div>
+          <div class="hi-meta">${TASK_STATUS_LABEL[t.status]} · ${t.due_date || "No due date"}</div>
+        </div>
+      `).join("") : `<div class="task-empty">Nothing here</div>`}
+    </div>
+  `).join("");
+}
+
+async function pushTaskDue(id, days){
+  const t = S.tasks.find(x => x.id === id);
+  if(!t) return;
+  const base = t.due_date ? new Date(t.due_date+"T00:00:00") : new Date();
+  base.setDate(base.getDate() + (days || 1));
+  const newDue = dateStrOf(base);
+  const oldDue = t.due_date;
+  logTaskHistory(t, `Due date pushed${oldDue ? " from "+oldDue : ""} to ${newDue}`);
+  const { error } = await sb.from("tasks").update({ due_date:newDue, history:t.history, updated_at:new Date().toISOString() }).eq("id", id);
+  if(error){ alert("Couldn't push — " + error.message); return; }
+  t.due_date = newDue;
+  renderTasksBoard();
+}
+
+function openRescheduleModal(id){
+  const t = S.tasks.find(x => x.id === id);
+  if(!t) return;
+  const root = document.getElementById("modalRoot");
+  root.innerHTML = `
+    <div class="modal-backdrop" id="modalBackdrop">
+      <div class="modal">
+        <h3>Reschedule</h3>
+        <div class="msub">${escapeHtml(t.title)}</div>
+        <div class="field"><label>New due date</label><input type="date" id="rsDate" value="${t.due_date||""}"></div>
+        <div class="modal-close-row">
+          <button class="ghost-btn" id="rsCancel">Cancel</button>
+          <button class="primary-btn" id="rsSave" style="width:auto;padding:9px 18px;">Save</button>
+        </div>
+      </div>
+    </div>
+  `;
+  document.getElementById("rsCancel").addEventListener("click", closeModal);
+  document.getElementById("modalBackdrop").addEventListener("click", e => { if(e.target.id==="modalBackdrop") closeModal(); });
+  document.getElementById("rsSave").addEventListener("click", async () => {
+    const newDate = document.getElementById("rsDate").value;
+    if(!newDate){ alert("Pick a date."); return; }
+    const oldDue = t.due_date;
+    logTaskHistory(t, `Rescheduled${oldDue ? " from "+oldDue : ""} to ${newDate}`);
+    const { error } = await sb.from("tasks").update({ due_date:newDate, history:t.history, updated_at:new Date().toISOString() }).eq("id", id);
+    if(error){ alert("Couldn't save — " + error.message); return; }
+    t.due_date = newDate;
+    closeModal();
+    renderTasksBoard();
+  });
+}
+
+function openAddNoteModal(taskId){
+  const t = S.tasks.find(x => x.id === taskId);
+  if(!t) return;
+  const root = document.getElementById("modalRoot");
+  root.innerHTML = `
+    <div class="modal-backdrop" id="modalBackdrop">
+      <div class="modal">
+        <h3>Add a note</h3>
+        <div class="msub">${escapeHtml(t.title)}</div>
+        <div class="field"><textarea id="anText" placeholder="What's the update?"></textarea></div>
+        <div class="modal-close-row">
+          <button class="ghost-btn" id="anCancel">Cancel</button>
+          <button class="primary-btn" id="anSave" style="width:auto;padding:9px 18px;">Add note</button>
+        </div>
+      </div>
+    </div>
+  `;
+  document.getElementById("anCancel").addEventListener("click", closeModal);
+  document.getElementById("modalBackdrop").addEventListener("click", e => { if(e.target.id==="modalBackdrop") closeModal(); });
+  document.getElementById("anSave").addEventListener("click", async () => {
+    const text = document.getElementById("anText").value.trim();
+    if(!text) return;
+    logTaskHistory(t, text, "note");
+    const { error } = await sb.from("tasks").update({ history:t.history, updated_at:new Date().toISOString() }).eq("id", t.id);
+    if(error){ alert("Couldn't save — " + error.message); return; }
+    closeModal();
+    renderTasksBoard();
+  });
+}
+
+function openNewTaskModal(){
+  const root = document.getElementById("modalRoot");
+  root.innerHTML = `
+    <div class="modal-backdrop" id="modalBackdrop">
+      <div class="modal">
+        <h3>New task</h3>
+        <div class="field"><label>Title</label><input type="text" id="ntTitle" placeholder="What needs to happen?"></div>
+        <div class="field"><label>Category</label>
+          <select id="ntCategory">${TASK_CATEGORIES.map(c => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join("")}</select>
+        </div>
+        <div class="field"><label>Description (optional)</label><textarea id="ntDesc"></textarea></div>
+        <div class="field"><label>Assign to</label>
+          <div id="ntAssignees" style="display:flex;flex-wrap:wrap;gap:8px;">
+            ${S.roster.filter(r=>r.active!==false).map(p => `
+              <label style="display:flex;align-items:center;gap:5px;font-size:12.5px;border:1px solid var(--line);border-radius:20px;padding:5px 10px;">
+                <input type="checkbox" value="${escapeHtml(p.name)}" ${p.name===S.user.name?"checked":""} style="margin:0;"> ${escapeHtml(p.name)}
+              </label>
+            `).join("")}
+          </div>
+        </div>
+        <div class="time-row">
+          <div class="time-field"><label>Due date</label><input type="date" id="ntDue"></div>
+          <div class="time-field"><label>&nbsp;</label>
+            <label style="display:flex;align-items:center;gap:6px;font-size:13px;padding-top:9px;">
+              <input type="checkbox" id="ntMeeting" style="margin:0;"> This is a meeting
+            </label>
+          </div>
+        </div>
+        <div class="field hidden" id="ntTimeWrap"><label>Meeting time</label><input type="time" id="ntTime"></div>
+        <div class="modal-close-row">
+          <button class="ghost-btn" id="ntCancel">Cancel</button>
+          <button class="primary-btn" id="ntSave" style="width:auto;padding:9px 18px;">Create task</button>
+        </div>
+      </div>
+    </div>
+  `;
+  document.getElementById("ntMeeting").addEventListener("change", e => {
+    document.getElementById("ntTimeWrap").classList.toggle("hidden", !e.target.checked);
+  });
+  document.getElementById("ntCancel").addEventListener("click", closeModal);
+  document.getElementById("modalBackdrop").addEventListener("click", e => { if(e.target.id==="modalBackdrop") closeModal(); });
+  document.getElementById("ntSave").addEventListener("click", saveNewTask);
+}
+
+async function saveNewTask(){
+  const title = document.getElementById("ntTitle").value.trim();
+  if(!title){ alert("Give the task a title."); return; }
+  const assignees = Array.from(document.querySelectorAll("#ntAssignees input:checked")).map(el => el.value);
+  if(!assignees.length){ alert("Assign it to at least one person."); return; }
+  const isMeeting = document.getElementById("ntMeeting").checked;
+  const payload = {
+    title,
+    category: document.getElementById("ntCategory").value,
+    description: document.getElementById("ntDesc").value,
+    assigned_to: assignees,
+    created_by: S.user.name,
+    is_meeting: isMeeting,
+    due_date: document.getElementById("ntDue").value || null,
+    meeting_time: isMeeting ? document.getElementById("ntTime").value : null,
+    status: "open",
+    blocked_reason: "",
+    history: [{ time: nowTime(), date: todayStr(), actor: S.user.name, type:"created", text:`Created and assigned to ${assignees.join(", ")}` }]
+  };
+  const { error } = await sb.from("tasks").insert(payload);
+  if(error){ alert("Couldn't create task — " + error.message); return; }
+  closeModal();
+  renderTasksBoard();
+}
+
+function openEditTaskModal(taskId){
+  const t = S.tasks.find(x => x.id === taskId);
+  if(!t) return;
+  const root = document.getElementById("modalRoot");
+  root.innerHTML = `
+    <div class="modal-backdrop" id="modalBackdrop">
+      <div class="modal">
+        <h3>Edit task</h3>
+        <div class="field"><label>Title</label><input type="text" id="etTitle" value="${escapeHtml(t.title)}"></div>
+        <div class="field"><label>Category</label>
+          <select id="etCategory">${TASK_CATEGORIES.map(c => `<option value="${escapeHtml(c)}" ${(t.category||"Other / Misc")===c?"selected":""}>${escapeHtml(c)}</option>`).join("")}</select>
+        </div>
+        <div class="field"><label>Description (optional)</label><textarea id="etDesc">${escapeHtml(t.description||"")}</textarea></div>
+        <div class="field"><label>Assign to</label>
+          <div id="etAssignees" style="display:flex;flex-wrap:wrap;gap:8px;">
+            ${S.roster.filter(r=>r.active!==false).map(p => `
+              <label style="display:flex;align-items:center;gap:5px;font-size:12.5px;border:1px solid var(--line);border-radius:20px;padding:5px 10px;">
+                <input type="checkbox" value="${escapeHtml(p.name)}" ${(t.assigned_to||[]).includes(p.name)?"checked":""} style="margin:0;"> ${escapeHtml(p.name)}
+              </label>
+            `).join("")}
+          </div>
+        </div>
+        <div class="time-row">
+          <div class="time-field"><label>Due date</label><input type="date" id="etDue" value="${t.due_date||""}"></div>
+          <div class="time-field"><label>&nbsp;</label>
+            <label style="display:flex;align-items:center;gap:6px;font-size:13px;padding-top:9px;">
+              <input type="checkbox" id="etMeeting" ${t.is_meeting?"checked":""} style="margin:0;"> This is a meeting
+            </label>
+          </div>
+        </div>
+        <div class="field ${t.is_meeting?"":"hidden"}" id="etTimeWrap"><label>Meeting time</label><input type="time" id="etTime" value="${t.meeting_time||""}"></div>
+        <div class="modal-close-row">
+          <button class="ghost-btn" id="etCancel">Cancel</button>
+          <button class="primary-btn" id="etSave" style="width:auto;padding:9px 18px;">Save changes</button>
+        </div>
+      </div>
+    </div>
+  `;
+  document.getElementById("etMeeting").addEventListener("change", e => {
+    document.getElementById("etTimeWrap").classList.toggle("hidden", !e.target.checked);
+  });
+  document.getElementById("etCancel").addEventListener("click", closeModal);
+  document.getElementById("modalBackdrop").addEventListener("click", e => { if(e.target.id==="modalBackdrop") closeModal(); });
+  document.getElementById("etSave").addEventListener("click", () => saveEditedTask(t));
+}
+
+async function saveEditedTask(t){
+  const newTitle = document.getElementById("etTitle").value.trim();
+  if(!newTitle){ alert("Title can't be empty."); return; }
+  const newDesc = document.getElementById("etDesc").value;
+  const newAssignees = Array.from(document.querySelectorAll("#etAssignees input:checked")).map(el => el.value);
+  if(!newAssignees.length){ alert("Assign it to at least one person."); return; }
+  const newIsMeeting = document.getElementById("etMeeting").checked;
+  const newDue = document.getElementById("etDue").value || null;
+  const newTime = newIsMeeting ? document.getElementById("etTime").value : null;
+  const newCategory = document.getElementById("etCategory").value;
+
+  const changes = [];
+  if(newTitle !== t.title) changes.push(`title changed to "${newTitle}"`);
+  if(newCategory !== (t.category||"Other / Misc")) changes.push(`category changed to ${newCategory}`);
+  if(newDesc !== (t.description||"")) changes.push("description updated");
+  const oldSorted = (t.assigned_to||[]).slice().sort().join(",");
+  const newSorted = newAssignees.slice().sort().join(",");
+  if(oldSorted !== newSorted) changes.push(`assignees changed to ${newAssignees.join(", ")}`);
+  if(newDue !== (t.due_date||null)) changes.push(`due date changed${t.due_date?" from "+t.due_date:""} to ${newDue||"none"}`);
+  if(newIsMeeting !== !!t.is_meeting) changes.push(newIsMeeting ? "marked as a meeting" : "unmarked as a meeting");
+  if(newIsMeeting && newTime !== (t.meeting_time||null)) changes.push(`meeting time changed to ${newTime||"none"}`);
+
+  if(changes.length) logTaskHistory(t, "Edited — " + changes.join("; "), "edited");
+
+  const { error } = await sb.from("tasks").update({
+    title:newTitle, category:newCategory, description:newDesc, assigned_to:newAssignees,
+    due_date:newDue, is_meeting:newIsMeeting, meeting_time:newTime,
+    history:t.history, updated_at:new Date().toISOString()
+  }).eq("id", t.id);
+  if(error){ alert("Couldn't save — " + error.message); return; }
+
+  t.title = newTitle; t.category = newCategory; t.description = newDesc;
+  t.assigned_to = newAssignees; t.due_date = newDue; t.is_meeting = newIsMeeting; t.meeting_time = newTime;
+
+  closeModal();
+  renderTasksBoard();
+}
+
+// ---- admin ----
+function wireAdminScreen(){
+  document.getElementById("prevMonth").addEventListener("click", () => { S.monthCursor.setMonth(S.monthCursor.getMonth()-1); renderAdminMonth(); });
+  document.getElementById("nextMonth").addEventListener("click", () => { S.monthCursor.setMonth(S.monthCursor.getMonth()+1); renderAdminMonth(); });
+  document.getElementById("rosterToggle").addEventListener("click", () => {
+    const box = document.getElementById("rosterBox");
+    box.classList.toggle("hidden");
+    document.getElementById("rosterToggle").textContent = box.classList.contains("hidden") ? "+ Manage team roster" : "− Manage team roster";
+    if(!box.classList.contains("hidden")) renderRosterTable();
+  });
+  document.getElementById("addRosterBtn").addEventListener("click", addRosterMember);
+  document.getElementById("downloadSummaryCsv").addEventListener("click", downloadSummaryCsv);
+  document.getElementById("holidayToggle").addEventListener("click", () => {
+    const box = document.getElementById("holidayBox");
+    box.classList.toggle("hidden");
+    document.getElementById("holidayToggle").textContent = box.classList.contains("hidden") ? "+ Manage holidays" : "− Manage holidays";
+    if(!box.classList.contains("hidden")) renderHolidayTable();
+  });
+  document.getElementById("addHolidayBtn").addEventListener("click", addHoliday);
+}
+
+function renderHolidayTable(){
+  const body = document.getElementById("holidayTableBody");
+  const sorted = HOLIDAYS.slice().sort((a,b) => a.date < b.date ? -1 : 1);
+  body.innerHTML = sorted.length ? sorted.map(h => `
+    <tr>
+      <td>${h.date}</td><td>${escapeHtml(h.label)}</td>
+      <td><button data-id="${h.id}">Remove</button></td>
+    </tr>
+  `).join("") : `<tr><td colspan="3" style="color:var(--muted);">No holidays added yet.</td></tr>`;
+  body.querySelectorAll("button[data-id]").forEach(btn => {
+    btn.addEventListener("click", async () => {
+      await sb.from("holidays").delete().eq("id", btn.dataset.id);
+      await loadHolidays();
+      renderHolidayTable();
+      renderAdminMonth();
+    });
+  });
+}
+
+async function addHoliday(){
+  const dateInput = document.querySelector('input[name="holidayDate"]');
+  const labelInput = document.querySelector('input[name="holidayLabel"]');
+  const date = dateInput.value;
+  const label = labelInput.value.trim();
+  if(!date || !label){ alert("Pick a date and enter a label."); return; }
+  const { error } = await sb.from("holidays").insert({ date, label });
+  if(error){ alert("Couldn't add — " + error.message); return; }
+  dateInput.value = ""; labelInput.value = "";
+  await loadHolidays();
+  renderHolidayTable();
+  renderAdminMonth();
+}
+
+async function renderAdminMonth(){
+  document.getElementById("monthLabel").textContent = fmtMonthLabel(S.monthCursor);
+  await ensureRoster();
+  const year = S.monthCursor.getFullYear(), month = S.monthCursor.getMonth(), nDays = daysInMonth(S.monthCursor);
+  const startStr = year+"-"+pad(month+1)+"-01", endStr = year+"-"+pad(month+1)+"-"+pad(nDays);
+
+  if(CONFIGURED){
+    const [dayRes, segRes] = await Promise.all([
+      sb.from("day_status").select("*").gte("entry_date", startStr).lte("entry_date", endStr),
+      sb.from("time_segments").select("*").gte("entry_date", startStr).lte("entry_date", endStr)
+    ]);
+    S.monthDayRows = dayRes.data || [];
+    S.monthSegRows = segRes.data || [];
+  } else {
+    S.monthDayRows = []; S.monthSegRows = [];
+  }
+
+  S.monthEntries = {};
+  S.roster.forEach(person => {
+    for(let d=1; d<=nDays; d++){
+      const dateStr = year+"-"+pad(month+1)+"-"+pad(d);
+      const sum = computeDaySummary(person.name, dateStr, S.monthDayRows, S.monthSegRows);
+      if(sum) S.monthEntries[person.name+"|"+dateStr] = sum;
+    }
+  });
+  renderStats();
+  await renderPendingApprovals();
+  renderGrid(year, month, nDays);
+  renderMonthlySummary(year, month, nDays);
+}
+
+async function renderPendingApprovals(){
+  const card = document.getElementById("pendingApprovalsCard");
+  const list = document.getElementById("pendingApprovalsList");
+  if(!CONFIGURED){ card.classList.add("hidden"); return; }
+
+  const { data, error } = await sb.from("day_status").select("*").eq("approval_status", "pending").order("entry_date", { ascending:false });
+  const pending = (data || []);
+  if(error || !pending.length){ card.classList.add("hidden"); list.innerHTML = ""; return; }
+
+  card.classList.remove("hidden");
+  list.innerHTML = pending.map(p => `
+    <div class="approval-row">
+      <span class="arow-name">${escapeHtml(p.employee_name)}</span>
+      <span class="arow-date">${p.entry_date}</span>
+      <span class="status-pill" data-status="${p.status}">${STATUS_LABEL[p.status]||p.status}</span>
+      <span class="arow-note">${escapeHtml(p.note||"")}</span>
+      <span class="arow-actions">
+        <button class="approve-btn" data-name="${escapeHtml(p.employee_name)}" data-date="${p.entry_date}" data-action="approved">Approve</button>
+        <button class="reject-btn" data-name="${escapeHtml(p.employee_name)}" data-date="${p.entry_date}" data-action="rejected">Reject</button>
+      </span>
+    </div>
+  `).join("");
+  list.querySelectorAll("button[data-action]").forEach(btn => {
+    btn.addEventListener("click", () => decideApproval(btn.dataset.name, btn.dataset.date, btn.dataset.action));
+  });
+}
+
+async function decideApproval(name, date, decision){
+  const { error } = await sb.from("day_status")
+    .update({ approval_status: decision, approved_by: S.user.name, approved_at: new Date().toISOString() })
+    .eq("employee_name", name).eq("entry_date", date);
+  if(error){ alert("Couldn't update — " + error.message); return; }
+  renderAdminMonth();
+}
+
+function renderStats(){
+  const t = todayStr();
+  const counts = {present:0,absent:0,leave:0,"half-day":0};
+  Object.keys(S.monthEntries).forEach(k => {
+    if(k.endsWith("|"+t)){
+      const st = S.monthEntries[k].status;
+      if(counts[st] !== undefined) counts[st]++;
+    }
+  });
+  document.getElementById("statsRow").innerHTML = `
+    <div class="stat-box" data-k="present"><div class="num">${counts.present}</div><div class="lbl">Present today</div></div>
+    <div class="stat-box" data-k="half-day"><div class="num">${counts["half-day"]}</div><div class="lbl">Half-day today</div></div>
+    <div class="stat-box" data-k="absent"><div class="num">${counts.absent}</div><div class="lbl">Absent today</div></div>
+    <div class="stat-box" data-k="leave"><div class="num">${counts.leave}</div><div class="lbl">Leave today</div></div>
+  `;
+}
+
+function renderGrid(year, month, nDays){
+  const table = document.getElementById("gridTable");
+  const activeRoster = S.roster.filter(r => r.active !== false);
+  let thead = "<thead><tr><th class='name-cell'>Name</th>";
+  for(let d=1; d<=nDays; d++){
+    const holiday = getHoliday(year, month, d);
+    const cls = holiday ? "is-holiday" : (isWeekend(year, month, d) ? "is-weekend" : "");
+    const title = holiday ? ` title="${escapeHtml(holiday.label)}"` : "";
+    thead += `<th class="day-col ${cls}"${title}>${d}</th>`;
+  }
+  thead += "</tr></thead>";
+  let tbody = "<tbody>";
+  activeRoster.forEach(person => {
+    tbody += `<tr><td class="name-cell">${escapeHtml(person.name)}</td>`;
+    for(let d=1; d<=nDays; d++){
+      const dateStr = year+"-"+pad(month+1)+"-"+pad(d);
+      const sum = S.monthEntries[person.name+"|"+dateStr];
+      const status = sum ? sum.status : "";
+      const dot = sum && sum.approval_status === "pending" ? '<span class="pending-dot" title="Pending approval"></span>' : "";
+      const holiday = getHoliday(year, month, d);
+      const dayCls = holiday ? "is-holiday" : (isWeekend(year, month, d) ? "is-weekend" : "");
+      tbody += `<td class="day-cell ${dayCls}" data-name="${escapeHtml(person.name)}" data-date="${dateStr}"><div class="chip ${status||"empty"}"></div>${dot}</td>`;
+    }
+    tbody += "</tr>";
+  });
+  tbody += "</tbody>";
+  table.innerHTML = thead + tbody;
+  table.querySelectorAll("td.day-cell").forEach(td => {
+    td.addEventListener("click", () => openCellDetail(td.dataset.name, td.dataset.date));
+  });
+}
+
+function computeMonthlySummary(year, month, nDays){
+  const summary = {};
+  S.roster.filter(r => r.active !== false).forEach(p => {
+    summary[p.name] = { name:p.name, present:0, halfDay:0, absent:0, leave:0, workedMin:0, breakMin:0, daysLogged:0, dayBreakdown:[] };
+  });
+  for(let d=1; d<=nDays; d++){
+    const dateStr = year+"-"+pad(month+1)+"-"+pad(d);
+    Object.keys(summary).forEach(name => {
+      const sum = S.monthEntries[name+"|"+dateStr];
+      if(!sum) return;
+      const row = summary[name];
+      row.daysLogged++;
+      if(sum.status === "present") row.present++;
+      else if(sum.status === "half-day") row.halfDay++;
+      else if(sum.status === "absent") row.absent++;
+      else if(sum.status === "leave") row.leave++;
+      row.workedMin += sum.workedMin || 0;
+      row.breakMin += sum.breakMin || 0;
+      row.dayBreakdown.push({ date: dateStr, status: sum.status, workedMin: sum.workedMin||0, breakMin: sum.breakMin||0 });
+    });
+  }
+  return Object.values(summary);
+}
+
+function renderMonthlySummary(year, month, nDays){
+  document.getElementById("summaryMonthLabel").textContent = fmtMonthLabel(S.monthCursor);
+  const rows = computeMonthlySummary(year, month, nDays);
+  S._summaryRows = rows;
+  const table = document.getElementById("summaryTable");
+  table.innerHTML = `
+    <thead><tr>
+      <th></th><th>Name</th><th>Present</th><th>Half-day</th><th>Absent</th><th>Leave</th><th>Hours worked</th><th>Break time</th>
+    </tr></thead>
+    <tbody>
+      ${rows.map((r,i) => `
+        <tr class="summary-row">
+          <td><button class="summary-expand-btn" data-idx="${i}">▸</button></td>
+          <td>${escapeHtml(r.name)}</td>
+          <td class="num">${r.present}</td>
+          <td class="num">${r.halfDay}</td>
+          <td class="num">${r.absent}</td>
+          <td class="num">${r.leave}</td>
+          <td class="num">${fmtDuration(r.workedMin)}</td>
+          <td class="num">${fmtDuration(r.breakMin)}</td>
+        </tr>
+        <tr class="summary-detail-row hidden" data-detail-idx="${i}">
+          <td colspan="8">
+            <div class="summary-daywise">
+              ${r.dayBreakdown.length ? r.dayBreakdown.map(d => `
+                <div class="sdw-row">
+                  <span class="sdw-date">${d.date}</span>
+                  <span class="status-pill" data-status="${d.status}">${STATUS_LABEL[d.status]||d.status}</span>
+                  <span class="sdw-hours">${fmtDuration(d.workedMin)}</span>
+                  ${d.breakMin ? `<span class="sdw-break">Break ${fmtDuration(d.breakMin)}</span>` : ""}
+                </div>
+              `).join("") : `<div class="task-empty">No entries this month</div>`}
+            </div>
+          </td>
+        </tr>
+      `).join("")}
+    </tbody>
+  `;
+  table.querySelectorAll(".summary-expand-btn").forEach(btn => {
+    btn.addEventListener("click", e => {
+      const idx = e.currentTarget.dataset.idx;
+      const detailRow = table.querySelector(`tr[data-detail-idx="${idx}"]`);
+      const open = detailRow.classList.toggle("hidden") === false;
+      e.currentTarget.textContent = open ? "▾" : "▸";
+    });
+  });
+}
+
+function downloadSummaryCsv(){
+  const rows = S._summaryRows || [];
+  const header = ["Name","Present","Half-day","Absent","Leave","Hours Worked","Break Time"];
+  const lines = [header.join(",")];
+  rows.forEach(r => {
+    lines.push([r.name, r.present, r.halfDay, r.absent, r.leave, fmtDuration(r.workedMin), fmtDuration(r.breakMin)]
+      .map(v => `"${String(v).replace(/"/g,'""')}"`).join(","));
+  });
+  const csv = lines.join("\n");
+  const blob = new Blob([csv], { type:"text/csv" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `attendance-summary-${fmtMonthLabel(S.monthCursor).replace(" ","-")}.csv`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+let modalDraftSegments = [];
+
+function openCellDetail(name, date){
+  const sum = computeDaySummary(name, date, S.monthDayRows, S.monthSegRows) || { status:null, note:"", segs:[], workedMin:0, breakMin:0, path:"", approval_status:null, approved_by:null };
+  modalDraftSegments = (sum.segs || []).map(s => ({ ...s, logs:(s.logs||[]).map(l=>({...l})), _deleted:false }));
+
+  const root = document.getElementById("modalRoot");
+  const approvalBlock = (sum.status && sum.status !== "present") ? `
+    <div class="modal-approval-row">
+      ${sum.approval_status ? `<span class="approval-mini ${sum.approval_status}">${sum.approval_status}${sum.approved_by ? " by "+escapeHtml(sum.approved_by) : ""}</span>` : ""}
+      ${sum.approval_status === "pending" ? `
+        <button class="approve-btn" id="modalApprove">Approve</button>
+        <button class="reject-btn" id="modalReject">Reject</button>
+      ` : ""}
+    </div>` : "";
+
+  root.innerHTML = `
+    <div class="modal-backdrop" id="modalBackdrop">
+      <div class="modal">
+        <h3>${escapeHtml(name)}</h3>
+        <div class="msub">${date}</div>
+        <div class="modal-status-row" id="modalStatusRow">
+          ${STATUSES.map(s => `<button data-status="${s}" class="${sum.status===s?'active':''}">${STATUS_LABEL[s]}</button>`).join("")}
+        </div>
+        ${approvalBlock}
+        <div class="field"><label>Note / reason</label><textarea id="mNote">${escapeHtml(sum.note||"")}</textarea></div>
+        <div class="modal-summary" id="modalSummaryRow"></div>
+        <div class="section-lbl">Time segments</div>
+        <div id="modalSegList"></div>
+        <button class="ghost-btn" id="mAddSeg" style="margin-top:10px;">+ Add segment</button>
+        <div class="modal-close-row">
+          <button class="ghost-btn" id="mCancel">Close</button>
+          <button class="primary-btn" id="mSave" style="width:auto;padding:9px 18px;">Save</button>
+        </div>
+      </div>
+    </div>
+  `;
+
+  let chosenStatus = sum.status;
+  document.querySelectorAll("#modalStatusRow button").forEach(b => {
+    b.addEventListener("click", () => {
+      chosenStatus = b.dataset.status;
+      document.querySelectorAll("#modalStatusRow button").forEach(x => x.classList.toggle("active", x===b));
+    });
+  });
+
+  const approveBtn = document.getElementById("modalApprove");
+  const rejectBtn = document.getElementById("modalReject");
+  if(approveBtn) approveBtn.addEventListener("click", async () => { await decideApproval(name, date, "approved"); closeModal(); });
+  if(rejectBtn) rejectBtn.addEventListener("click", async () => { await decideApproval(name, date, "rejected"); closeModal(); });
+
+  document.getElementById("mCancel").addEventListener("click", closeModal);
+  document.getElementById("modalBackdrop").addEventListener("click", e => { if(e.target.id==="modalBackdrop") closeModal(); });
+
+  document.getElementById("mAddSeg").addEventListener("click", () => {
+    modalDraftSegments.push({ id:"new-"+Math.random().toString(36).slice(2,9), employee_name:name, entry_date:date, code:"office", start_time:"09:00", end_time:"", logs:[] });
+    renderModalSegments();
+  });
+
+  document.getElementById("mSave").addEventListener("click", async () => {
+    const note = document.getElementById("mNote").value;
+    const existing = S.monthDayRows.find(d => d.employee_name===name && d.entry_date===date);
+    const patch = { employee_name:name, entry_date:date, status: chosenStatus, note, updated_at:new Date().toISOString() };
+    if(chosenStatus === "present"){
+      patch.approval_status = null; patch.approved_by = null; patch.approved_at = null;
+    } else if(!existing || existing.status !== chosenStatus || !existing.approval_status){
+      patch.approval_status = "approved"; patch.approved_by = S.user.name; patch.approved_at = new Date().toISOString();
+    }
+
+    const { error: dayErr } = await sb.from("day_status").upsert(patch, { onConflict:"employee_name,entry_date" });
+    if(dayErr){ alert("Couldn't save — " + dayErr.message); return; }
+
+    const { error: delErr } = await sb.from("time_segments").delete().eq("employee_name", name).eq("entry_date", date);
+    if(delErr){ alert("Couldn't update segments — " + delErr.message); return; }
+    const toInsert = modalDraftSegments.filter(s => !s._deleted).map(s => ({
+      employee_name: name, entry_date: date, code: s.code,
+      start_time: s.start_time || "09:00", end_time: s.end_time || null,
+      logs: (s.logs||[]).filter(l => l.text && l.text.trim())
+    }));
+    if(toInsert.length){
+      const { error: insErr } = await sb.from("time_segments").insert(toInsert);
+      if(insErr){ alert("Couldn't save segments — " + insErr.message); return; }
+    }
+
+    closeModal();
+    renderAdminMonth();
+  });
+
+  renderModalSegments();
+}
+
+function computeDraftTotals(){
+  let workedMin=0, breakMin=0;
+  modalDraftSegments.filter(s=>!s._deleted).forEach(s=>{
+    if(!s.start_time) return;
+    const end = s.end_time || s.start_time;
+    const mins = Math.max(0, minutesBetween(s.start_time, end));
+    if(NONWORK_CODES.has(s.code)) breakMin+=mins; else workedMin+=mins;
+  });
+  return {workedMin, breakMin};
+}
+
+function renderModalSegments(){
+  const box = document.getElementById("modalSegList");
+  const summaryBox = document.getElementById("modalSummaryRow");
+  const visible = modalDraftSegments.filter(s => !s._deleted);
+
+  const totals = computeDraftTotals();
+  summaryBox.innerHTML = `<span>Worked <b>${fmtDuration(totals.workedMin)}</b></span>${totals.breakMin ? ` <span>Break <b>${fmtDuration(totals.breakMin)}</b></span>` : ""}`;
+
+  if(!visible.length){
+    box.innerHTML = `<div class="empty-note">No segments logged. Use "+ Add segment" if one was missed.</div>`;
+  } else {
+    box.innerHTML = visible.map(s => `
+      <div class="seg-edit-row">
+        <select class="seg-code" data-seg-id="${s.id}">
+          ${TIME_CODES.map(tc => `<option value="${tc.code}" ${tc.code===s.code?"selected":""}>${tc.label}</option>`).join("")}
+        </select>
+        <input type="time" class="seg-start" data-seg-id="${s.id}" value="${s.start_time||""}">
+        <input type="time" class="seg-end" data-seg-id="${s.id}" value="${s.end_time||""}">
+        <button class="seg-delete" data-seg-id="${s.id}" title="Delete segment">🗑</button>
+        <div class="seg-logs">
+          ${(s.logs||[]).map((l,i) => `
+            <div class="seg-log-row">
+              <input type="time" class="seg-log-time" data-seg-id="${s.id}" data-idx="${i}" value="${l.time||""}">
+              <input type="text" class="seg-log-text" data-seg-id="${s.id}" data-idx="${i}" value="${escapeHtml(l.text||"")}" placeholder="Note">
+              <button class="seg-log-delete" data-seg-id="${s.id}" data-idx="${i}">×</button>
+            </div>
+          `).join("")}
+          <button class="seg-log-add ghost-btn" data-seg-id="${s.id}">+ note</button>
+        </div>
+      </div>
+    `).join("");
+  }
+
+  box.querySelectorAll(".seg-code").forEach(el => el.addEventListener("change", e => {
+    const s = modalDraftSegments.find(x=>x.id===e.target.dataset.segId); if(s) s.code = e.target.value;
+    renderModalSegments();
+  }));
+  box.querySelectorAll(".seg-start").forEach(el => el.addEventListener("change", e => {
+    const s = modalDraftSegments.find(x=>x.id===e.target.dataset.segId); if(s) s.start_time = e.target.value;
+    renderModalSegments();
+  }));
+  box.querySelectorAll(".seg-end").forEach(el => el.addEventListener("change", e => {
+    const s = modalDraftSegments.find(x=>x.id===e.target.dataset.segId); if(s) s.end_time = e.target.value;
+    renderModalSegments();
+  }));
+  box.querySelectorAll(".seg-delete").forEach(el => el.addEventListener("click", e => {
+    const s = modalDraftSegments.find(x=>x.id===e.target.dataset.segId); if(s) s._deleted = true;
+    renderModalSegments();
+  }));
+  box.querySelectorAll(".seg-log-time").forEach(el => el.addEventListener("change", e => {
+    const s = modalDraftSegments.find(x=>x.id===e.target.dataset.segId);
+    if(s) s.logs[+e.target.dataset.idx].time = e.target.value;
+  }));
+  box.querySelectorAll(".seg-log-text").forEach(el => el.addEventListener("input", e => {
+    const s = modalDraftSegments.find(x=>x.id===e.target.dataset.segId);
+    if(s) s.logs[+e.target.dataset.idx].text = e.target.value;
+  }));
+  box.querySelectorAll(".seg-log-delete").forEach(el => el.addEventListener("click", e => {
+    const s = modalDraftSegments.find(x=>x.id===e.target.dataset.segId);
+    if(s) s.logs.splice(+e.target.dataset.idx, 1);
+    renderModalSegments();
+  }));
+  box.querySelectorAll(".seg-log-add").forEach(el => el.addEventListener("click", e => {
+    const s = modalDraftSegments.find(x=>x.id===e.target.dataset.segId);
+    if(s){ if(!s.logs) s.logs=[]; s.logs.push({ time: nowTime(), text:"" }); }
+    renderModalSegments();
+  }));
+}
+
+function closeModal(){ document.getElementById("modalRoot").innerHTML = ""; modalDraftSegments = []; }
+
+// ---- roster ----
+function renderRosterTable(){
+  const body = document.getElementById("rosterTableBody");
+  body.innerHTML = S.roster.map(r => `
+    <tr class="${r.active===false?'row-inactive':''}">
+      <td>${escapeHtml(r.name)}</td><td>${escapeHtml(String(r.pin))}</td><td>${r.role}</td>
+      <td><button data-id="${r.id}" data-active="${r.active!==false}">${r.active===false ? "Reactivate" : "Mark as left"}</button></td>
+    </tr>
+  `).join("");
+  body.querySelectorAll("button[data-id]").forEach(btn => {
+    btn.addEventListener("click", () => toggleRosterMember(btn.dataset.id, btn.dataset.active === "true"));
+  });
+}
+async function addRosterMember(){
+  const name = document.querySelector('input[name="rname"]').value.trim();
+  const pin = document.querySelector('input[name="rpin"]').value.trim();
+  const role = document.querySelector('select[name="rrole"]').value;
+  if(!name || !pin){ alert("Enter a name and PIN."); return; }
+  const { error } = await sb.from("team_roster").insert({ name, pin, role, active:true });
+  if(error){ alert("Couldn't add — " + error.message); return; }
+  document.querySelector('input[name="rname"]').value = "";
+  document.querySelector('input[name="rpin"]').value = "";
+  await loadRoster();
+  renderRosterTable();
+  renderAdminMonth();
+}
+async function toggleRosterMember(id, currentlyActive){
+  const person = S.roster.find(r => r.id === id) || (await sb.from("team_roster").select("*").eq("id", id).single()).data;
+  if(!person) return;
+  if(currentlyActive){
+    const { data: openTasks } = await sb.from("tasks").select("*").in("status", ["open","in_progress","blocked"]);
+    const relevant = (openTasks||[]).filter(t => (t.assigned_to||[]).includes(person.name));
+    if(relevant.length){ openOffboardModal(person, relevant); return; }
+  }
+  const { error } = await sb.from("team_roster").update({ active: !currentlyActive }).eq("id", id);
+  if(error){ alert("Couldn't update — " + error.message); return; }
+  await loadRoster();
+  renderRosterTable();
+  renderAdminMonth();
+}
+
+function openOffboardModal(person, openTasks){
+  const options = S.roster.filter(r => r.active !== false && r.name !== person.name);
+  const root = document.getElementById("modalRoot");
+  root.innerHTML = `
+    <div class="modal-backdrop" id="modalBackdrop">
+      <div class="modal">
+        <h3>Mark ${escapeHtml(person.name)} as left</h3>
+        <div class="msub">${openTasks.length} open task${openTasks.length>1?"s":""} — reassign each, or leave unassigned.</div>
+        <div id="offboardTaskList">
+          ${openTasks.map(t => `
+            <div class="offboard-task-row" data-task-id="${t.id}">
+              <span class="ot-title">${escapeHtml(t.title)}</span>
+              <select class="ot-reassign">
+                <option value="">Leave unassigned</option>
+                ${options.map(p => `<option value="${escapeHtml(p.name)}">${escapeHtml(p.name)}</option>`).join("")}
+              </select>
+            </div>
+          `).join("")}
+        </div>
+        <div class="modal-close-row">
+          <button class="ghost-btn" id="obCancel">Cancel</button>
+          <button class="primary-btn" id="obSave" style="width:auto;padding:9px 18px;">Confirm &amp; mark as left</button>
+        </div>
+      </div>
+    </div>
+  `;
+  document.getElementById("obCancel").addEventListener("click", closeModal);
+  document.getElementById("modalBackdrop").addEventListener("click", e => { if(e.target.id==="modalBackdrop") closeModal(); });
+  document.getElementById("obSave").addEventListener("click", async () => {
+    const rows = document.querySelectorAll("#offboardTaskList .offboard-task-row");
+    for(const row of rows){
+      const taskId = row.dataset.taskId;
+      const newAssignee = row.querySelector(".ot-reassign").value;
+      const t = openTasks.find(x => x.id === taskId);
+      if(!t) continue;
+      const newAssigned = (t.assigned_to||[]).filter(n => n !== person.name);
+      const history = t.history || [];
+      if(newAssignee){
+        if(!newAssigned.includes(newAssignee)) newAssigned.push(newAssignee);
+        history.push({ time: nowTime(), actor:S.user.name, type:"delegated", text:`Delegated from ${person.name} to ${newAssignee} (${person.name} left the team)`, meta:{from:person.name, to:newAssignee} });
+      } else {
+        history.push({ time: nowTime(), actor:S.user.name, type:"status_change", text:`Unassigned from ${person.name} (left the team)`, meta:null });
+      }
+      await sb.from("tasks").update({ assigned_to:newAssigned, history, updated_at:new Date().toISOString() }).eq("id", taskId);
+    }
+    await sb.from("team_roster").update({ active:false }).eq("id", person.id);
+    closeModal();
+    await loadRoster();
+    renderRosterTable();
+    renderAdminMonth();
+  });
+}
+
+if("serviceWorker" in navigator){
+  window.addEventListener("load", () => {
+    navigator.serviceWorker.register("sw.js").catch(() => {});
+  });
+}
+
+init();
+</script>
+</body>
+</html>
