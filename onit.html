@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>OnIt</title>
 <link rel="icon" type="image/png" href="favicon.png">
-<meta name="theme-color" content="#1C1B1A">
+<meta name="theme-color" content="#1E3A2C">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="OnIt">
@@ -17,15 +17,15 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
   :root{
-    --ink:#1C1B1A;
-    --ink-soft:#4A4740;
-    --paper:#F6F5F1;
+    --ink:#1E3A2C;
+    --ink-soft:#3D5449;
+    --paper:#F5F3EC;
     --surface:#FFFFFF;
-    --line:#E4E1D8;
-    --muted:#8A8578;
-    --accent:#B8842E;
-    --accent-ink:#6E4E16;
-    --accent-soft:#F3E6CC;
+    --line:#DEE3D6;
+    --muted:#7C8B7A;
+    --accent:#3F7A52;
+    --accent-ink:#254B33;
+    --accent-soft:#E1EFE6;
     --present:#3F7A5C;
     --present-soft:#E3EFE8;
     --absent:#B5433D;
@@ -66,6 +66,7 @@
     padding:18px 0;border-bottom:1px solid var(--line);margin-bottom:24px;
   }
   .brand{display:flex;align-items:center;gap:10px;}
+  .brand-accent{color:var(--accent);}
   .brand h1{font-size:19px;font-weight:600;margin:0;letter-spacing:-0.01em;}
   .who{display:flex;align-items:center;gap:12px;font-size:14px;color:var(--ink-soft);}
   .who b{color:var(--ink);font-weight:600;}
@@ -401,8 +402,11 @@
   <div id="loginScreen" class="screen">
     <div class="login-card">
       <div class="login-brand">
-        <div class="mark">K2</div>
-        <h1>OnIt</h1>
+        <svg width="34" height="34" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg" style="flex-shrink:0;">
+          <rect width="100" height="100" rx="24" fill="#1E3A2C"/>
+          <path d="M27 53 L44 70 L74 32" stroke="#8AC79A" stroke-width="11" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+        </svg>
+        <h1>On<span class="brand-accent">It</span></h1>
       </div>
       <p class="login-sub">Select your name and enter your PIN.</p>
       <div class="field">
@@ -421,7 +425,13 @@
 
   <!-- ============ SHARED TOPBAR ============ -->
   <div id="mainTopbar" class="topbar hidden">
-    <div class="brand"><h1>OnIt</h1></div>
+    <div class="brand">
+      <svg width="30" height="30" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg" style="flex-shrink:0;">
+        <rect width="100" height="100" rx="24" fill="#1E3A2C"/>
+        <path d="M27 53 L44 70 L74 32" stroke="#8AC79A" stroke-width="11" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+      </svg>
+      <h1>On<span class="brand-accent">It</span></h1>
+    </div>
     <div id="mainTabSwitch" class="tab-switch hidden">
       <button class="tab-btn" data-tab="myday">My Day</button>
       <button class="tab-btn" data-tab="teamtoday">Team Today</button>
