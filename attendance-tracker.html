@@ -684,6 +684,9 @@ function fmtDuration(mins){
   if(mins<0) mins=0;
   return Math.floor(mins/60)+"h "+(mins%60)+"m";
 }
+function fmtHistoryStamp(entry){
+  return entry.date ? `${entry.date} ${entry.time}` : entry.time;
+}
 function isWeekend(year, month, day){
   return new Date(year, month, day).getDay() === 0;
 }
@@ -1271,12 +1274,12 @@ function canEditTask(t){
 }
 
 function getFilteredSortedTasks(){
-  let tasks = S.tasks.filter(t => t.status !== "aborted").slice();
+  let tasks = S.tasks.slice();
   if(taskFilter === "mine") tasks = tasks.filter(t => (t.assigned_to||[]).includes(S.user.name) || t.created_by === S.user.name);
   if(categoryFilter) tasks = tasks.filter(t => (t.category||"Other / Misc") === categoryFilter);
   if(personFilter) tasks = tasks.filter(t => (t.assigned_to||[]).includes(personFilter));
 
-  const statusOrder = { blocked:0, in_progress:1, open:2, done:3 };
+  const statusOrder = { blocked:0, in_progress:1, open:2, done:3, aborted:4 };
   tasks.sort((a,b) => {
     const so = (statusOrder[a.status]??9) - (statusOrder[b.status]??9);
     if(so !== 0) return so;
@@ -1342,7 +1345,7 @@ async function renderTasksBoard(){
   const workload = computeWorkload();
   document.getElementById("workloadStrip").innerHTML = Object.keys(workload).map(name => {
     const c = personColor(name);
-    return `<button class="workload-chip" data-person="${escapeHtml(name)}"><span class="wc-dot" style="background:${c.ink}"></span>${escapeHtml(name)}: <b>${workload[name]}</b> open</button>`;
+    return `<button class="workload-chip" data-person="${escapeHtml(name)}"><span class="wc-dot" style="background:${c.ink}"></span>${escapeHtml(name)}: <b>${workload[name]}</b> active</button>`;
   }).join("");
   document.querySelectorAll(".workload-chip").forEach(el => {
     el.addEventListener("click", e => {
@@ -1451,14 +1454,14 @@ function renderTaskRow(t){
       ${notes.length ? `
         <div class="section-lbl" style="margin:12px 0 6px;">Notes</div>
         <div class="tc-notes">
-          ${notes.slice().reverse().map(n => `<div class="tc-note-line"><b>${n.time}</b> ${escapeHtml(n.actor)}: ${escapeHtml(n.text)}</div>`).join("")}
+          ${notes.slice().reverse().map(n => `<div class="tc-note-line"><b>${fmtHistoryStamp(n)}</b> ${escapeHtml(n.actor)}: ${escapeHtml(n.text)}</div>`).join("")}
         </div>
       ` : ""}
 
       ${auditTrail.length ? `
         <div class="section-lbl" style="margin:12px 0 6px;">History</div>
         <div class="tc-history-log">
-          ${auditTrail.slice().reverse().map(h => `<div class="tc-history-line"><b>${h.time}</b> ${escapeHtml(h.actor)} — ${escapeHtml(h.text)}</div>`).join("")}
+          ${auditTrail.slice().reverse().map(h => `<div class="tc-history-line"><b>${fmtHistoryStamp(h)}</b> ${escapeHtml(h.actor)} — ${escapeHtml(h.text)}</div>`).join("")}
         </div>
       ` : ""}
     </div>
@@ -1469,7 +1472,7 @@ function renderTaskRow(t){
 
 function logTaskHistory(t, text, type, meta){
   if(!t.history) t.history = [];
-  t.history.push({ time: nowTime(), actor: S.user.name, type: type||"status_change", text, meta: meta||null });
+  t.history.push({ time: nowTime(), date: todayStr(), actor: S.user.name, type: type||"status_change", text, meta: meta||null });
 }
 
 async function updateTaskStatus(id, status){
@@ -1720,7 +1723,7 @@ async function saveNewTask(){
     meeting_time: isMeeting ? document.getElementById("ntTime").value : null,
     status: "open",
     blocked_reason: "",
-    history: [{ time: nowTime(), actor: S.user.name, type:"created", text:`Created and assigned to ${assignees.join(", ")}` }]
+    history: [{ time: nowTime(), date: todayStr(), actor: S.user.name, type:"created", text:`Created and assigned to ${assignees.join(", ")}` }]
   };
   const { error } = await sb.from("tasks").insert(payload);
   if(error){ alert("Couldn't create task — " + error.message); return; }
