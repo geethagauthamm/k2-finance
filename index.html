@@ -1474,6 +1474,20 @@ body.auditor-mode #save-btn { display:none !important; }
         </div>
       </div>
       <div id="veh-phases"></div>
+
+      <div id="veh-actual-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:9500;align-items:center;justify-content:center">
+        <div style="max-width:420px;width:95%;background:var(--sf);border:1px solid var(--bd);border-radius:12px;padding:20px 22px">
+          <div class="semi" style="font-size:14px;margin-bottom:4px" id="vam-title">Actual Amount</div>
+          <div class="xs2 dim" style="margin-bottom:14px" id="vam-est-hint"></div>
+          <div class="fld mb10"><label>Actual Hire ₹</label><input type="number" id="vam-hire" placeholder="0"></div>
+          <div class="fld mb10"><label>Actual Batta ₹ (per call sheet)</label><input type="number" id="vam-batta" placeholder="0"></div>
+          <div class="fld mb10"><label>Actual Fuel ₹</label><input type="number" id="vam-fuel" placeholder="0"></div>
+          <div class="flex gap8" style="justify-content:flex-end;margin-top:8px">
+            <button class="btn bs" onclick="document.getElementById('veh-actual-modal').style.display='none'">Cancel</button>
+            <button class="btn bg" onclick="saveVehActualModal()">✓ Save</button>
+          </div>
+        </div>
+      </div>
     </div>
     <div class="card">
       <div class="flex aic jb mb10">
@@ -11531,6 +11545,26 @@ function renderVehicleLog(){
   </tr>`;
 }
 
+let _vehActualDate=null,_vehActualId=null;
+function openVehActualModal(date,id){
+  const v=(DB.vehicles||{})[date]?.find(x=>x.id===id);
+  if(!v)return;
+  _vehActualDate=date;_vehActualId=id;
+  document.getElementById('vam-title').textContent='Actual Amount — '+v.type+(v.vendorName?' ('+v.vendorName+')':'')+' — '+fmtD(date);
+  document.getElementById('vam-est-hint').textContent='Estimated: Hire ₹'+fmt(v.hire||0)+'/day · Batta ₹'+fmt(v.batta||0)+'/CS · Fuel ₹'+fmt(v.fuel||0);
+  document.getElementById('vam-hire').value=v.actHire||'';
+  document.getElementById('vam-batta').value=v.actBatta||'';
+  document.getElementById('vam-fuel').value=v.actFuel||'';
+  document.getElementById('veh-actual-modal').style.display='flex';
+}
+function saveVehActualModal(){
+  saveVehActual(_vehActualDate,_vehActualId,'actHire',document.getElementById('vam-hire').value);
+  saveVehActual(_vehActualDate,_vehActualId,'actBatta',document.getElementById('vam-batta').value);
+  saveVehActual(_vehActualDate,_vehActualId,'actFuel',document.getElementById('vam-fuel').value);
+  document.getElementById('veh-actual-modal').style.display='none';
+  renderVehiclesMaster();
+  toast('✓ Actual amount saved');
+}
 function renderVehiclesMaster(){
   const container=document.getElementById('veh-phases');
   if(!container)return;
@@ -11555,6 +11589,9 @@ function renderVehiclesMaster(){
       const battaT=(v.batta||0)*cs*(v.qty||1);
       const grandT=hireT+battaT+(v.fuel||0);
       gTotal+=grandT;
+      const actHire=v.actHire||0,actBatta=v.actBatta||0,actFuel=v.actFuel||0;
+      const hasActual=actHire||actBatta||actFuel;
+      const actTotal=hasActual?(actHire+actBatta*cs)*(v.qty||1)+actFuel:0;
       return`<tr>
         <td style="white-space:nowrap;font-size:11px;color:var(--tx3)">${fmtD(v._date)}</td>
         <td class="semi">${esc(v.type)}</td>
@@ -11564,6 +11601,7 @@ function renderVehiclesMaster(){
         <td class="tn tr blue">${fmt(battaT)}</td>
         <td class="tn tr">${v.fuel?fmt(v.fuel):'—'}</td>
         <td class="tn tr gold semi">${fmt(grandT)}</td>
+        <td class="tn tr no-print" style="cursor:pointer;${hasActual?'color:var(--gn);font-weight:600':'color:var(--tx3)'}" onclick="openVehActualModal('${v._date}','${v.id}')" title="${hasActual?'Actual: Hire '+fmt(actHire)+' · Batta '+fmt(actBatta)+' · Fuel '+fmt(actFuel)+' — click to edit':'No actual entered yet — click to add'}">${hasActual?fmt(actTotal):'— ✎'}</td>
         <td class="dim xs2">${esc(v.notes||'—')}</td>
         <td class="no-print"><button class="btn br xs" onclick="delVehicle('${v._date}','${v.id}')">✕</button></td>
       </tr>`;
@@ -11584,10 +11622,14 @@ function renderVehiclesMaster(){
       <div class="dw-body" id="body_${gId}" style="display:${isOpen?'block':'none'}">
         <div class="tw"><table style="font-size:11px"><thead><tr>
           <th>Date</th><th>Type</th><th>Vendor</th><th class="tr">Qty</th>
-          <th class="tr">Hire Total</th><th class="tr">Batta Total</th><th class="tr">Fuel</th>
-          <th class="tr">Grand Total</th><th>Notes</th><th class="no-print"></th>
+          <th class="tr" title="Estimated hire, from the rate entered when this row was added">Hire (Est.)</th>
+          <th class="tr" title="Estimated batta, from the rate entered when this row was added">Batta (Est.)</th>
+          <th class="tr" title="Estimated fuel">Fuel (Est.)</th>
+          <th class="tr" title="Estimated grand total — Hire + Batta + Fuel, all estimated">Grand Total (Est.)</th>
+          <th class="tr no-print" title="Actual amount once known — click any row's cell here to enter it">Actual ₹</th>
+          <th>Notes</th><th class="no-print"></th>
         </tr></thead><tbody>${rowsHtml}</tbody>
-        <tfoot><tr class="est-section-total"><td colspan="7" class="tr semi">GROUP TOTAL</td><td class="tr mono semi gold">${fmt(gTotal)}</td><td colspan="2"></td></tr></tfoot>
+        <tfoot><tr class="est-section-total"><td colspan="7" class="tr semi">GROUP TOTAL (Est.)</td><td class="tr mono semi gold">${fmt(gTotal)}</td><td colspan="3"></td></tr></tfoot>
         </table></div>
       </div>
     </div>`;
@@ -20444,6 +20486,7 @@ function printFlightsTopsheet(){
 // multiplier to Batta the same way renderVehicleLog does on screen.
 function printVehiclesTopsheet(){
   if(!_rangeFrom&&!_rangeTo){toast('Set a date range first (From / To above)','err');return;}
+  const componentFilter=document.getElementById('veh-component-filter')?.value||'all';
   const dates=Object.keys(DB.vehicles||{}).filter(d=>inRange(d)).sort();
   const flat=[];
   dates.forEach(d=>{
@@ -20453,13 +20496,39 @@ function printVehiclesTopsheet(){
       const battaT=(v.batta||0)*cs*(v.qty||1);
       const fuelT=v.fuel||0;
       const actT=(v.actHire||0)+(v.actBatta||0)+(v.actFuel||0);
+      // Same one-vendor-per-component split as Generate Bill — Hire goes to
+      // the rental vendor, Batta to the driver, so a topsheet for just one
+      // of them (matching whichever bill is being sent to which vendor)
+      // needs to show only that component's amount, using the actual if
+      // it's been entered, otherwise the estimate.
+      let componentAmt=null,componentEst=null,componentAct=null;
+      if(componentFilter==='hire'){componentEst=hireT;componentAct=v.actHire||0;}
+      else if(componentFilter==='batta'){componentEst=battaT;componentAct=v.actBatta||0;}
+      else if(componentFilter==='fuel'){componentEst=fuelT;componentAct=v.actFuel||0;}
+      if(componentFilter!=='all'&&!componentEst&&!componentAct)return; // skip rows with nothing for this component
       flat.push({date:d,type:v.type,vendorName:v.vendorName,vehNumber:v.vehNumber,qty:v.qty||1,
-        hireT,battaT,fuelT,estTotal:hireT+battaT+fuelT,actTotal:actT,notes:v.notes});
+        hireT,battaT,fuelT,estTotal:hireT+battaT+fuelT,actTotal:actT,notes:v.notes,
+        componentEst,componentAct});
     });
   });
-  if(!flat.length){toast('No vehicle entries in that date range','err');return;}
+  if(!flat.length){toast('No vehicle entries in that date range'+(componentFilter!=='all'?' for '+componentFilter:''),'err');return;}
   let grandEst=0,grandAct=0;
+  const isComponentView=componentFilter!=='all';
+  const componentLabel={hire:'Hire',batta:'Batta',fuel:'Fuel'}[componentFilter]||'';
   const rowsHtml=flat.map(v=>{
+    if(isComponentView){
+      grandEst+=v.componentEst||0;grandAct+=v.componentAct||0;
+      return`<tr>
+        <td style="padding:5px 8px;border:1px solid #ddd;white-space:nowrap">${fmtD(v.date)}</td>
+        <td style="padding:5px 8px;border:1px solid #ddd;font-weight:700">${esc(v.type)}</td>
+        <td style="padding:5px 8px;border:1px solid #ddd">${esc(v.vendorName||'—')}</td>
+        <td style="padding:5px 8px;border:1px solid #ddd">${esc(v.vehNumber||'—')}</td>
+        <td style="padding:5px 8px;border:1px solid #ddd;text-align:center">${v.qty}</td>
+        <td style="padding:5px 8px;border:1px solid #ddd;text-align:right">${fmt(v.componentEst||0)}</td>
+        <td style="padding:5px 8px;border:1px solid #ddd;text-align:right;${v.componentAct?'font-weight:700;color:#166534':'color:#999'}">${v.componentAct?fmt(v.componentAct):'—'}</td>
+        <td style="padding:5px 8px;border:1px solid #ddd;font-size:10px;color:#666">${esc(v.notes||'')}</td>
+      </tr>`;
+    }
     grandEst+=v.estTotal;grandAct+=v.actTotal;
     return`<tr>
       <td style="padding:5px 8px;border:1px solid #ddd;white-space:nowrap">${fmtD(v.date)}</td>
@@ -20477,7 +20546,7 @@ function printVehiclesTopsheet(){
   }).join('');
   const rangeLabel=(_rangeFrom&&_rangeTo)?fmtD(_rangeFrom)+' to '+fmtD(_rangeTo):(_rangeFrom?'From '+fmtD(_rangeFrom):'Until '+fmtD(_rangeTo));
   const html=`
-    <h2 style="font-size:20px;margin:0 0 2px 0">Vehicles Topsheet</h2>
+    <h2 style="font-size:20px;margin:0 0 2px 0">Vehicles Topsheet${isComponentView?' — '+componentLabel+' Only':''}</h2>
     <div style="font-size:12px;color:#888;margin-bottom:16px">Kalki 2 · Vyjayanthi Movies · ${rangeLabel} · ${flat.length} entr${flat.length===1?'y':'ies'} across ${dates.length} day(s)</div>
     <div style="overflow-x:auto">
     <table style="border-collapse:collapse;font-size:11px;margin-bottom:14px;width:100%">
@@ -20487,16 +20556,21 @@ function printVehiclesTopsheet(){
         <th style="padding:6px 8px;text-align:left">Vendor</th>
         <th style="padding:6px 8px;text-align:left">Veh. No.</th>
         <th style="padding:6px 8px;text-align:center">Qty</th>
+        ${isComponentView?`
+        <th style="padding:6px 8px;text-align:right">${componentLabel} (Est.) ₹</th>
+        <th style="padding:6px 8px;text-align:right">${componentLabel} (Actual) ₹</th>
+        `:`
         <th style="padding:6px 8px;text-align:right">Hire ₹</th>
         <th style="padding:6px 8px;text-align:right">Batta ₹</th>
         <th style="padding:6px 8px;text-align:right">Fuel ₹</th>
         <th style="padding:6px 8px;text-align:right">Est. Total ₹</th>
         <th style="padding:6px 8px;text-align:right">Actual ₹</th>
+        `}
         <th style="padding:6px 8px;text-align:left">Notes</th>
       </tr></thead>
       <tbody>${rowsHtml}
         <tr style="background:#1e3a5f;color:#fff;font-weight:700">
-          <td colspan="8" style="padding:9px 8px;text-align:right">GRAND TOTAL</td>
+          <td colspan="${isComponentView?5:8}" style="padding:9px 8px;text-align:right">GRAND TOTAL</td>
           <td style="padding:9px 8px;text-align:right">${fmt(grandEst)}</td>
           <td style="padding:9px 8px;text-align:right">${grandAct?fmt(grandAct):'—'}</td>
           <td></td>
