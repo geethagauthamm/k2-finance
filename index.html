@@ -1483,10 +1483,12 @@ body.auditor-mode #save-btn { display:none !important; }
       <div id="veh-actual-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:9500;align-items:center;justify-content:center">
         <div style="max-width:420px;width:95%;background:var(--sf);border:1px solid var(--bd);border-radius:12px;padding:20px 22px">
           <div class="semi" style="font-size:14px;margin-bottom:4px" id="vam-title">Actual Amount</div>
-          <div class="xs2 dim" style="margin-bottom:14px" id="vam-est-hint"></div>
-          <div class="fld mb10"><label>Actual Hire ₹</label><input type="number" id="vam-hire" placeholder="0"></div>
-          <div class="fld mb10"><label>Actual Batta ₹ (per call sheet)</label><input type="number" id="vam-batta" placeholder="0"></div>
-          <div class="fld mb10"><label>Actual Fuel ₹</label><input type="number" id="vam-fuel" placeholder="0"></div>
+          <div class="xs2 dim" style="margin-bottom:14px;line-height:1.6" id="vam-est-hint"></div>
+          <div class="fld mb10"><label>Actual Hire ₹ (per day)</label><input type="number" id="vam-hire" placeholder="0" oninput="updateVamPreview()"></div>
+          <div class="fld mb10"><label>Actual Batta ₹ (per call sheet)</label><input type="number" id="vam-batta" placeholder="0" oninput="updateVamPreview()"></div>
+          <div class="fld mb10"><label>Actual Allowance ₹ (per vehicle)</label><input type="number" id="vam-allow" placeholder="0" oninput="updateVamPreview()"></div>
+          <div class="fld mb10"><label>Actual Fuel ₹</label><input type="number" id="vam-fuel" placeholder="0" oninput="updateVamPreview()"></div>
+          <div class="xs2 semi" style="color:var(--gn);margin-bottom:8px" id="vam-actual-preview">Actual Total: ₹0</div>
           <div class="flex gap8" style="justify-content:flex-end;margin-top:8px">
             <button class="btn bs" onclick="document.getElementById('veh-actual-modal').style.display='none'">Cancel</button>
             <button class="btn bg" onclick="saveVehActualModal()">✓ Save</button>
@@ -11576,21 +11578,45 @@ function renderVehicleLog(){
   </tr>`;
 }
 
-let _vehActualDate=null,_vehActualId=null;
+let _vehActualDate=null,_vehActualId=null,_vehActualQty=1,_vehActualCS=1;
 function openVehActualModal(date,id){
   const v=(DB.vehicles||{})[date]?.find(x=>x.id===id);
   if(!v)return;
   _vehActualDate=date;_vehActualId=id;
+  const hdr=(DB.dayHeaders||{})[date]||{};
+  const cs=(v.csOverride!=null&&v.csOverride!=='')?parseFloat(v.csOverride):(parseFloat(hdr.cs)||1);
+  _vehActualQty=v.qty||1;_vehActualCS=cs;
+  const hireT=(v.hire||0)*(v.qty||1),battaT=(v.batta||0)*cs*(v.qty||1),allowT=(v.allow||0)*(v.qty||1),fuelT=v.fuel||0;
   document.getElementById('vam-title').textContent='Actual Amount — '+v.type+(v.vendorName?' ('+v.vendorName+')':'')+' — '+fmtD(date);
-  document.getElementById('vam-est-hint').textContent='Estimated: Hire ₹'+fmt(v.hire||0)+'/day · Batta ₹'+fmt(v.batta||0)+'/CS · Fuel ₹'+fmt(v.fuel||0);
+  document.getElementById('vam-est-hint').innerHTML=
+    'Estimated breakup — Hire: '+fmt(v.hire||0)+'/day × '+(v.qty||1)+' = '+fmt(hireT)+
+    ' · Batta: '+fmt(v.batta||0)+'/CS × '+cs+' CS × '+(v.qty||1)+' = '+fmt(battaT)+
+    (allowT?' · Allow: '+fmt(v.allow||0)+' × '+(v.qty||1)+' = '+fmt(allowT):'')+
+    (fuelT?' · Fuel: '+fmt(fuelT):'')+
+    ' · <strong>Est. Total: '+fmt(hireT+battaT+allowT+fuelT)+'</strong>';
   document.getElementById('vam-hire').value=v.actHire||'';
   document.getElementById('vam-batta').value=v.actBatta||'';
+  document.getElementById('vam-allow').value=v.actAllow||'';
   document.getElementById('vam-fuel').value=v.actFuel||'';
+  updateVamPreview();
   document.getElementById('veh-actual-modal').style.display='flex';
+}
+function updateVamPreview(){
+  const hire=parseFloat(document.getElementById('vam-hire')?.value)||0;
+  const batta=parseFloat(document.getElementById('vam-batta')?.value)||0;
+  const allow=parseFloat(document.getElementById('vam-allow')?.value)||0;
+  const fuel=parseFloat(document.getElementById('vam-fuel')?.value)||0;
+  // Matches renderVehiclesMaster's calculation exactly — Hire/Batta/Allow
+  // are per-unit rates, multiplied by qty (and Batta by CS too), not
+  // already-computed totals.
+  const total=(hire+batta*_vehActualCS)*_vehActualQty+allow*_vehActualQty+fuel;
+  const el=document.getElementById('vam-actual-preview');
+  if(el)el.textContent='Actual Total: '+fmt(total)+(_vehActualQty>1?' (qty '+_vehActualQty+', CS '+_vehActualCS+')':'');
 }
 function saveVehActualModal(){
   saveVehActual(_vehActualDate,_vehActualId,'actHire',document.getElementById('vam-hire').value);
   saveVehActual(_vehActualDate,_vehActualId,'actBatta',document.getElementById('vam-batta').value);
+  saveVehActual(_vehActualDate,_vehActualId,'actAllow',document.getElementById('vam-allow').value);
   saveVehActual(_vehActualDate,_vehActualId,'actFuel',document.getElementById('vam-fuel').value);
   document.getElementById('veh-actual-modal').style.display='none';
   renderVehiclesMaster();
@@ -11644,26 +11670,28 @@ function renderVehiclesMaster(){
       const battaT=(v.batta||0)*cs*(v.qty||1);
       const allowT=(v.allow||0)*(v.qty||1);
       const grandT=hireT+battaT+allowT+(v.fuel||0);
-      const actHire=v.actHire||0,actBatta=v.actBatta||0,actFuel=v.actFuel||0;
-      const hasActual=actHire||actBatta||actFuel;
-      const actTotal=hasActual?(actHire+actBatta*cs)*(v.qty||1)+actFuel:0;
+      const actHire=v.actHire||0,actBatta=v.actBatta||0,actAllow=v.actAllow||0,actFuel=v.actFuel||0;
+      const hasActual=actHire||actBatta||actAllow||actFuel;
+      const actTotal=hasActual?(actHire+actBatta*cs)*(v.qty||1)+actAllow*(v.qty||1)+actFuel:0;
       gTotal+=isActualView?actTotal:grandT;
       const csCell=`<td class="tr no-print"><input type="number" value="${v.csOverride!=null?v.csOverride:''}" placeholder="${dayCS}" title="${isOverridden?'Overridden — day default is '+dayCS:'Using day default ('+dayCS+') — type a number to override just this vehicle'}" style="width:44px;text-align:right;background:${isOverridden?'rgba(251,191,36,.12)':'var(--sf2)'};border:1px solid ${isOverridden?'var(--or)':'var(--bd2)'};border-radius:4px;padding:2px 4px;font-size:10px;color:var(--tx)" onchange="saveVehCsOverride('${v._date}','${v.id}',this.value)"></td>`;
       const purposeCell=`<td class="xs2 no-print"><input type="text" value="${esc(v.purpose||'')}" placeholder="—" style="width:100px;background:var(--sf2);border:1px solid var(--bd2);border-radius:4px;padding:2px 5px;font-size:10.5px;color:var(--tx)" onchange="saveVehPurpose('${v._date}','${v.id}',this.value)"></td>`;
       const purposePrintCell=`<td class="dim xs2 np-only" style="display:none">${esc(v.purpose||'—')}</td>`;
+      const actualBtnCell=`<td class="no-print"><button onclick="openVehActualModal('${v._date}','${v.id}')" title="Click to enter/edit the actual amount" style="width:100%;text-align:right;font-size:10px;padding:3px 8px;border-radius:4px;cursor:pointer;font-family:'JetBrains Mono',monospace;${hasActual?'background:rgba(46,204,138,.12);border:1px solid var(--gn);color:var(--gn);font-weight:700':'background:var(--sf2);border:1px solid var(--bd2);color:var(--tx3)'}">${hasActual?fmt(actTotal):'+ Enter Actual'}</button></td>`;
       const amtCols=isActualView?`
         <td class="tn tr" style="${actHire?'':'color:var(--tx3)'}">${actHire?fmt(actHire):'—'}</td>
         <td class="tn tr" style="${actBatta?'':'color:var(--tx3)'}">${actBatta?fmt(actBatta):'—'}</td>
+        <td class="tn tr" style="${actAllow?'':'color:var(--tx3)'}">${actAllow?fmt(actAllow):'—'}</td>
         <td class="tn tr" style="${actFuel?'':'color:var(--tx3)'}">${actFuel?fmt(actFuel):'—'}</td>
         <td class="tn tr semi" style="${hasActual?'color:var(--gn)':'color:var(--tx3)'}">${hasActual?fmt(actTotal):'—'}</td>
-        <td class="tn tr xs3 dim no-print" title="Estimate, for reference">Est: ${fmt(grandT)}</td>
+        <td class="no-print"><button onclick="openVehActualModal('${v._date}','${v.id}')" title="Click to edit the actual amount — estimate for reference: ${fmt(grandT)}" style="width:100%;text-align:center;font-size:10px;padding:3px 6px;border-radius:4px;cursor:pointer;background:var(--sf2);border:1px solid var(--bd2);color:var(--tx3)">✎ Edit</button></td>
       `:`
         <td class="tn tr blue">${fmt(hireT)}</td>
         <td class="tn tr blue">${fmt(battaT)}</td>
         <td class="tn tr" style="${allowT?'':'color:var(--tx3)'}">${allowT?fmt(allowT):'—'}</td>
         <td class="tn tr">${v.fuel?fmt(v.fuel):'—'}</td>
         <td class="tn tr gold semi">${fmt(grandT)}</td>
-        <td class="tn tr xs3 no-print" style="${hasActual?'color:var(--gn)':'color:var(--tx3)'}" title="Actual, for reference">${hasActual?'Act: '+fmt(actTotal):'No actual yet'}</td>
+        ${actualBtnCell}
       `;
       return`<tr>
         <td style="white-space:nowrap;font-size:11px;color:var(--tx3)">${fmtD(v._date)}</td>
@@ -11672,7 +11700,6 @@ function renderVehiclesMaster(){
         <td class="tr">${v.qty}</td>
         ${csCell}
         ${amtCols}
-        <td class="tr no-print" style="cursor:pointer;color:var(--tx3)" onclick="openVehActualModal('${v._date}','${v.id}')" title="Click to edit actual amounts">✎</td>
         ${purposeCell}
         <td class="dim xs2">${esc(v.notes||'—')}</td>
         <td class="no-print"><button class="btn br xs" onclick="delVehicle('${v._date}','${v.id}')">✕</button></td>
@@ -11683,9 +11710,10 @@ function renderVehiclesMaster(){
     const amtHeaders=isActualView?`
         <th class="tr" title="Actual hire paid">Hire (Actual)</th>
         <th class="tr" title="Actual batta paid">Batta (Actual)</th>
+        <th class="tr" title="Actual allowance paid">Allow (Actual)</th>
         <th class="tr" title="Actual fuel paid">Fuel (Actual)</th>
         <th class="tr" title="Actual grand total">Grand Total (Actual)</th>
-        <th class="tr no-print xs3">Est. (ref)</th>
+        <th class="no-print xs3"></th>
       `:`
         <th class="tr" title="Estimated hire, from the rate entered when this row was added">Hire (Est.)</th>
         <th class="tr" title="Estimated batta, from the rate entered when this row was added">Batta (Est.)</th>
@@ -11710,11 +11738,10 @@ function renderVehiclesMaster(){
           <th>Date</th><th>Type</th><th>Vendor</th><th class="tr">Qty</th>
           <th class="tr no-print" title="Call sheets used for this row's Batta calc — defaults to the day's overall CS, type a number to override just this vehicle">CS</th>
           ${amtHeaders}
-          <th class="no-print" title="Edit actual amounts"></th>
           <th class="no-print">Purpose</th>
           <th>Notes</th><th class="no-print"></th>
         </tr></thead><tbody>${rowsHtml}</tbody>
-        <tfoot><tr class="est-section-total"><td colspan="9" class="tr semi">GROUP TOTAL (${isActualView?'Actual':'Est.'})</td><td class="tr mono semi gold">${fmt(gTotal)}</td><td colspan="5"></td></tr></tfoot>
+        <tfoot><tr class="est-section-total"><td colspan="9" class="tr semi">GROUP TOTAL (${isActualView?'Actual':'Est.'})</td><td class="tr mono semi gold">${fmt(gTotal)}</td><td colspan="4"></td></tr></tfoot>
         </table></div>
       </div>
     </div>`;
