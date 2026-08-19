@@ -1428,7 +1428,7 @@ body.auditor-mode #save-btn { display:none !important; }
       <div class="ct">Add Vehicle Entry</div>
       <div class="fg mb8" style="grid-template-columns:1fr 1fr 0.6fr 0.6fr 0.6fr 0.6fr 0.8fr auto">
         <div class="fld"><label>Vehicle Type</label>
-          <select id="veh-type">
+          <select id="veh-type" onchange="vehTypeChanged()">
             <option value="">Select type</option>
             <option>Union Innova</option>
             <option>Crysta</option>
@@ -1458,8 +1458,10 @@ body.auditor-mode #save-btn { display:none !important; }
         </div>
         <div class="fld" style="padding-top:18px"><button class="btn bg" onclick="addVehicle()">+ Add</button></div>
       </div>
-      <div class="flex aic gap12">
+      <div class="flex aic gap12" style="flex-wrap:wrap">
         <div class="fld" style="max-width:180px;flex:1"><label>Vehicle Number</label><input type="text" id="veh-number" placeholder="TS 09 AB 1234"></div>
+        <div class="fld" style="max-width:110px"><label>Call Sheets</label><input type="number" id="veh-cs" placeholder="Day default" step="0.5" oninput="vehCalc()" title="Leave blank to use the day's overall call sheet count — enter a number here (e.g. 1.5 or 2) if this vehicle worked a different number of call sheets, like a Sunday double shift"></div>
+        <div class="fld" style="max-width:130px"><label>Allowance ₹</label><input type="number" id="veh-allow" placeholder="0" oninput="vehCalc()" title="Per-vehicle allowance, added on top of Batta — same pattern as the Allow column on role-based topsheets"></div>
         <div class="fld" style="max-width:220px;flex:1"><label>Purpose</label><input type="text" id="veh-purpose" placeholder="e.g. Camera unit, Lights transport"></div>
         <div class="fld" style="max-width:220px;flex:1"><label>Notes</label><input type="text" id="veh-notes" placeholder="Route, remarks..."></div>
         <div class="fld" style="max-width:220px;flex:1"><label>Phase</label><select id="veh-phase"><option value="">— Select Phase —</option></select></div>
@@ -8071,7 +8073,7 @@ function renderEstTable(){
         // Act CS
         row += '<td class="act-input-cell" style="text-align:right;padding:3px 5px">'+actCSCell+'</td>';
         // Act Amt
-        row += '<td class="tn tr '+(actAmt>0?'green':'')+' semi" style="border:1px solid var(--bd)" id="ia-amt-'+r.id+'">'+(actAmt>0?'₹'+fmt(actAmt):'—')+'</td>';
+        row += '<td class="tn tr '+(actAmt>0?'green':'')+' semi" style="border:1px solid var(--bd)" id="ia-amt-'+r.id+'">'+(actAmt>0?fmt(actAmt):'—')+'</td>';
         // Remarks (inline editable)
         const _rem=(iAct.remarks||'');
         row += '<td style="padding:2px 4px;border:1px solid var(--bd)"><input class="act-inline" type="text" value="'+_rem.replace(/"/g,'&quot;')+'" placeholder="remarks…" style="width:100%;box-sizing:border-box;font-size:10px;font-family:inherit;background:transparent;border:none;outline:none" data-id="'+r.id+'" data-field="remarks" onchange="saveInlineAct(this.dataset.id,this.dataset.field,this.value)"></td>';
@@ -8097,7 +8099,7 @@ function renderEstTable(){
         } else {
           row += '<td class="tn tr dim">—</td>';
         }
-        row += '<td class="tn tr '+(actAmt>0?'green':'')+' semi" style="border:1px solid var(--bd)" id="ia-amt-'+r.id+'">'+(actAmt>0?'₹'+fmt(actAmt):'—')+'</td>';
+        row += '<td class="tn tr '+(actAmt>0?'green':'')+' semi" style="border:1px solid var(--bd)" id="ia-amt-'+r.id+'">'+(actAmt>0?fmt(actAmt):'—')+'</td>';
         const _rem2=(iAct.remarks||'');
         row += '<td style="padding:2px 4px;border:1px solid var(--bd)"><input class="act-inline" type="text" value="'+_rem2.replace(/"/g,'&quot;')+'" placeholder="remarks…" style="width:100%;box-sizing:border-box;font-size:10px;font-family:inherit;background:transparent;border:none;outline:none" data-id="'+r.id+'" data-field="remarks" onchange="saveInlineAct(this.dataset.id,this.dataset.field,this.value)"></td>';
       }
@@ -8120,7 +8122,7 @@ function renderEstTable(){
         +'<td colspan="3"></td>'
         +'<td class="tn tr blue">₹'+fmt(catEst)+'</td>'
         +'<td colspan="2"></td>'
-        +'<td class="tn tr green">'+(catAct>0?'₹'+fmt(catAct):'—')+'</td>'
+        +'<td class="tn tr green">'+(catAct>0?fmt(catAct):'—')+'</td>'
         +'<td></td><td class="no-print"></td>';
     } else if(showEst){
       catRow += '<td colspan="2" style="padding:5px 8px;font-size:9px;text-transform:uppercase;letter-spacing:1.5px;color:var(--tx3);text-align:right">'+cat+' Total</td>'
@@ -8130,7 +8132,7 @@ function renderEstTable(){
     } else {
       catRow += '<td colspan="2" style="padding:5px 8px;font-size:9px;text-transform:uppercase;letter-spacing:1.5px;color:var(--tx3);text-align:right">'+cat+' Total</td>'
         +'<td colspan="2"></td>'
-        +'<td class="tn tr green">'+(catAct>0?'₹'+fmt(catAct):'—')+'</td>'
+        +'<td class="tn tr green">'+(catAct>0?fmt(catAct):'—')+'</td>'
         +'<td></td><td class="no-print"></td>';
     }
     catRow += '</tr>';
@@ -10833,14 +10835,32 @@ let vehCurrentDay=tod();
 function vehShiftDay(d){const dt=new Date(vehCurrentDay+'T00:00:00');dt.setDate(dt.getDate()+d);vehSetDay(dt.toISOString().slice(0,10));}
 function vehSetDay(d){vehCurrentDay=d;const dp=document.getElementById('veh-day-pick');if(dp)dp.value=d;renderVehicleLog();}
 
+// Remembers the last-used Hire/Batta/Fuel rate per vehicle type, so
+// selecting a type you've entered before auto-fills its usual rate instead
+// of retyping it every time. Stored in DB.vehicleRateDefaults.
+function vehTypeChanged(){
+  const type=document.getElementById('veh-type')?.value;
+  if(!type)return;
+  const defaults=(DB.vehicleRateDefaults||{})[type];
+  if(defaults){
+    const hireEl=document.getElementById('veh-hire'),battaEl=document.getElementById('veh-batta'),fuelEl=document.getElementById('veh-fuel');
+    if(hireEl&&!hireEl.value)hireEl.value=defaults.hire||'';
+    if(battaEl&&!battaEl.value)battaEl.value=defaults.batta||'';
+    if(fuelEl&&!fuelEl.value)fuelEl.value=defaults.fuel||'';
+    vehCalc();
+    toast('✓ Auto-filled usual rate for '+type);
+  }
+}
 function vehCalc(){
   const qty=parseInt(document.getElementById('veh-qty')?.value)||1;
   const hire=parseFloat(document.getElementById('veh-hire')?.value)||0;
   const batta=parseFloat(document.getElementById('veh-batta')?.value)||0;
   const fuel=parseFloat(document.getElementById('veh-fuel')?.value)||0;
+  const allow=parseFloat(document.getElementById('veh-allow')?.value)||0;
   const hdr=(DB.dayHeaders||{})[vehCurrentDay]||{};
-  const cs=parseFloat(hdr.cs)||1;
-  const total=(hire+batta*cs)*qty+fuel;
+  const csInput=document.getElementById('veh-cs')?.value;
+  const cs=(csInput&&csInput.trim()!=='')?parseFloat(csInput):(parseFloat(hdr.cs)||1);
+  const total=(hire+batta*cs)*qty+allow*qty+fuel;
   const el=document.getElementById('veh-total');if(el)el.value=fmt(total);
 }
 
@@ -10852,14 +10872,22 @@ function addVehicle(){
   const hire=parseFloat(document.getElementById('veh-hire')?.value)||0;
   const batta=parseFloat(document.getElementById('veh-batta')?.value)||0;
   const fuel=parseFloat(document.getElementById('veh-fuel')?.value)||0;
+  const allow=parseFloat(document.getElementById('veh-allow')?.value)||0;
   const phase=document.getElementById('veh-phase')?.value||'';
   const vendorName=document.getElementById('veh-vendor-name')?.value||'';
   const hdr=(DB.dayHeaders||{})[date]||{};
-  const cs=parseFloat(hdr.cs)||1;
-  const total=(hire+batta*cs)*qty+fuel;
+  const dayCS=parseFloat(hdr.cs)||1;
+  const csInput=document.getElementById('veh-cs')?.value;
+  const csOverride=(csInput&&csInput.trim()!=='')?parseFloat(csInput):null;
+  const cs=csOverride!=null?csOverride:dayCS;
+  const total=(hire+batta*cs)*qty+allow*qty+fuel;
   if(!DB.vehicles)DB.vehicles={};
   if(!DB.vehicles[date])DB.vehicles[date]=[];
-  DB.vehicles[date].push({id:uid(),type,vendorName,vehNumber:(document.getElementById('veh-number')?.value||'').trim(),qty,hire,batta,fuel,total,purpose:document.getElementById('veh-purpose')?.value||'',notes:document.getElementById('veh-notes')?.value||'',phase,actHire:0,actBatta:0,actFuel:0,csOverride:null});
+  DB.vehicles[date].push({id:uid(),type,vendorName,vehNumber:(document.getElementById('veh-number')?.value||'').trim(),qty,hire,batta,allow,fuel,total,purpose:document.getElementById('veh-purpose')?.value||'',notes:document.getElementById('veh-notes')?.value||'',phase,actHire:0,actBatta:0,actFuel:0,csOverride});
+
+  // Remember this type's rate for next time — auto-fills via vehTypeChanged()
+  if(!DB.vehicleRateDefaults)DB.vehicleRateDefaults={};
+  DB.vehicleRateDefaults[type]={hire,batta,fuel};
 
   const advanceAmt=parseFloat(document.getElementById('veh-advance')?.value)||0;
   let advanceMsg='';
@@ -10873,7 +10901,7 @@ function addVehicle(){
   }
 
   saveDB();renderVehicleLog();renderEstTable();renderVehiclesMaster();
-  ['veh-type','veh-vendor-name','veh-number','veh-hire','veh-batta','veh-fuel','veh-purpose','veh-notes','veh-advance'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
+  ['veh-type','veh-vendor-name','veh-number','veh-hire','veh-batta','veh-fuel','veh-cs','veh-allow','veh-purpose','veh-notes','veh-advance'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
   document.getElementById('veh-qty').value=1;
   document.getElementById('veh-total').value='';
   const vehPhaseEl=document.getElementById('veh-phase');if(vehPhaseEl)vehPhaseEl.value='';
@@ -11073,7 +11101,7 @@ function renderPettyCash(){
         ${td(statusBadge)}
         ${td(r.receipt||'—')}
         ${td(r.approved||'—')}
-        ${td('₹'+fmt(r.amount),true,'color:'+(isPaid?'var(--go)':'#f97316')+';font-weight:700;font-family:monospace')}
+        ${td(fmt(r.amount),true,'color:'+(isPaid?'var(--go)':'#f97316')+';font-weight:700;font-family:monospace')}
         ${td(r.notes||'')}
         <td class="no-print" style="padding:4px 8px;border:1px solid var(--bd);white-space:nowrap">
           <button onclick="editPettyCash('${r.id}')" style="color:var(--bl);border:none;background:none;cursor:pointer;font-size:12px;margin-right:4px">Edit</button>
@@ -11614,7 +11642,8 @@ function renderVehiclesMaster(){
       const isOverridden=v.csOverride!=null&&v.csOverride!=='';
       const hireT=(v.hire||0)*(v.qty||1);
       const battaT=(v.batta||0)*cs*(v.qty||1);
-      const grandT=hireT+battaT+(v.fuel||0);
+      const allowT=(v.allow||0)*(v.qty||1);
+      const grandT=hireT+battaT+allowT+(v.fuel||0);
       const actHire=v.actHire||0,actBatta=v.actBatta||0,actFuel=v.actFuel||0;
       const hasActual=actHire||actBatta||actFuel;
       const actTotal=hasActual?(actHire+actBatta*cs)*(v.qty||1)+actFuel:0;
@@ -11631,6 +11660,7 @@ function renderVehiclesMaster(){
       `:`
         <td class="tn tr blue">${fmt(hireT)}</td>
         <td class="tn tr blue">${fmt(battaT)}</td>
+        <td class="tn tr" style="${allowT?'':'color:var(--tx3)'}">${allowT?fmt(allowT):'—'}</td>
         <td class="tn tr">${v.fuel?fmt(v.fuel):'—'}</td>
         <td class="tn tr gold semi">${fmt(grandT)}</td>
         <td class="tn tr xs3 no-print" style="${hasActual?'color:var(--gn)':'color:var(--tx3)'}" title="Actual, for reference">${hasActual?'Act: '+fmt(actTotal):'No actual yet'}</td>
@@ -11659,8 +11689,9 @@ function renderVehiclesMaster(){
       `:`
         <th class="tr" title="Estimated hire, from the rate entered when this row was added">Hire (Est.)</th>
         <th class="tr" title="Estimated batta, from the rate entered when this row was added">Batta (Est.)</th>
+        <th class="tr" title="Estimated allowance, added on top of Batta — same pattern as role-based topsheets">Allow (Est.)</th>
         <th class="tr" title="Estimated fuel">Fuel (Est.)</th>
-        <th class="tr" title="Estimated grand total — Hire + Batta + Fuel, all estimated">Grand Total (Est.)</th>
+        <th class="tr" title="Estimated grand total — Hire + Batta + Allow + Fuel, all estimated">Grand Total (Est.)</th>
         <th class="tr no-print xs3">Actual (ref)</th>
       `;
     return`<div class="dw-day" id="${gId}">
@@ -11683,7 +11714,7 @@ function renderVehiclesMaster(){
           <th class="no-print">Purpose</th>
           <th>Notes</th><th class="no-print"></th>
         </tr></thead><tbody>${rowsHtml}</tbody>
-        <tfoot><tr class="est-section-total"><td colspan="8" class="tr semi">GROUP TOTAL (${isActualView?'Actual':'Est.'})</td><td class="tr mono semi gold">${fmt(gTotal)}</td><td colspan="4"></td></tr></tfoot>
+        <tfoot><tr class="est-section-total"><td colspan="9" class="tr semi">GROUP TOTAL (${isActualView?'Actual':'Est.'})</td><td class="tr mono semi gold">${fmt(gTotal)}</td><td colspan="5"></td></tr></tfoot>
         </table></div>
       </div>
     </div>`;
@@ -12172,10 +12203,10 @@ function renderActPanel(){
         const varCol=variance>0?'color:var(--rd)':variance<0?'color:var(--gn)':'color:var(--tx3)';
         html+=`<tr>
           ${td('<div style="font-size:11px;font-weight:600">'+(e?.item||r.liKey)+'</div>'+(r.notes?'<div style="font-size:9px;opacity:.5">'+r.notes+'</div>':''),false)}
-          ${td('₹'+fmt(r.amount||0),true,'font-size:10px;color:var(--bl)')}
+          ${td(fmt(r.amount||0),true,'font-size:10px;color:var(--bl)')}
           ${td('<input type="number" step="0.5" value="'+actCS+'" placeholder="CS" data-eid="'+r.id+'" data-field="actCS" oninput="actEntryCalc(this);renderActPanel()" style="width:45px;border:1px solid var(--bd);border-radius:4px;padding:2px 4px;font-size:11px;background:var(--sf2);border:1px solid var(--bd2);color:var(--tx);text-align:center">',true)}
           ${td('<input type="number" value="'+actCount+'" placeholder="qty" data-eid="'+r.id+'" data-field="actCount" oninput="actEntryCalc(this);renderActPanel()" style="width:40px;border:1px solid var(--bd);border-radius:4px;padding:2px 4px;font-size:11px;background:var(--sf2);border:1px solid var(--bd2);color:var(--tx);text-align:center">',true)}
-          ${td(actAmt?'₹'+fmt(actAmt):'—',true,'font-weight:700;color:var(--gn);font-size:11px')}
+          ${td(actAmt?fmt(actAmt):'—',true,'font-weight:700;color:var(--gn);font-size:11px')}
           ${td(actAmt?(variance>0?'+':'')+fmt(variance):'—',true,varCol+';font-size:10px')}
         </tr>`;
       });
@@ -12193,7 +12224,7 @@ function renderActPanel(){
       grandEst+=estTotal;grandAct+=actTotal;
       html+=`<tr style="background:rgba(240,160,67,.03)">
         ${td('<div style="font-size:11px;font-weight:600">'+v.qty+'× '+v.type+'</div><div style="font-size:9px;opacity:.5">'+(v.vendorName||'')+'</div>',false)}
-        ${td('₹'+fmt(estTotal),true,'font-size:10px;color:var(--bl)')}
+        ${td(fmt(estTotal),true,'font-size:10px;color:var(--bl)')}
         <td colspan="2" style="padding:3px 4px;border:1px solid var(--bd)">
           <div style="font-size:9px;color:var(--tx3);margin-bottom:2px">hire / batta / fuel</div>
           <div style="display:flex;gap:2px">
@@ -12202,7 +12233,7 @@ function renderActPanel(){
             <input type="number" value="${actFuel||''}" placeholder="F" onchange="saveVehActual('${d}','${v.id}','actFuel',this.value);renderActPanel()" style="width:38px;border:1px solid var(--bd);border-radius:4px;padding:2px 3px;font-size:10px;background:var(--sf2);border:1px solid var(--bd2);color:var(--tx);text-align:right">
           </div>
         </td>
-        ${td(actTotal?'₹'+fmt(actTotal):'—',true,'font-weight:700;color:var(--gn);font-size:11px')}
+        ${td(actTotal?fmt(actTotal):'—',true,'font-weight:700;color:var(--gn);font-size:11px')}
         ${td(actTotal?(variance>0?'+':'')+fmt(variance):'—',true,(variance>0?'color:var(--rd)':variance<0?'color:var(--gn)':'color:var(--tx3)')+';font-size:10px')}
       </tr>`;
     });
@@ -12218,11 +12249,11 @@ function renderActPanel(){
       grandEst+=est;grandAct+=actAmt;
       html+=`<tr style="background:rgba(160,120,240,.03)">
         ${td('<div style="font-size:11px;font-weight:600">'+a.name+'</div><div style="font-size:9px;opacity:.5">'+(a.category||'')+(a.payType?' · '+a.payType:'')+'</div>',false)}
-        ${td(est?'₹'+fmt(est):'—',true,'font-size:10px;color:var(--bl)')}
+        ${td(est?fmt(est):'—',true,'font-size:10px;color:var(--bl)')}
         <td colspan="2" style="padding:3px 6px;border:1px solid var(--bd)">
           <input type="number" value="${actAmt||''}" placeholder="actual ₹" onchange="saveActorActual('${d}','${a.id}',this.value);renderActPanel()" style="width:80px;border:1px solid var(--bd);border-radius:4px;padding:2px 4px;font-size:11px;background:var(--sf2);border:1px solid var(--bd2);color:var(--gn);font-weight:700;text-align:right">
         </td>
-        ${td(actAmt?'₹'+fmt(actAmt):'—',true,'font-weight:700;color:var(--gn);font-size:11px')}
+        ${td(actAmt?fmt(actAmt):'—',true,'font-weight:700;color:var(--gn);font-size:11px')}
         ${td(actAmt?(variance>0?'+':'')+fmt(variance):'—',true,(variance>0?'color:var(--rd)':variance<0?'color:var(--gn)':'color:var(--tx3)')+';font-size:10px')}
       </tr>`;
     });
@@ -12239,12 +12270,12 @@ function renderActPanel(){
       grandEst+=perNight;grandAct+=overrideAmt;
       html+=`<tr style="background:rgba(91,138,240,.03)">
         ${td('<div style="font-size:11px;font-weight:600">'+h.name+'</div><div style="font-size:9px;opacity:.5">'+(h.guest||'')+' · '+h.rooms+'rm · '+fmtD(h.checkIn)+'–'+fmtD(h.checkOut)+'</div>',false)}
-        ${td('₹'+fmt(perNight),true,'font-size:10px;color:var(--bl)')}
+        ${td(fmt(perNight),true,'font-size:10px;color:var(--bl)')}
         <td colspan="2" style="padding:3px 6px;border:1px solid var(--bd)">
           <input type="number" value="${overrideAmt||''}" placeholder="actual/night" onchange="htlInlineAct('${h.id}','${d}',this.value);renderActPanel()" style="width:80px;border:1px solid var(--bd);border-radius:4px;padding:2px 4px;font-size:11px;background:var(--sf2);border:1px solid var(--bd2);color:var(--gn);font-weight:700;text-align:right">
           <div style="font-size:9px;color:var(--tx3);margin-top:1px">${h.actCost?'total: ₹'+fmt(h.actCost):'use Hotels tab → ✓ Add'}</div>
         </td>
-        ${td(overrideAmt?'₹'+fmt(overrideAmt):'—',true,'font-weight:700;color:var(--gn);font-size:11px')}
+        ${td(overrideAmt?fmt(overrideAmt):'—',true,'font-weight:700;color:var(--gn);font-size:11px')}
         ${td(overrideAmt?(variance>0?'+':'')+fmt(variance):'—',true,(variance>0?'color:var(--rd)':variance<0?'color:var(--gn)':'color:var(--tx3)')+';font-size:10px')}
       </tr>`;
     });
@@ -12261,11 +12292,11 @@ function renderActPanel(){
       grandEst+=est;grandAct+=actAmt;
       html+=`<tr style="background:rgba(67,201,232,.03)">
         ${td('<div style="font-size:11px;font-weight:600">'+(f.airline||'Flight')+' — '+f.pax+'</div><div style="font-size:9px;opacity:.5">'+(f.from||'')+(f.from&&f.to?' → ':''+(f.to||''))+'</div>',false)}
-        ${td(est?'₹'+fmt(est):'—',true,'font-size:10px;color:var(--bl)')}
+        ${td(est?fmt(est):'—',true,'font-size:10px;color:var(--bl)')}
         <td colspan="2" style="padding:3px 6px;border:1px solid var(--bd)">
           <input type="number" value="${actAmt||''}" placeholder="actual ₹" onchange="fltInlineAct('${f.id}',this.value);renderActPanel()" style="width:80px;border:1px solid var(--bd);border-radius:4px;padding:2px 4px;font-size:11px;background:var(--sf2);border:1px solid var(--bd2);color:var(--gn);font-weight:700;text-align:right">
         </td>
-        ${td(actAmt?'₹'+fmt(actAmt):'—',true,'font-weight:700;color:var(--gn);font-size:11px')}
+        ${td(actAmt?fmt(actAmt):'—',true,'font-weight:700;color:var(--gn);font-size:11px')}
         ${td(actAmt&&est?(variance>0?'+':'')+fmt(variance):'—',true,(variance>0?'color:var(--rd)':variance<0?'color:var(--gn)':'color:var(--tx3)')+';font-size:10px')}
       </tr>`;
     });
@@ -13898,7 +13929,7 @@ function renderSalProjectSummary(){
       <td style="${TD};font-weight:600">${sal.name||'—'}</td>
       <td style="${TD};color:var(--tx2)">${sal.desig||sal.dept||'—'}</td>
       <td style="${TD};text-align:right">${fmt(sal.rate||0)}</td>
-      ${monthAmts.map(v=>`<td style="${TD};text-align:right;color:${v>0?'var(--gn)':'var(--tx3)'}">${v>0?'₹'+fmt(v):'—'}</td>`).join('')}
+      ${monthAmts.map(v=>`<td style="${TD};text-align:right;color:${v>0?'var(--gn)':'var(--tx3)'}">${v>0?fmt(v):'—'}</td>`).join('')}
       <td style="${TD};text-align:right;font-weight:700;color:var(--gn)">${fmt(total)}</td>
       <td style="${TD};text-align:right;color:var(--tx2)">${paidCount} / ${months.length}</td>
     </tr>`;
@@ -14914,7 +14945,7 @@ function eeCalc(){
   const e=allItems().find(x=>liKey(x)===k);
   const amount=calcAmount(rate,effCS,count,e);
   const el=document.getElementById('ee-amount');
-  if(el)el.value='₹'+fmt(amount);
+  if(el)el.value=fmt(amount);
 }
 
 function saveEstEdit(){
@@ -15147,7 +15178,7 @@ function renderSalaryEntries(){
   const tl=document.getElementById('sal-total-lbl');if(tl)tl.textContent=fmt(total);
   const pl=document.getElementById('sal-paid-lbl');if(pl)pl.textContent=fmt(paid);
   const pel=document.getElementById('sal-pending-lbl');if(pel)pel.textContent=fmt(pending);
-  const ol=document.getElementById('sal-overdue-lbl');if(ol)ol.textContent=overdue>0?'₹'+fmt(overdue):'—';
+  const ol=document.getElementById('sal-overdue-lbl');if(ol)ol.textContent=overdue>0?fmt(overdue):'—';
 }
 
 function salCalc(){}
@@ -17357,7 +17388,7 @@ function tsbPreviewTopsheet(){
       <td style="padding:7px 9px;border:1px solid #ccc;text-align:right">${l.count}</td>
       <td style="padding:7px 9px;border:1px solid #ccc;text-align:right">${isCS?l.cs:'—'}</td>
       <td style="padding:7px 9px;border:1px solid #ccc;text-align:right;font-size:11px;color:#888">${formula}</td>
-      <td style="padding:7px 9px;border:1px solid #ccc;text-align:right">${l.fixedAllow?'₹'+fmt(l.count*l.fixedAllow):'—'}</td>
+      <td style="padding:7px 9px;border:1px solid #ccc;text-align:right">${l.fixedAllow?fmt(l.count*l.fixedAllow):'—'}</td>
       <td style="padding:7px 9px;border:1px solid #ccc;text-align:right;font-weight:700">${fmt(lineTotal)}</td>
     </tr>`;
   }).join('');
@@ -20367,7 +20398,8 @@ function generateVehiclesBill(){
       if(v.billed)return; // legacy: entry was fully billed before per-component tracking existed
       const cs=(v.csOverride!=null&&v.csOverride!=='')?parseFloat(v.csOverride):dayCS;
       const hireT=(v.actHire>0)?v.actHire:(v.hire||0)*(v.qty||1);
-      const battaT=(v.actBatta>0)?v.actBatta:(v.batta||0)*cs*(v.qty||1);
+      const allowT=(v.allow||0)*(v.qty||1); // bundled with Batta below — same "Battas + Allow" pairing as role-based topsheets
+      const battaT=(v.actBatta>0)?v.actBatta:(v.batta||0)*cs*(v.qty||1)+allowT;
       const fuelT=(v.actFuel>0)?v.actFuel:(v.fuel||0);
       const wantHire=(component==='all'||component==='hire')&&!v.hireBilled;
       const wantBatta=(component==='all'||component==='batta')&&!v.battaBilled;
@@ -20550,20 +20582,22 @@ function printVehiclesTopsheet(){
       const cs=(v.csOverride!=null&&v.csOverride!=='')?parseFloat(v.csOverride):dayCS;
       const hireT=(v.hire||0)*(v.qty||1);
       const battaT=(v.batta||0)*cs*(v.qty||1);
+      const allowT=(v.allow||0)*(v.qty||1);
       const fuelT=v.fuel||0;
       const actT=(v.actHire||0)+(v.actBatta||0)+(v.actFuel||0);
       // Same one-vendor-per-component split as Generate Bill — Hire goes to
       // the rental vendor, Batta to the driver, so a topsheet for just one
       // of them (matching whichever bill is being sent to which vendor)
       // needs to show only that component's amount, using the actual if
-      // it's been entered, otherwise the estimate.
+      // it's been entered, otherwise the estimate. Allowance bundles into
+      // Batta here too, same pairing as bill generation.
       let componentAmt=null,componentEst=null,componentAct=null;
       if(componentFilter==='hire'){componentEst=hireT;componentAct=v.actHire||0;}
-      else if(componentFilter==='batta'){componentEst=battaT;componentAct=v.actBatta||0;}
+      else if(componentFilter==='batta'){componentEst=battaT+allowT;componentAct=v.actBatta||0;}
       else if(componentFilter==='fuel'){componentEst=fuelT;componentAct=v.actFuel||0;}
       if(componentFilter!=='all'&&!componentEst&&!componentAct)return; // skip rows with nothing for this component
       flat.push({date:d,type:v.type,vendorName:v.vendorName,vehNumber:v.vehNumber,qty:v.qty||1,
-        hireT,battaT,fuelT,estTotal:hireT+battaT+fuelT,actTotal:actT,notes:v.notes,
+        hireT,battaT,allowT,fuelT,estTotal:hireT+battaT+allowT+fuelT,actTotal:actT,notes:v.notes,
         componentEst,componentAct});
     });
   });
@@ -20594,6 +20628,7 @@ function printVehiclesTopsheet(){
       <td style="padding:5px 8px;border:1px solid #ddd;text-align:center">${v.qty}</td>
       <td style="padding:5px 8px;border:1px solid #ddd;text-align:right">${fmt(v.hireT)}</td>
       <td style="padding:5px 8px;border:1px solid #ddd;text-align:right">${fmt(v.battaT)}</td>
+      <td style="padding:5px 8px;border:1px solid #ddd;text-align:right">${v.allowT?fmt(v.allowT):'—'}</td>
       <td style="padding:5px 8px;border:1px solid #ddd;text-align:right">${fmt(v.fuelT)}</td>
       <td style="padding:5px 8px;border:1px solid #ddd;text-align:right;font-weight:700;background:#f8fafc">${fmt(v.estTotal)}</td>
       <td style="padding:5px 8px;border:1px solid #ddd;text-align:right;${v.actTotal?'font-weight:700;color:#166534':'color:#999'}">${v.actTotal?fmt(v.actTotal):'—'}</td>
@@ -20618,6 +20653,7 @@ function printVehiclesTopsheet(){
         `:`
         <th style="padding:6px 8px;text-align:right">Hire ₹</th>
         <th style="padding:6px 8px;text-align:right">Batta ₹</th>
+        <th style="padding:6px 8px;text-align:right">Allow ₹</th>
         <th style="padding:6px 8px;text-align:right">Fuel ₹</th>
         <th style="padding:6px 8px;text-align:right">Est. Total ₹</th>
         <th style="padding:6px 8px;text-align:right">Actual ₹</th>
@@ -20626,15 +20662,15 @@ function printVehiclesTopsheet(){
       </tr></thead>
       <tbody>${rowsHtml}
         <tr style="background:#1e3a5f;color:#fff;font-weight:700">
-          <td colspan="${isComponentView?5:8}" style="padding:9px 8px;text-align:right">GRAND TOTAL</td>
+          <td colspan="${isComponentView?5:9}" style="padding:9px 8px;text-align:right">GRAND TOTAL</td>
           <td style="padding:9px 8px;text-align:right">${fmt(grandEst)}</td>
           <td style="padding:9px 8px;text-align:right">${grandAct?fmt(grandAct):'—'}</td>
           <td></td>
         </tr>
-        <tr><td colspan="11" style="padding:14px 0 0 0;border:none">
+        <tr><td colspan="12" style="padding:14px 0 0 0;border:none">
           ${(()=>{ const uniqueRates=[...new Map(flat.filter(v=>v.hireT).map(v=>[v.type+(v.vendorName?' — '+v.vendorName:''),Math.round((v.hireT/v.qty)*100)/100])).entries()]; return uniqueRates.length?`<div style="padding:8px 12px;background:#f8fafc;border:1px solid #ddd;border-radius:4px;font-size:10px;color:#475569;margin-bottom:14px"><strong>Rate Legend (per unit):</strong> ${uniqueRates.map(([k,rate])=>`${esc(k)} @ ${fmt(rate)}`).join(' &nbsp;|&nbsp; ')}</div>`:''; })()}
         </td></tr>
-        <tr><td colspan="11" style="padding:26px 0 10px 0;border:none">
+        <tr><td colspan="12" style="padding:26px 0 10px 0;border:none">
           <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:20px;font-size:11px;color:#666">
             <div>Prepared by<br><br>___________________________<br>Executive Producer</div>
             <div>Verified by<br><br>___________________________<br>Accounts Department</div>
@@ -20740,8 +20776,8 @@ function printFlexBillTopsheet(b){
       rowTotal+=battas+allowTotal;
       return`
         <td style="padding:5px 6px;border:1px solid #ddd;border-left:2px solid #ccc;text-align:center">${count||'—'}</td>
-        <td style="padding:5px 6px;border:1px solid #ddd;text-align:right">${battas?'₹'+fmt(battas):'—'}</td>
-        <td style="padding:5px 6px;border:1px solid #ddd;text-align:right">${allowTotal?'₹'+fmt(allowTotal):'—'}</td>`;
+        <td style="padding:5px 6px;border:1px solid #ddd;text-align:right">${battas?fmt(battas):'—'}</td>
+        <td style="padding:5px 6px;border:1px solid #ddd;text-align:right">${allowTotal?fmt(allowTotal):'—'}</td>`;
     }).join('');
     const otherCharges=parseFloat(row.otherCharges)||0;
     rowTotal+=otherCharges;
@@ -20756,7 +20792,7 @@ function printFlexBillTopsheet(b){
       <td style="padding:5px 8px;border:1px solid #ddd;text-align:center;white-space:nowrap">${row.packTime||'—'}</td>
       <td style="padding:5px 8px;border:1px solid #ddd;text-align:center">${row.cs||1}</td>
       ${roleCells}
-      <td style="padding:5px 6px;border:1px solid #ddd;border-left:2px solid #ccc;text-align:right">${otherCharges?'₹'+fmt(otherCharges):'—'}</td>
+      <td style="padding:5px 6px;border:1px solid #ddd;border-left:2px solid #ccc;text-align:right">${otherCharges?fmt(otherCharges):'—'}</td>
       <td style="padding:5px 8px;border:1px solid #ddd;border-left:2px solid #ccc;text-align:right;font-weight:700;background:#f8fafc">${fmt(rowTotal)}</td>
       <td style="padding:5px 8px;border:1px solid #ddd;font-size:10px;color:${hasDeviation?'#dc2626':'#666'};${hasDeviation?'font-weight:600':''};white-space:normal;max-width:200px;word-wrap:break-word">${remarksText}</td>
     </tr>`;
@@ -20861,7 +20897,9 @@ function printFlexBillTopsheet(b){
             <strong>Rate Legend:</strong> ${roles.map(r=>{
               const sampleRow=rows.find(row=>(parseFloat(row.roleData?.[r.id]?.rate)||0)>0);
               const rate=sampleRow?parseFloat(sampleRow.roleData[r.id].rate)||0:0;
-              return `${esc(r.label)} — ${esc(r.payType||'Per CS')} @ ${fmt(rate)}`;
+              const allowSampleRow=rows.find(row=>(parseFloat(row.roleData?.[r.id]?.allowance)||0)!==0);
+              const allowRate=allowSampleRow?parseFloat(allowSampleRow.roleData[r.id].allowance)||0:0;
+              return `${esc(r.label)} — ${esc(r.payType||'Per CS')} @ ${fmt(rate)}`+(allowRate?` + Allow ${fmt(allowRate)}/person`:'');
             }).join(' &nbsp;|&nbsp; ')}
           </div>`:''}
         </td></tr>
@@ -22240,8 +22278,8 @@ function generateFlexTopsheetHtml(b){
       rowTotal+=battas+allowTotal;
       return`
         <td style="padding:5px 6px;border:1px solid #ddd;border-left:2px solid #ccc;text-align:center">${count||'—'}</td>
-        <td style="padding:5px 6px;border:1px solid #ddd;text-align:right">${battas?'₹'+fmt(battas):'—'}</td>
-        <td style="padding:5px 6px;border:1px solid #ddd;text-align:right">${allowTotal?'₹'+fmt(allowTotal):'—'}</td>`;
+        <td style="padding:5px 6px;border:1px solid #ddd;text-align:right">${battas?fmt(battas):'—'}</td>
+        <td style="padding:5px 6px;border:1px solid #ddd;text-align:right">${allowTotal?fmt(allowTotal):'—'}</td>`;
     }).join('');
     const otherCharges=parseFloat(row.otherCharges)||0;
     rowTotal+=otherCharges;rowTotal=Math.round(rowTotal*100)/100;
@@ -22255,7 +22293,7 @@ function generateFlexTopsheetHtml(b){
       <td style="padding:5px 8px;border:1px solid #ddd;text-align:center">${row.packTime||'—'}</td>
       <td style="padding:5px 8px;border:1px solid #ddd;text-align:center">${row.cs||1}</td>
       ${roleCells}
-      <td style="padding:5px 6px;border:1px solid #ddd;border-left:2px solid #ccc;text-align:right">${otherCharges?'₹'+fmt(otherCharges):'—'}</td>
+      <td style="padding:5px 6px;border:1px solid #ddd;border-left:2px solid #ccc;text-align:right">${otherCharges?fmt(otherCharges):'—'}</td>
       <td style="padding:5px 8px;border:1px solid #ddd;border-left:2px solid #ccc;text-align:right;font-weight:700;background:#f8fafc">${fmt(rowTotal)}</td>
       <td style="padding:5px 8px;border:1px solid #ddd;font-size:10px;color:${hasDeviation?'#dc2626':'#666'};white-space:normal;max-width:200px;word-wrap:break-word">${remarksText}</td>
     </tr>`;
