@@ -1490,7 +1490,9 @@ body.auditor-mode #save-btn { display:none !important; }
       <div id="veh-actual-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:9500;align-items:center;justify-content:center">
         <div style="max-width:420px;width:95%;background:var(--sf);border:1px solid var(--bd);border-radius:12px;padding:20px 22px">
           <div class="semi" style="font-size:14px;margin-bottom:4px" id="vam-title">Actual Amount</div>
-          <div class="xs2 dim" style="margin-bottom:14px;line-height:1.6" id="vam-est-hint"></div>
+          <div class="xs2 dim" style="margin-bottom:10px;line-height:1.6" id="vam-est-hint"></div>
+          <button class="btn bs xs" style="margin-bottom:14px" onclick="vamUseEstimateRates()" title="Copies the Hire/Batta/Allowance/Fuel rates already declared as the estimate straight into the Actual fields below — for when the rates were right and only the call sheet count differed">↻ Use Estimate Rates</button>
+          <div class="fld mb10"><label>Call Sheets (Actual)</label><input type="number" id="vam-cs" placeholder="1" step="0.5" oninput="updateVamPreview()" title="How many call sheets this vehicle actually worked — may differ from what was estimated. Batta scales with this number."></div>
           <div class="fld mb10"><label>Actual Hire ₹ (per day)</label><input type="number" id="vam-hire" placeholder="0" oninput="updateVamPreview()"></div>
           <div class="fld mb10"><label>Actual Batta ₹ (per call sheet)</label><input type="number" id="vam-batta" placeholder="0" oninput="updateVamPreview()"></div>
           <div class="fld mb10"><label>Actual Allowance ₹ (per vehicle)</label><input type="number" id="vam-allow" placeholder="0" oninput="updateVamPreview()"></div>
@@ -11633,14 +11635,16 @@ function renderVehicleLog(){
   </tr>`;
 }
 
-let _vehActualDate=null,_vehActualId=null,_vehActualQty=1,_vehActualCS=1;
+let _vehActualDate=null,_vehActualId=null,_vehActualQty=1;
+let _vehActualEstRates={hire:0,batta:0,allow:0,fuel:0};
 function openVehActualModal(date,id){
   const v=(DB.vehicles||{})[date]?.find(x=>x.id===id);
   if(!v)return;
   _vehActualDate=date;_vehActualId=id;
   const hdr=(DB.dayHeaders||{})[date]||{};
   const cs=(v.csOverride!=null&&v.csOverride!=='')?parseFloat(v.csOverride):(parseFloat(hdr.cs)||1);
-  _vehActualQty=v.qty||1;_vehActualCS=cs;
+  _vehActualQty=v.qty||1;
+  _vehActualEstRates={hire:v.hire||0,batta:v.batta||0,allow:v.allow||0,fuel:v.fuel||0};
   const hireT=(v.hire||0)*(v.qty||1),battaT=(v.batta||0)*cs*(v.qty||1),allowT=(v.allow||0)*(v.qty||1),fuelT=v.fuel||0;
   document.getElementById('vam-title').textContent='Actual Amount — '+v.type+(v.vendorName?' ('+v.vendorName+')':'')+' — '+fmtD(date);
   document.getElementById('vam-est-hint').innerHTML=
@@ -11649,6 +11653,7 @@ function openVehActualModal(date,id){
     (allowT?' · Allow: '+fmt(v.allow||0)+' × '+(v.qty||1)+' = '+fmt(allowT):'')+
     (fuelT?' · Fuel: '+fmt(fuelT):'')+
     ' · <strong>Est. Total: '+fmt(hireT+battaT+allowT+fuelT)+'</strong>';
+  document.getElementById('vam-cs').value=cs;
   document.getElementById('vam-hire').value=v.actHire||'';
   document.getElementById('vam-batta').value=v.actBatta||'';
   document.getElementById('vam-allow').value=v.actAllow||'';
@@ -11656,24 +11661,44 @@ function openVehActualModal(date,id){
   updateVamPreview();
   document.getElementById('veh-actual-modal').style.display='flex';
 }
+// One-click shortcut for "the estimate rates were right, only the call
+// sheet count actually differed" — copies the declared estimate rates
+// straight into the Actual fields instead of retyping them.
+function vamUseEstimateRates(){
+  document.getElementById('vam-hire').value=_vehActualEstRates.hire||'';
+  document.getElementById('vam-batta').value=_vehActualEstRates.batta||'';
+  document.getElementById('vam-allow').value=_vehActualEstRates.allow||'';
+  document.getElementById('vam-fuel').value=_vehActualEstRates.fuel||'';
+  updateVamPreview();
+  toast('✓ Copied estimate rates — adjust Call Sheets if it actually differed');
+}
 function updateVamPreview(){
   const hire=parseFloat(document.getElementById('vam-hire')?.value)||0;
   const batta=parseFloat(document.getElementById('vam-batta')?.value)||0;
   const allow=parseFloat(document.getElementById('vam-allow')?.value)||0;
   const fuel=parseFloat(document.getElementById('vam-fuel')?.value)||0;
+  const cs=parseFloat(document.getElementById('vam-cs')?.value)||1;
   // Matches renderVehiclesMaster's calculation exactly — Hire/Batta/Allow
   // are per-unit rates, multiplied by qty (and Batta by CS too), not
-  // already-computed totals.
-  const total=(hire+batta*_vehActualCS)*_vehActualQty+allow*_vehActualQty+fuel;
+  // already-computed totals. CS now comes live from the modal's own field,
+  // so changing it here recalculates without touching the top form.
+  const total=(hire+batta*cs)*_vehActualQty+allow*_vehActualQty+fuel;
   const el=document.getElementById('vam-actual-preview');
-  if(el)el.textContent='Actual Total: '+fmt(total)+(_vehActualQty>1?' (qty '+_vehActualQty+', CS '+_vehActualCS+')':'');
+  if(el)el.textContent='Actual Total: '+fmt(total)+(_vehActualQty>1||cs!==1?' (qty '+_vehActualQty+', CS '+cs+')':'');
 }
 function saveVehActualModal(){
   saveVehActual(_vehActualDate,_vehActualId,'actHire',document.getElementById('vam-hire').value);
   saveVehActual(_vehActualDate,_vehActualId,'actBatta',document.getElementById('vam-batta').value);
   saveVehActual(_vehActualDate,_vehActualId,'actAllow',document.getElementById('vam-allow').value);
   saveVehActual(_vehActualDate,_vehActualId,'actFuel',document.getElementById('vam-fuel').value);
+  // The CS entered here is the real call sheet count this vehicle worked —
+  // save it as the row's override so bills, topsheets, and the table all
+  // stay consistent with what was actually used to compute this actual.
+  const csVal=document.getElementById('vam-cs')?.value;
+  const v=(DB.vehicles||{})[_vehActualDate]?.find(x=>x.id===_vehActualId);
+  if(v&&csVal!==''&&csVal!=null)v.csOverride=parseFloat(csVal);
   document.getElementById('veh-actual-modal').style.display='none';
+  saveDB();
   renderVehiclesMaster();
   toast('✓ Actual amount saved');
 }
