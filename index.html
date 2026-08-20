@@ -10863,12 +10863,14 @@ function setVehEntryMode(mode){
 function vehTypeChanged(){
   const type=document.getElementById('veh-type')?.value;
   if(!type)return;
-  if(_vehEntryMode==='actual')return; // don't pre-fill an estimate rate into fields meant for the real actual cost
   const hireEl=document.getElementById('veh-hire'),battaEl=document.getElementById('veh-batta'),fuelEl=document.getElementById('veh-fuel'),allowEl=document.getElementById('veh-allow');
   // The Rate Card has a dedicated "Vehicles" category with real agreed rates
   // per type (e.g. "DCM — Hire", "DCM — Driver Batta", "DCM — Fuel") — this
   // is the source of truth, and getRate() correctly applies any rate
-  // override on top of the base seed rate. Check there first.
+  // override on top of the base seed rate. Check there first. Applies in
+  // both Estimate and Actual entry mode — for a type with a known, steady
+  // agreed rate (like DCM), the actual cost usually just IS that rate, so
+  // there's no reason to force retyping it every time.
   const items=allItems();
   const hireItem=items.find(x=>x.cat==='Vehicles'&&x.item===type+' — Hire');
   const battaItem=items.find(x=>x.cat==='Vehicles'&&x.item===type+' — Driver Batta');
@@ -10880,7 +10882,7 @@ function vehTypeChanged(){
     if(fuelEl&&!fuelEl.value&&fuelItem)fuelEl.value=getRate(fuelItem)||'';
     if(allowEl&&!allowEl.value&&allowItem)allowEl.value=getRate(allowItem)||'';
     vehCalc();
-    toast('✓ Auto-filled rate from Rate Card for '+type);
+    toast('✓ Auto-filled '+(_vehEntryMode==='actual'?'Actual':'Estimate')+' rate from Rate Card for '+type);
     return;
   }
   // Fallback: no Rate Card entry for this type (e.g. a custom/"Other" type
