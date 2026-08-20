@@ -687,7 +687,17 @@ body.light-mode .new-cat-row input{background:#fff;border-color:#d1d5db;color:#1
   .est-print-header .ph-meta span::before { content:attr(data-label)': '; font-weight:600; }
 
   .card { box-shadow:none!important; border:none!important; padding:0!important; }
+  /* The general print rule makes every .card break-inside:avoid, which is
+     fine for small cards but disastrous for #est-table-card — it wraps
+     the entire (multi-page) Estimates table, so the browser refuses to
+     start it mid-page and shoves the whole thing to page 2, leaving
+     page 1 blank after the header. Let this one break normally. */
+  #est-table-card { break-inside:auto!important; page-break-inside:auto!important; }
   .est-section-total { display:none!important; }
+  /* This on-screen status row (date/total/HC badge + Est/Actuals submit
+     tags) duplicates the detailed print header above it — hide it so it
+     doesn't print as a second, redundant header. */
+  #est-table-date-lbl, #est-day-total, #est-hc-badge, #est-status-bar { display:none!important; }
   table { font-size:10px; }
   th, td { padding:3px 5px!important; }
 }
