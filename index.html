@@ -1417,6 +1417,7 @@ body.auditor-mode #save-btn { display:none !important; }
         <div class="fld" style="flex:none"><label>From</label><input type="date" id="veh-range-from" onchange="applyVehRangeFilter()"></div>
         <div class="fld" style="flex:none"><label>To</label><input type="date" id="veh-range-to" onchange="applyVehRangeFilter()"></div>
         <div class="fld" style="flex:none;min-width:150px"><label>Bill For</label><select id="veh-component-filter"><option value="all">All (Hire + Batta + Fuel)</option><option value="hire">Hire only</option><option value="batta">Batta only</option><option value="fuel">Fuel only</option></select></div>
+        <div class="fld" style="flex:none;min-width:150px"><label>Show</label><select id="veh-print-view"><option value="combined">Combined (Est. + Actual)</option><option value="estimate">Estimate Only</option><option value="actual">Actual Only</option></select></div>
         <button class="btn bs sm" onclick="clearRangeFilter()">✕ Clear</button>
         <button class="btn bg sm" onclick="printVehiclesTopsheet()">🖨 Print Topsheet</button>
         <button class="btn bg sm" onclick="generateVehiclesBill()" style="background:var(--gn2,#166534)">🧾 Generate Bill</button>
@@ -20517,7 +20518,7 @@ function generateVehiclesBill(){
       const cs=(v.csOverride!=null&&v.csOverride!=='')?parseFloat(v.csOverride):dayCS;
       const hireT=(v.actHire>0)?v.actHire:(v.hire||0)*(v.qty||1);
       const allowT=(v.allow||0)*(v.qty||1); // bundled with Batta below — same "Battas + Allow" pairing as role-based topsheets
-      const battaT=(v.actBatta>0)?v.actBatta:(v.batta||0)*cs*(v.qty||1)+allowT;
+      const battaT=(v.actBatta>0)?v.actBatta+(v.actAllow||0):(v.batta||0)*cs*(v.qty||1)+allowT;
       const fuelT=(v.actFuel>0)?v.actFuel:(v.fuel||0);
       const wantHire=(component==='all'||component==='hire')&&!v.hireBilled;
       const wantBatta=(component==='all'||component==='batta')&&!v.battaBilled;
@@ -20692,128 +20693,96 @@ function printFlightsTopsheet(){
 function printVehiclesTopsheet(){
   if(!_rangeFrom&&!_rangeTo){toast('Set a date range first (From / To above)','err');return;}
   const componentFilter=document.getElementById('veh-component-filter')?.value||'all';
+  const printView=document.getElementById('veh-print-view')?.value||'combined'; // 'combined' | 'estimate' | 'actual'
   const dates=Object.keys(DB.vehicles||{}).filter(d=>inRange(d)).sort();
   const flat=[];
   dates.forEach(d=>{
     const dayCS=parseFloat((DB.dayHeaders||{})[d]?.cs)||1;
     (DB.vehicles[d]||[]).forEach(v=>{
       const cs=(v.csOverride!=null&&v.csOverride!=='')?parseFloat(v.csOverride):dayCS;
-      const hireT=(v.hire||0)*(v.qty||1);
-      const battaT=(v.batta||0)*cs*(v.qty||1);
-      const allowT=(v.allow||0)*(v.qty||1);
-      const fuelT=v.fuel||0;
-      const actT=(v.actHire||0)+(v.actBatta||0)+(v.actFuel||0);
-      // Same one-vendor-per-component split as Generate Bill — Hire goes to
-      // the rental vendor, Batta to the driver, so a topsheet for just one
-      // of them (matching whichever bill is being sent to which vendor)
-      // needs to show only that component's amount, using the actual if
-      // it's been entered, otherwise the estimate. Allowance bundles into
-      // Batta here too, same pairing as bill generation.
-      let componentAmt=null,componentEst=null,componentAct=null;
-      if(componentFilter==='hire'){componentEst=hireT;componentAct=v.actHire||0;}
-      else if(componentFilter==='batta'){componentEst=battaT+allowT;componentAct=v.actBatta||0;}
-      else if(componentFilter==='fuel'){componentEst=fuelT;componentAct=v.actFuel||0;}
-      if(componentFilter!=='all'&&!componentEst&&!componentAct)return; // skip rows with nothing for this component
-      flat.push({date:d,type:v.type,vendorName:v.vendorName,vehNumber:v.vehNumber,qty:v.qty||1,
-        hireT,battaT,allowT,fuelT,estTotal:hireT+battaT+allowT+fuelT,actTotal:actT,notes:v.notes,
-        componentEst,componentAct});
+      const hireEst=(v.hire||0)*(v.qty||1);
+      const battaEst=(v.batta||0)*cs*(v.qty||1)+(v.allow||0)*(v.qty||1); // Batta + Allowance bundled, same pairing as bill generation
+      const fuelEst=v.fuel||0;
+      const hireAct=(v.actHire||0)*(v.qty||1);
+      const battaAct=(v.actBatta||0)*cs*(v.qty||1)+(v.actAllow||0)*(v.qty||1);
+      const fuelAct=v.actFuel||0;
+      if(componentFilter==='hire'&&!hireEst&&!hireAct)return;
+      if(componentFilter==='batta'&&!battaEst&&!battaAct)return;
+      if(componentFilter==='fuel'&&!fuelEst&&!fuelAct)return;
+      flat.push({date:d,vehNumber:v.vehNumber,type:v.type,cs,hireEst,battaEst,fuelEst,hireAct,battaAct,fuelAct});
     });
   });
   if(!flat.length){toast('No vehicle entries in that date range'+(componentFilter!=='all'?' for '+componentFilter:''),'err');return;}
-  let grandEst=0,grandAct=0;
-  const isComponentView=componentFilter!=='all';
+  flat.sort((a,b)=>a.date.localeCompare(b.date));
+  const showHire=componentFilter==='all'||componentFilter==='hire';
+  const showBatta=componentFilter==='all'||componentFilter==='batta';
+  const showFuel=componentFilter==='fuel';
+  const showCombinedTotal=componentFilter==='all'; // "Hire + Batta" only makes sense when both are shown
   const componentLabel={hire:'Hire',batta:'Batta',fuel:'Fuel'}[componentFilter]||'';
-  const rowHtml=v=>{
-    if(isComponentView){
-      grandEst+=v.componentEst||0;grandAct+=v.componentAct||0;
-      return`<tr>
-        <td style="padding:5px 8px;border:1px solid #ddd;font-weight:700">${esc(v.type)}</td>
-        <td style="padding:5px 8px;border:1px solid #ddd">${esc(v.vendorName||'—')}</td>
-        <td style="padding:5px 8px;border:1px solid #ddd">${esc(v.vehNumber||'—')}</td>
-        <td style="padding:5px 8px;border:1px solid #ddd;text-align:center">${v.qty}</td>
-        <td style="padding:5px 8px;border:1px solid #ddd;text-align:right">${fmt(v.componentEst||0)}</td>
-        <td style="padding:5px 8px;border:1px solid #ddd;text-align:right;${v.componentAct?'font-weight:700;color:#166534':'color:#999'}">${v.componentAct?fmt(v.componentAct):'—'}</td>
-        <td style="padding:5px 8px;border:1px solid #ddd;font-size:10px;color:#666">${esc(v.notes||'')}</td>
-      </tr>`;
-    }
-    grandEst+=v.estTotal;grandAct+=v.actTotal;
-    return`<tr>
-      <td style="padding:5px 8px;border:1px solid #ddd;font-weight:700">${esc(v.type)}</td>
-      <td style="padding:5px 8px;border:1px solid #ddd">${esc(v.vendorName||'—')}</td>
-      <td style="padding:5px 8px;border:1px solid #ddd">${esc(v.vehNumber||'—')}</td>
-      <td style="padding:5px 8px;border:1px solid #ddd;text-align:center">${v.qty}</td>
-      <td style="padding:5px 8px;border:1px solid #ddd;text-align:right">${fmt(v.hireT)}</td>
-      <td style="padding:5px 8px;border:1px solid #ddd;text-align:right">${fmt(v.battaT)}</td>
-      <td style="padding:5px 8px;border:1px solid #ddd;text-align:right">${v.allowT?fmt(v.allowT):'—'}</td>
-      <td style="padding:5px 8px;border:1px solid #ddd;text-align:right">${fmt(v.fuelT)}</td>
-      <td style="padding:5px 8px;border:1px solid #ddd;text-align:right;font-weight:700;background:#f8fafc">${fmt(v.estTotal)}</td>
-      <td style="padding:5px 8px;border:1px solid #ddd;text-align:right;${v.actTotal?'font-weight:700;color:#166534':'color:#999'}">${v.actTotal?fmt(v.actTotal):'—'}</td>
-      <td style="padding:5px 8px;border:1px solid #ddd;font-size:10px;color:#666">${esc(v.notes||'')}</td>
-    </tr>`;
-  };
-  const colHeaders=isComponentView?`
-        <th style="padding:6px 8px;text-align:right">${componentLabel} (Est.) ₹</th>
-        <th style="padding:6px 8px;text-align:right">${componentLabel} (Actual) ₹</th>
-      `:`
-        <th style="padding:6px 8px;text-align:right">Hire ₹</th>
-        <th style="padding:6px 8px;text-align:right">Batta ₹</th>
-        <th style="padding:6px 8px;text-align:right">Allow ₹</th>
-        <th style="padding:6px 8px;text-align:right">Fuel ₹</th>
-        <th style="padding:6px 8px;text-align:right">Est. Total ₹</th>
-        <th style="padding:6px 8px;text-align:right">Actual ₹</th>
-      `;
-  const colCount=isComponentView?7:11;
-  // Day-by-day sections — each date gets its own mini-table with its own
-  // subtotal, so what prints reads the same way a physical daily vehicle
-  // log would: grouped and totalled per day, not one long combined list.
-  const daySectionsHtml=dates.map(d=>{
-    const dayEntries=flat.filter(v=>v.date===d);
-    if(!dayEntries.length)return '';
-    let dayEst=0,dayAct=0;
-    const rows=dayEntries.map(v=>{
-      dayEst+=isComponentView?(v.componentEst||0):v.estTotal;
-      dayAct+=isComponentView?(v.componentAct||0):v.actTotal;
-      return rowHtml(v);
-    }).join('');
-    return`<div style="page-break-inside:avoid;margin-bottom:18px">
-      <div style="font-weight:700;font-size:12.5px;background:#eef2f7;padding:5px 8px;border:1px solid #ddd;border-bottom:none">${fmtD(d)}${dayEntries.length>1?' — '+dayEntries.length+' entries':''}</div>
-      <table style="border-collapse:collapse;font-size:11px;width:100%">
-        <thead><tr style="background:#1e3a5f;color:#fff">
-          <th style="padding:6px 8px;text-align:left">Type</th>
-          <th style="padding:6px 8px;text-align:left">Vendor</th>
-          <th style="padding:6px 8px;text-align:left">Veh. No.</th>
-          <th style="padding:6px 8px;text-align:center">Qty</th>
-          ${colHeaders}
-          <th style="padding:6px 8px;text-align:left">Notes</th>
-        </tr></thead>
-        <tbody>${rows}
-          <tr style="background:#f1f5f9;font-weight:700">
-            <td colspan="${colCount-3}" style="padding:6px 8px;text-align:right;border:1px solid #ddd">DAY TOTAL</td>
-            <td style="padding:6px 8px;text-align:right;border:1px solid #ddd">${fmt(dayEst)}</td>
-            <td style="padding:6px 8px;text-align:right;border:1px solid #ddd">${dayAct?fmt(dayAct):'—'}</td>
-            <td style="border:1px solid #ddd"></td>
-          </tr>
-        </tbody>
-      </table>
-    </div>`;
+  const viewLabel={estimate:' — Estimate Only',actual:' — Actual Only',combined:''}[printView];
+
+  // Column plan, in the exact order requested: Date | Vehicle No. | Hire Amount | Call Sheets | Batta Amount | Hire + Batta
+  // Under "Combined", each amount column splits into Est/Actual sub-columns
+  // since there's no single figure to show — matches the existing dropdown's
+  // behavior everywhere else in this app.
+  const headers=['Date','Vehicle No.'];
+  if(showHire){printView==='combined'?headers.push('Hire (Est.) ₹','Hire (Actual) ₹'):headers.push('Hire ₹');}
+  headers.push('Call Sheets');
+  if(showBatta){printView==='combined'?headers.push('Batta (Est.) ₹','Batta (Actual) ₹'):headers.push('Batta ₹');}
+  if(showFuel){printView==='combined'?headers.push('Fuel (Est.) ₹','Fuel (Actual) ₹'):headers.push('Fuel ₹');}
+  if(showCombinedTotal){printView==='combined'?headers.push('Hire+Batta (Est.) ₹','Hire+Batta (Actual) ₹'):headers.push('Hire + Batta ₹');}
+
+  let grandHireEst=0,grandHireAct=0,grandBattaEst=0,grandBattaAct=0,grandFuelEst=0,grandFuelAct=0,grandTotalEst=0,grandTotalAct=0;
+  const rowsHtml=flat.map(v=>{
+    grandHireEst+=v.hireEst;grandHireAct+=v.hireAct;
+    grandBattaEst+=v.battaEst;grandBattaAct+=v.battaAct;
+    grandFuelEst+=v.fuelEst;grandFuelAct+=v.fuelAct;
+    const totalEst=v.hireEst+v.battaEst;const totalAct=v.hireAct+v.battaAct;
+    grandTotalEst+=totalEst;grandTotalAct+=totalAct;
+    const cell=(est,act)=>{
+      if(printView==='estimate')return`<td style="padding:5px 8px;border:1px solid #ddd;text-align:right">${est?fmt(est):'—'}</td>`;
+      if(printView==='actual')return`<td style="padding:5px 8px;border:1px solid #ddd;text-align:right;${act?'color:#166534;font-weight:700':'color:#999'}">${act?fmt(act):'—'}</td>`;
+      return`<td style="padding:5px 8px;border:1px solid #ddd;text-align:right">${est?fmt(est):'—'}</td><td style="padding:5px 8px;border:1px solid #ddd;text-align:right;${act?'color:#166534;font-weight:700':'color:#999'}">${act?fmt(act):'—'}</td>`;
+    };
+    let row=`<tr>
+      <td style="padding:5px 8px;border:1px solid #ddd;white-space:nowrap">${fmtD(v.date)}</td>
+      <td style="padding:5px 8px;border:1px solid #ddd;font-weight:700">${esc(v.vehNumber||v.type||'—')}</td>`;
+    if(showHire)row+=cell(v.hireEst,v.hireAct);
+    row+=`<td style="padding:5px 8px;border:1px solid #ddd;text-align:center">${v.cs}</td>`;
+    if(showBatta)row+=cell(v.battaEst,v.battaAct);
+    if(showFuel)row+=cell(v.fuelEst,v.fuelAct);
+    if(showCombinedTotal)row+=cell(totalEst,totalAct);
+    row+=`</tr>`;
+    return row;
   }).join('');
+
+  const grandCell=(est,act)=>{
+    if(printView==='estimate')return`<td style="padding:9px 8px;text-align:right">${fmt(est)}</td>`;
+    if(printView==='actual')return`<td style="padding:9px 8px;text-align:right">${act?fmt(act):'—'}</td>`;
+    return`<td style="padding:9px 8px;text-align:right">${fmt(est)}</td><td style="padding:9px 8px;text-align:right">${act?fmt(act):'—'}</td>`;
+  };
+  let grandRow=`<td style="padding:9px 8px;text-align:right;font-weight:700" colspan="2">GRAND TOTAL</td>`;
+  if(showHire)grandRow+=grandCell(grandHireEst,grandHireAct);
+  grandRow+=`<td></td>`; // Call Sheets column — no meaningful grand total to sum
+  if(showBatta)grandRow+=grandCell(grandBattaEst,grandBattaAct);
+  if(showFuel)grandRow+=grandCell(grandFuelEst,grandFuelAct);
+  if(showCombinedTotal)grandRow+=grandCell(grandTotalEst,grandTotalAct);
+
   const rangeLabel=(_rangeFrom&&_rangeTo)?fmtD(_rangeFrom)+' to '+fmtD(_rangeTo):(_rangeFrom?'From '+fmtD(_rangeFrom):'Until '+fmtD(_rangeTo));
   const html=`
-    <h2 style="font-size:20px;margin:0 0 2px 0">Vehicles Topsheet${isComponentView?' — '+componentLabel+' Only':''}</h2>
-    <div style="font-size:12px;color:#888;margin-bottom:16px">Kalki 2 · Vyjayanthi Movies · ${rangeLabel} · ${flat.length} entr${flat.length===1?'y':'ies'} across ${dates.length} day(s)</div>
+    <h2 style="font-size:20px;margin:0 0 2px 0">Vehicles Topsheet${componentFilter!=='all'?' — '+componentLabel+' Only':''}${viewLabel}</h2>
+    <div style="font-size:12px;color:#888;margin-bottom:16px">Kalki 2 · Vyjayanthi Movies · ${rangeLabel} · ${flat.length} entr${flat.length===1?'y':'ies'}</div>
     <div style="overflow-x:auto">
-    ${daySectionsHtml}
     <table style="border-collapse:collapse;font-size:11px;margin-bottom:14px;width:100%">
-      <tbody>
-        <tr style="background:#1e3a5f;color:#fff;font-weight:700">
-          <td colspan="${colCount-2}" style="padding:9px 8px;text-align:right">GRAND TOTAL (ALL DAYS)</td>
-          <td style="padding:9px 8px;text-align:right">${fmt(grandEst)}</td>
-          <td style="padding:9px 8px;text-align:right">${grandAct?fmt(grandAct):'—'}</td>
-        </tr>
-        <tr><td colspan="${colCount}" style="padding:14px 0 0 0;border:none">
-          ${(()=>{ const uniqueRates=[...new Map(flat.filter(v=>v.hireT).map(v=>[v.type+(v.vendorName?' — '+v.vendorName:''),Math.round((v.hireT/v.qty)*100)/100])).entries()]; return uniqueRates.length?`<div style="padding:8px 12px;background:#f8fafc;border:1px solid #ddd;border-radius:4px;font-size:10px;color:#475569;margin-bottom:14px"><strong>Rate Legend (per unit):</strong> ${uniqueRates.map(([k,rate])=>`${esc(k)} @ ${fmt(rate)}`).join(' &nbsp;|&nbsp; ')}</div>`:''; })()}
+      <thead><tr style="background:#1e3a5f;color:#fff">
+        ${headers.map(h=>`<th style="padding:6px 8px;text-align:${h==='Date'||h==='Vehicle No.'?'left':h==='Call Sheets'?'center':'right'}">${h}</th>`).join('')}
+      </tr></thead>
+      <tbody>${rowsHtml}
+        <tr style="background:#1e3a5f;color:#fff;font-weight:700">${grandRow}</tr>
+        <tr><td colspan="${headers.length}" style="padding:14px 0 0 0;border:none">
+          ${(()=>{ const uniqueRates=[...new Map(flat.filter(v=>v.hireEst).map(v=>[v.type,v.hireEst])).entries()]; return uniqueRates.length?`<div style="padding:8px 12px;background:#f8fafc;border:1px solid #ddd;border-radius:4px;font-size:10px;color:#475569;margin-bottom:14px"><strong>Rate Legend:</strong> ${uniqueRates.map(([k,rate])=>`${esc(k)} @ ${fmt(rate)}`).join(' &nbsp;|&nbsp; ')}</div>`:''; })()}
         </td></tr>
-        <tr><td colspan="${colCount}" style="padding:26px 0 10px 0;border:none">
+        <tr><td colspan="${headers.length}" style="padding:26px 0 10px 0;border:none">
           <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:20px;font-size:11px;color:#666">
             <div>Prepared by<br><br>___________________________<br>Executive Producer</div>
             <div>Verified by<br><br>___________________________<br>Accounts Department</div>
