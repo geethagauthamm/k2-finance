@@ -15908,6 +15908,16 @@ async function loadFromSupabase(){
               if(day&&Array.isArray(day.entries))day.entries=day.entries.filter(e=>!e||!dead.includes(e.id));
             });
           }
+        } else if(field==='vehicles'){
+          // Vehicles is date-keyed (like paytracker) but each day is a plain
+          // array, not {entries:[...]} — needs its own case or tombstoned
+          // deletions never actually get removed here, even though the
+          // tombstone id itself is correctly recorded above.
+          if(DB.vehicles&&typeof DB.vehicles==='object'){
+            Object.keys(DB.vehicles).forEach(k=>{
+              if(Array.isArray(DB.vehicles[k]))DB.vehicles[k]=DB.vehicles[k].filter(v=>!v||!dead.includes(v.id));
+            });
+          }
         } else if(Array.isArray(DB[field])){
           DB[field]=DB[field].filter(item=>!item||!item.id||!dead.includes(item.id));
         }
