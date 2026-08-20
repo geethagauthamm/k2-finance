@@ -1425,7 +1425,14 @@ body.auditor-mode #save-btn { display:none !important; }
       <div class="xs2 dim" style="margin-top:6px">If Hire goes to a rental vendor and Batta goes to the driver, generate two separate bills from the same entries — pick "Hire only" for one, "Batta only" for the other. Each portion tracks its own billed status, so doing both won't double-count.</div>
     </div>
     <div class="card no-print">
-      <div class="ct">Add Vehicle Entry</div>
+      <div class="flex aic jb mb10 wrap gap8">
+        <div class="ct" style="margin:0">Add Vehicle Entry</div>
+        <div class="flex gap8" style="align-items:center">
+          <span class="xs2 dim">I'm entering:</span>
+          <button class="btn sm" id="veh-entry-est-btn" onclick="setVehEntryMode('estimate')">📋 Estimate</button>
+          <button class="btn bs sm" id="veh-entry-act-btn" onclick="setVehEntryMode('actual')">✓ Actual</button>
+        </div>
+      </div>
       <div class="fg mb8" style="grid-template-columns:1fr 1fr 0.6fr 0.6fr 0.6fr 0.6fr 0.8fr auto">
         <div class="fld"><label>Vehicle Type</label>
           <select id="veh-type" onchange="vehTypeChanged()">
@@ -1450,9 +1457,9 @@ body.auditor-mode #save-btn { display:none !important; }
           <input type="text" id="veh-vendor-name" placeholder="Optional">
         </div>
         <div class="fld"><label>Qty</label><input type="number" id="veh-qty" value="1" min="1" oninput="vehCalc()"></div>
-        <div class="fld"><label>Hire Rate (&#8377;/day)</label><input type="number" id="veh-hire" placeholder="0" oninput="vehCalc()"></div>
-        <div class="fld"><label>Batta Rate (&#8377;/Call Sheet)</label><input type="number" id="veh-batta" placeholder="0" oninput="vehCalc()"></div>
-        <div class="fld"><label>Fuel Est (&#8377;)</label><input type="number" id="veh-fuel" placeholder="0" oninput="vehCalc()"></div>
+        <div class="fld"><label id="veh-hire-lbl">Hire Rate (&#8377;/day)</label><input type="number" id="veh-hire" placeholder="0" oninput="vehCalc()"></div>
+        <div class="fld"><label id="veh-batta-lbl">Batta Rate (&#8377;/Call Sheet)</label><input type="number" id="veh-batta" placeholder="0" oninput="vehCalc()"></div>
+        <div class="fld"><label id="veh-fuel-lbl">Fuel Est (&#8377;)</label><input type="number" id="veh-fuel" placeholder="0" oninput="vehCalc()"></div>
         <div class="fld"><label>Total (auto)</label>
           <input type="text" id="veh-total" readonly style="font-family:'JetBrains Mono',monospace;color:var(--gn);font-weight:700">
         </div>
@@ -1461,7 +1468,7 @@ body.auditor-mode #save-btn { display:none !important; }
       <div class="flex aic gap12" style="flex-wrap:wrap">
         <div class="fld" style="max-width:180px;flex:1"><label>Vehicle Number</label><input type="text" id="veh-number" placeholder="TS 09 AB 1234"></div>
         <div class="fld" style="max-width:110px"><label>Call Sheets</label><input type="number" id="veh-cs" placeholder="Day default" step="0.5" oninput="vehCalc()" title="Leave blank to use the day's overall call sheet count — enter a number here (e.g. 1.5 or 2) if this vehicle worked a different number of call sheets, like a Sunday double shift"></div>
-        <div class="fld" style="max-width:130px"><label>Allowance ₹</label><input type="number" id="veh-allow" placeholder="0" oninput="vehCalc()" title="Per-vehicle allowance, added on top of Batta — same pattern as the Allow column on role-based topsheets"></div>
+        <div class="fld" style="max-width:130px"><label id="veh-allow-lbl">Allowance ₹</label><input type="number" id="veh-allow" placeholder="0" oninput="vehCalc()" title="Per-vehicle allowance, added on top of Batta — same pattern as the Allow column on role-based topsheets"></div>
         <div class="fld" style="max-width:220px;flex:1"><label>Purpose</label><input type="text" id="veh-purpose" placeholder="e.g. Camera unit, Lights transport"></div>
         <div class="fld" style="max-width:220px;flex:1"><label>Notes</label><input type="text" id="veh-notes" placeholder="Route, remarks..."></div>
         <div class="fld" style="max-width:220px;flex:1"><label>Phase</label><select id="veh-phase"><option value="">— Select Phase —</option></select></div>
@@ -10840,12 +10847,44 @@ function vehSetDay(d){vehCurrentDay=d;const dp=document.getElementById('veh-day-
 // Remembers the last-used Hire/Batta/Fuel rate per vehicle type, so
 // selecting a type you've entered before auto-fills its usual rate instead
 // of retyping it every time. Stored in DB.vehicleRateDefaults.
+let _vehEntryMode='estimate'; // 'estimate' or 'actual' — which fields the Add Vehicle Entry form's Hire/Batta/Fuel/Allow inputs feed into
+function setVehEntryMode(mode){
+  _vehEntryMode=mode;
+  const estBtn=document.getElementById('veh-entry-est-btn'),actBtn=document.getElementById('veh-entry-act-btn');
+  if(estBtn)estBtn.className=mode==='estimate'?'btn sm':'btn bs sm';
+  if(actBtn)actBtn.className=mode==='actual'?'btn sm':'btn bs sm';
+  const isAct=mode==='actual';
+  const hireLbl=document.getElementById('veh-hire-lbl'),battaLbl=document.getElementById('veh-batta-lbl'),fuelLbl=document.getElementById('veh-fuel-lbl'),allowLbl=document.getElementById('veh-allow-lbl');
+  if(hireLbl)hireLbl.textContent=isAct?'Actual Hire ₹':'Hire Rate (₹/day)';
+  if(battaLbl)battaLbl.textContent=isAct?'Actual Batta ₹':'Batta Rate (₹/Call Sheet)';
+  if(fuelLbl)fuelLbl.textContent=isAct?'Actual Fuel ₹':'Fuel Est (₹)';
+  if(allowLbl)allowLbl.textContent=isAct?'Actual Allowance ₹':'Allowance ₹';
+}
 function vehTypeChanged(){
   const type=document.getElementById('veh-type')?.value;
   if(!type)return;
+  if(_vehEntryMode==='actual')return; // don't pre-fill an estimate rate into fields meant for the real actual cost
+  const hireEl=document.getElementById('veh-hire'),battaEl=document.getElementById('veh-batta'),fuelEl=document.getElementById('veh-fuel');
+  // The Rate Card has a dedicated "Vehicles" category with real agreed rates
+  // per type (e.g. "DCM — Hire", "DCM — Driver Batta", "DCM — Fuel") — this
+  // is the source of truth, and getRate() correctly applies any rate
+  // override on top of the base seed rate. Check there first.
+  const items=allItems();
+  const hireItem=items.find(x=>x.cat==='Vehicles'&&x.item===type+' — Hire');
+  const battaItem=items.find(x=>x.cat==='Vehicles'&&x.item===type+' — Driver Batta');
+  const fuelItem=items.find(x=>x.cat==='Vehicles'&&x.item===type+' — Fuel');
+  if(hireItem||battaItem||fuelItem){
+    if(hireEl&&!hireEl.value&&hireItem)hireEl.value=getRate(hireItem)||'';
+    if(battaEl&&!battaEl.value&&battaItem)battaEl.value=getRate(battaItem)||'';
+    if(fuelEl&&!fuelEl.value&&fuelItem)fuelEl.value=getRate(fuelItem)||'';
+    vehCalc();
+    toast('✓ Auto-filled rate from Rate Card for '+type);
+    return;
+  }
+  // Fallback: no Rate Card entry for this type (e.g. a custom/"Other" type
+  // typed in) — use whatever rate was last entered for it manually.
   const defaults=(DB.vehicleRateDefaults||{})[type];
   if(defaults){
-    const hireEl=document.getElementById('veh-hire'),battaEl=document.getElementById('veh-batta'),fuelEl=document.getElementById('veh-fuel');
     if(hireEl&&!hireEl.value)hireEl.value=defaults.hire||'';
     if(battaEl&&!battaEl.value)battaEl.value=defaults.batta||'';
     if(fuelEl&&!fuelEl.value)fuelEl.value=defaults.fuel||'';
@@ -10871,10 +10910,10 @@ function addVehicle(){
   const type=document.getElementById('veh-type')?.value.trim();
   if(!type){toast('Vehicle type required','err');return;}
   const qty=parseInt(document.getElementById('veh-qty')?.value)||1;
-  const hire=parseFloat(document.getElementById('veh-hire')?.value)||0;
-  const batta=parseFloat(document.getElementById('veh-batta')?.value)||0;
-  const fuel=parseFloat(document.getElementById('veh-fuel')?.value)||0;
-  const allow=parseFloat(document.getElementById('veh-allow')?.value)||0;
+  const enteredHire=parseFloat(document.getElementById('veh-hire')?.value)||0;
+  const enteredBatta=parseFloat(document.getElementById('veh-batta')?.value)||0;
+  const enteredFuel=parseFloat(document.getElementById('veh-fuel')?.value)||0;
+  const enteredAllow=parseFloat(document.getElementById('veh-allow')?.value)||0;
   const phase=document.getElementById('veh-phase')?.value||'';
   const vendorName=document.getElementById('veh-vendor-name')?.value||'';
   const hdr=(DB.dayHeaders||{})[date]||{};
@@ -10882,14 +10921,25 @@ function addVehicle(){
   const csInput=document.getElementById('veh-cs')?.value;
   const csOverride=(csInput&&csInput.trim()!=='')?parseFloat(csInput):null;
   const cs=csOverride!=null?csOverride:dayCS;
-  const total=(hire+batta*cs)*qty+allow*qty+fuel;
+  const total=(enteredHire+enteredBatta*cs)*qty+enteredAllow*qty+enteredFuel;
+  const isActualEntry=_vehEntryMode==='actual';
+  // Route the entered numbers to the right destination — estimate fields
+  // (hire/batta/fuel/allow) if declaring an estimate, or the actual fields
+  // (actHire/actBatta/actFuel/actAllow) if declaring an actual. This is the
+  // whole point of the toggle: you shouldn't have to enter an actual as an
+  // "estimate" first and then separately re-enter it as an actual too.
+  const hire=isActualEntry?0:enteredHire, batta=isActualEntry?0:enteredBatta, fuel=isActualEntry?0:enteredFuel, allow=isActualEntry?0:enteredAllow;
+  const actHire=isActualEntry?enteredHire:0, actBatta=isActualEntry?enteredBatta:0, actFuel=isActualEntry?enteredFuel:0, actAllow=isActualEntry?enteredAllow:0;
   if(!DB.vehicles)DB.vehicles={};
   if(!DB.vehicles[date])DB.vehicles[date]=[];
-  DB.vehicles[date].push({id:uid(),type,vendorName,vehNumber:(document.getElementById('veh-number')?.value||'').trim(),qty,hire,batta,allow,fuel,total,purpose:document.getElementById('veh-purpose')?.value||'',notes:document.getElementById('veh-notes')?.value||'',phase,actHire:0,actBatta:0,actFuel:0,csOverride});
+  DB.vehicles[date].push({id:uid(),type,vendorName,vehNumber:(document.getElementById('veh-number')?.value||'').trim(),qty,hire,batta,allow,fuel,total,purpose:document.getElementById('veh-purpose')?.value||'',notes:document.getElementById('veh-notes')?.value||'',phase,actHire,actBatta,actFuel,actAllow,csOverride});
 
   // Remember this type's rate for next time — auto-fills via vehTypeChanged()
-  if(!DB.vehicleRateDefaults)DB.vehicleRateDefaults={};
-  DB.vehicleRateDefaults[type]={hire,batta,fuel};
+  // (only meaningful for estimates; an actual cost is a one-off, not a rate to reuse)
+  if(!isActualEntry){
+    if(!DB.vehicleRateDefaults)DB.vehicleRateDefaults={};
+    DB.vehicleRateDefaults[type]={hire,batta,fuel};
+  }
 
   const advanceAmt=parseFloat(document.getElementById('veh-advance')?.value)||0;
   let advanceMsg='';
