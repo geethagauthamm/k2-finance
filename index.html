@@ -5930,6 +5930,14 @@ function csSuggestSchedule(date){
   sel.value=best.id;
 }
 
+// Looks up a Rate Card item by liKey WITHOUT the hiddenItems filter — for
+// category-grouping existing data only. "Hidden" means "don't offer this
+// for new entries," not "erase what already exists" — an estimate created
+// before an item was hidden should still show under its real category, not
+// fall into "Other" just because the item got hidden afterward.
+function findItemIgnoringHidden(k){
+  return [...SEED,...(DB.customItems||[])].find(x=>liKey(x)===k);
+}
 function allItems(){
   const hidden=DB.hiddenItems||[];
   const base=[...SEED,...(DB.customItems||[])].filter(e=>!hidden.includes(liKey(e))&&e.cat!=='Accommodation');
@@ -8008,7 +8016,7 @@ function renderEstTable(){
   // Group rows by category in SEED order, within each category sort by sortOrder
   rows.forEach((r,i)=>{if(r.sortOrder==null)r.sortOrder=i*10;});
   const seedOrder = [...new Set(SEED.map(e=>e.cat))].filter(c=>c!=='Accommodation');
-  const getCat = r => allItems().find(x=>liKey(x)===r.liKey)?.cat || 'Other';
+  const getCat = r => (allItems().find(x=>liKey(x)===r.liKey)||findItemIgnoringHidden(r.liKey))?.cat || 'Other';
   const rowCats = [...new Set(rows.map(getCat))];
   const cats = [...seedOrder.filter(c=>rowCats.includes(c)), ...rowCats.filter(c=>!seedOrder.includes(c))].filter(c=>c!=='Accommodation');
   // Sort rows within each category by sortOrder
@@ -8027,7 +8035,7 @@ function renderEstTable(){
     let catEst = 0, catAct = 0;
 
     catRows.forEach((r, ri) => {
-      const e = allItems().find(x => liKey(x) === r.liKey);
+      const e = allItems().find(x => liKey(x) === r.liKey) || findItemIgnoringHidden(r.liKey);
       const isHire = isHireItem(e);
       const isPkg = isPackageItem(e);
       const iAct = ia[r.id] || {};
@@ -8095,7 +8103,7 @@ function renderEstTable(){
           row += '<td class="tn tr"><input class="act-inline" type="number" value="'+(_csv||'')+'" min="0" step="0.5" style="width:100%;box-sizing:border-box;color:var(--go);font-weight:700;text-align:right" title="Est CS" data-eid="'+r.id+'" onchange="overrideRowCS(this.dataset.eid,this.value)"></td>';
         }
         // Est Amt
-        row += '<td class="tn tr blue semi est-amt-cell">₹'+fmt(r.amount)+'</td>';
+        row += '<td class="tn tr blue semi est-amt-cell">'+fmt(r.amount)+'</td>';
         // Act Count
         row += '<td class="act-input-cell" style="text-align:right;padding:3px 5px">'+actCntCell+'</td>';
         // Act CS
@@ -8116,7 +8124,7 @@ function renderEstTable(){
           const _csv=r.csOverride!=null?r.csOverride:r.cs;
           row += '<td class="tn tr"><input class="act-inline" type="number" value="'+(_csv||'')+'" min="0" step="0.5" style="width:100%;box-sizing:border-box;color:var(--go);font-weight:700;text-align:right" title="Edit CS" data-eid="'+r.id+'" onchange="overrideRowCS(this.dataset.eid,this.value)"></td>';
         }
-        row += '<td class="tn tr blue semi est-amt-cell">₹'+fmt(r.amount)+'</td>';
+        row += '<td class="tn tr blue semi est-amt-cell">'+fmt(r.amount)+'</td>';
 
       } else {
         // ── ACT ONLY ──
@@ -8148,14 +8156,14 @@ function renderEstTable(){
     if(showEst&&showAct){
       catRow += '<td colspan="2" style="padding:5px 8px;font-size:9px;text-transform:uppercase;letter-spacing:1.5px;color:var(--tx3);text-align:right">'+cat+' Total</td>'
         +'<td colspan="3"></td>'
-        +'<td class="tn tr blue">₹'+fmt(catEst)+'</td>'
+        +'<td class="tn tr blue">'+fmt(catEst)+'</td>'
         +'<td colspan="2"></td>'
         +'<td class="tn tr green">'+(catAct>0?fmt(catAct):'—')+'</td>'
         +'<td></td><td class="no-print"></td>';
     } else if(showEst){
       catRow += '<td colspan="2" style="padding:5px 8px;font-size:9px;text-transform:uppercase;letter-spacing:1.5px;color:var(--tx3);text-align:right">'+cat+' Total</td>'
         +'<td colspan="3"></td>'
-        +'<td class="tn tr blue">₹'+fmt(catEst)+'</td>'
+        +'<td class="tn tr blue">'+fmt(catEst)+'</td>'
         +'<td class="no-print"></td>';
     } else {
       catRow += '<td colspan="2" style="padding:5px 8px;font-size:9px;text-transform:uppercase;letter-spacing:1.5px;color:var(--tx3);text-align:right">'+cat+' Total</td>'
@@ -8232,7 +8240,7 @@ function renderEstTable(){
     const vAF = vehs.reduce((s,v)=>s+(v.actFuel||0),0);
     grandEst += vH+vB+vF; grandAct += vAH+vAB+vAF;
     const _vLabel = vehs.length
-      ? vehs.length+' vehicle'+(vehs.length>1?'s':'')+' · ₹'+fmt(vH+vB+vF)
+      ? vehs.length+' vehicle'+(vehs.length>1?'s':'')+' · '+fmt(vH+vB+vF)
       : 'No vehicles — add in Vehicles tab';
     const _vehData = [
       ['Hire',   vH,  vAH, 'Per Day × Qty'],
@@ -8373,8 +8381,9 @@ function renderEstTable(){
   if(tf){
     const gc = grandAct>grandEst?'est-variance-pos':grandAct>0?'est-variance-neg':'';
     const gv = grandAct>0?(grandAct>grandEst?'+':'')+fmt(grandAct-grandEst):'—';
-    let ft = '<tr class="tfoot-row"><td colspan="2" style="padding:9px 8px;font-family:Syne,sans-serif;font-size:11px">Grand Total — '+rows.length+' items</td>';
-    if(showEst) ft += '<td colspan="3"></td><td class="tn tr blue" style="font-size:14px;font-weight:800">₹'+fmt(grandEst)+'</td>';
+    const{totalHC}=computeHeadcount(d);
+    let ft = '<tr class="tfoot-row"><td colspan="2" style="padding:9px 8px;font-family:Syne,sans-serif;font-size:11px">Grand Total — '+rows.length+' items'+(totalHC>0?' · HC: '+totalHC:'')+'</td>';
+    if(showEst) ft += '<td colspan="3"></td><td class="tn tr blue" style="font-size:14px;font-weight:800">'+fmt(grandEst)+'</td>';
     if(showAct) ft += '<td colspan="2"></td><td class="tn tr green" style="font-size:14px;font-weight:800">'+(grandAct>0?fmt(grandAct):'—')+'</td><td class="tn tr '+gc+'" style="font-size:13px">'+gv+'</td>';
     if(mode==='estimate') ft += '<td></td>';
     ft += '</tr>';
@@ -8383,53 +8392,56 @@ function renderEstTable(){
 
   // Update totals
   const tot = document.getElementById('est-day-total');
-  if(tot) tot.textContent = fmt(grandEst);
+  if(tot){
+    const{totalHC}=computeHeadcount(d);
+    tot.innerHTML = fmt(grandEst)+(totalHC>0?' <span style="font-size:12px;color:var(--tx3);font-weight:600">· HC '+totalHC+'</span>':'');
+  }
   updateHCBadge();
 }
 
 // ── Food & Production auto-calc ──
-// Auto-sum manpower headcount from today's estimates — excludes equipment hire rows
-function autoCalcHeadcount(){
-  const d=estCurrentDay;
+// Pure computation, no DOM writes — used both by the manual "Auto-calc"
+// button (autoCalcHeadcount, below) and by the Grand Total display, so the
+// headcount shown next to totals always matches what the Food & Prod
+// section would compute, without needing to click anything.
+function computeHeadcount(d){
   const rows=DB.estimates.filter(e=>e.date===d);
   let totalHC=0;
   const breakdown=[];
-  // Exclude only unit/quantity rows — trust checkbox for everything else
   rows.forEach(r=>{
     if(r.inHeadcount===false)return;
-    const e=allItems().find(x=>liKey(x)===r.liKey);
+    const e=allItems().find(x=>liKey(x)===r.liKey)||findItemIgnoringHidden(r.liKey);
     const _sub=(e?.sub||r.sub||'');
     const _rt=(e?.rateType||r.rateType||'');
-    // Exclude rows where count = quantity not people
-    if(_sub==='Hire')return;                          // equipment hire
-    if(_sub==='Expenses')return;                      // food/misc expenses
-    if(isUnitRate(e))return;                          // Per Unit / Per Foot / Per Litre
-    if(_rt==='Per Head')return;                       // cost multiplier not headcount
-    if(_rt==='Actual')return;                         // variable cost, no count
-    if(_rt==='Lump Sum')return;                       // fixed cost, no people count
+    if(_sub==='Hire')return;
+    if(_sub==='Expenses')return;
+    if(isUnitRate(e))return;
+    if(_rt==='Per Head')return;
+    if(_rt==='Actual')return;
+    if(_rt==='Lump Sum')return;
     const _cnt=r.count||0;
     totalHC+=_cnt;
     if(_cnt>0)breakdown.push((e?.item||r.item||r.liKey)+': '+_cnt);
   });
-
-  // Add vehicle drivers — each vehicle entry = qty drivers
   const vehs=(DB.vehicles||{})[d]||[];
   if(vehs.length){
     const driverCount=vehs.reduce((s,v)=>s+(v.qty||1),0);
     totalHC+=driverCount;
     breakdown.push('Vehicle Drivers: '+driverCount+' ('+vehs.length+' vehicle'+(vehs.length>1?'s':'')+')');
   }
-
-  // Add actors — each named person = 1 head, regardless of count/amount fields
   const actEntries=(DB.actorLog||{})[d]||[];
   const actFiltered=actEntries.filter(e=>e.inHeadcount!==false);
-  const actHC=actFiltered.length; // 1 per person, not e.count
+  const actHC=actFiltered.length;
   if(actHC>0){
     totalHC+=actHC;
     const actNames=actFiltered.map(e=>e.name).slice(0,4).join(', ')+(actFiltered.length>4?'...':'');
     breakdown.push('Artists+Staff: '+actHC+' ('+actNames+')');
   }
-
+  return{totalHC,breakdown};
+}
+function autoCalcHeadcount(){
+  const d=estCurrentDay;
+  const{totalHC,breakdown}=computeHeadcount(d);
   const el=document.getElementById('fp-headcount');
   if(el)el.value=totalHC;
   const bd=document.getElementById('fp-breakdown');
@@ -11987,7 +11999,7 @@ function renderActEntry(){
   let grandEst=0, grandAct=0;
 
   // ── ESTIMATES section ──
-  const getCat = r => allItems().find(x=>liKey(x)===r.liKey)?.cat||r.cat||'Other';
+  const getCat = r => (allItems().find(x=>liKey(x)===r.liKey)||findItemIgnoringHidden(r.liKey))?.cat||r.cat||'Other';
   const cats = [...new Set(estRows.map(getCat))];
   if(estRows.length){
     html+=`<tr><td colspan="11" style="background:var(--sf3);padding:6px 8px;font-size:9px;font-weight:700;color:var(--tx3);letter-spacing:2px;text-transform:uppercase">ESTIMATES</td></tr>`;
