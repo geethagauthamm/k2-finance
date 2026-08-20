@@ -698,6 +698,11 @@ body.light-mode .new-cat-row input{background:#fff;border-color:#d1d5db;color:#1
      tags) duplicates the detailed print header above it — hide it so it
      doesn't print as a second, redundant header. */
   #est-table-date-lbl, #est-day-total, #est-hc-badge, #est-status-bar { display:none!important; }
+  /* Each annexure (Artists/Vehicles/Hotels/Flights breakdown) starts on
+     its own page, like a real paper annexure attached to the topsheet. */
+  .est-annexure { page-break-before:always; break-before:page; margin-top:0!important; }
+  .est-annexure table{font-size:9px;}
+  .est-annexure th,.est-annexure td{border:1px solid #ddd;padding:3px 5px!important;}
   table { font-size:10px; }
   th, td { padding:3px 5px!important; }
 }
@@ -1170,6 +1175,11 @@ body.auditor-mode #save-btn { display:none !important; }
       <div id="fp-breakdown" class="xs3 dim mb6" style="display:none"></div>
       <div id="fp-preview" class="pvbox" style="display:none"></div>
     </div>
+
+    <!-- ANNEXURES — itemized breakdown of Artists/Vehicles/Hotels/Flights for
+         this day, since the main table only shows rolled-up totals with a
+         "+" link that only works on screen. Populated by renderEstTable(). -->
+    <div id="est-annexures"></div>
   </div>
 
   <!-- VEHICLES -->
@@ -8432,6 +8442,149 @@ function renderEstTable(){
     tot.innerHTML = fmt(grandEst)+(totalHC>0?' <span style="font-size:12px;color:var(--tx3);font-weight:600">· HC '+totalHC+'</span>':'');
   }
   updateHCBadge();
+
+  const annexEl = document.getElementById('est-annexures');
+  if(annexEl) annexEl.innerHTML = buildEstAnnexures(d, showEst, showAct);
+}
+
+// Itemized breakdown of Artists/Vehicles/Hotels/Flights for the day —
+// shown as "annexures" after the main Estimates table (both on screen and
+// in print), since the main table only rolls each of these up into 1-3
+// summary rows with a "+" link that only works on screen. Each annexure
+// starts on a fresh page in print (see .est-annexure page-break rule).
+function buildEstAnnexures(d, showEst, showAct){
+  const h = (DB.dayHeaders||{})[d]||{};
+  const dayCS = parseFloat(h.cs)||1;
+  const sections=[];
+  const money=(v)=> v?fmt(v):'—';
+  const thEst='<th class="tr" style="width:90px;color:var(--bl)">Est. ₹</th>';
+  const thAct='<th class="tr" style="width:90px;color:var(--gn)">Actual ₹</th>';
+
+  // ── Artists & Staff ──
+  {
+    const ar=getActorRollup(d);
+    if(ar.count>0){
+      let rows=ar.entries.map(a=>{
+        return '<tr><td style="padding:5px 8px;font-weight:600">'+esc(a.name||'—')+'</td>'
+          +'<td style="padding:5px 8px">'+esc(a.category||'—')+'</td>'
+          +'<td style="padding:5px 8px">'+esc(a.payType||'—')+'</td>'
+          +(showEst?'<td class="tn tr">'+money(a.amount)+'</td>':'')
+          +(showAct?'<td class="tn tr">'+money(a.actAmt)+'</td>':'')
+          +'<td style="padding:5px 8px" class="xs3 dim">'+esc(a.notes||'')+'</td></tr>';
+      }).join('');
+      const totEst=ar.entries.reduce((s,a)=>s+(a.amount||0),0);
+      const totAct=ar.entries.reduce((s,a)=>s+(a.actAmt||0),0);
+      rows+='<tr class="tfoot-row"><td colspan="3" style="padding:7px 8px;font-weight:700">Total — '+ar.count+' artist'+(ar.count>1?'s':'')+'</td>'
+        +(showEst?'<td class="tn tr" style="font-weight:700">'+money(totEst)+'</td>':'')
+        +(showAct?'<td class="tn tr" style="font-weight:700">'+money(totAct)+'</td>':'')
+        +'<td></td></tr>';
+      sections.push({title:'Artists &amp; Staff',
+        html:'<table style="width:100%;border-collapse:collapse"><thead><tr>'
+          +'<th style="width:150px">Name</th><th style="width:130px">Category</th><th style="width:110px">Pay Type</th>'
+          +(showEst?thEst:'')+(showAct?thAct:'')+'<th>Notes</th></tr></thead><tbody>'+rows+'</tbody></table>'});
+    }
+  }
+
+  // ── Vehicles ──
+  {
+    const vehs=(DB.vehicles||{})[d]||[];
+    if(vehs.length>0){
+      let totHireEst=0,totBattaEst=0,totFuelEst=0,totEst=0,totAct=0;
+      let rows=vehs.map(v=>{
+        const cs=(v.csOverride!=null&&v.csOverride!=='')?parseFloat(v.csOverride):dayCS;
+        const hireEst=(v.hire||0)*(v.qty||1);
+        const battaEst=(v.batta||0)*cs*(v.qty||1)+(v.allow||0)*(v.qty||1);
+        const fuelEst=v.fuel||0;
+        const rowEst=hireEst+battaEst+fuelEst;
+        const hireAct=(v.actHire||0)*(v.qty||1);
+        const battaAct=(v.actBatta||0)*cs*(v.qty||1)+(v.actAllow||0)*(v.qty||1);
+        const fuelAct=v.actFuel||0;
+        const rowAct=hireAct+battaAct+fuelAct;
+        totHireEst+=hireEst;totBattaEst+=battaEst;totFuelEst+=fuelEst;totEst+=rowEst;totAct+=rowAct;
+        return '<tr><td style="padding:5px 8px;font-weight:600">'+esc(v.vehNumber||v.type||'—')+'</td>'
+          +'<td style="padding:5px 8px">'+esc(v.type||'—')+'</td>'
+          +'<td style="padding:5px 8px">'+esc(v.vendorName||'—')+'</td>'
+          +'<td class="tn tr">'+(v.qty||1)+'</td>'
+          +'<td class="tn tr">'+cs+'</td>'
+          +(showEst?'<td class="tn tr">'+money(rowEst)+'</td>':'')
+          +(showAct?'<td class="tn tr">'+money(rowAct)+'</td>':'')
+          +'<td style="padding:5px 8px" class="xs3 dim">'+esc(v.purpose||v.notes||'')+'</td></tr>';
+      }).join('');
+      rows+='<tr class="tfoot-row"><td colspan="5" style="padding:7px 8px;font-weight:700">Total — '+vehs.length+' vehicle'+(vehs.length>1?'s':'')+' (Hire '+money(totHireEst)+' + Batta '+money(totBattaEst)+' + Fuel '+money(totFuelEst)+')</td>'
+        +(showEst?'<td class="tn tr" style="font-weight:700">'+money(totEst)+'</td>':'')
+        +(showAct?'<td class="tn tr" style="font-weight:700">'+money(totAct)+'</td>':'')
+        +'<td></td></tr>';
+      sections.push({title:'Vehicles',
+        html:'<table style="width:100%;border-collapse:collapse"><thead><tr>'
+          +'<th style="width:110px">Vehicle No.</th><th style="width:120px">Type</th><th style="width:130px">Vendor/Driver</th>'
+          +'<th class="tr" style="width:44px">Qty</th><th class="tr" style="width:40px">CS</th>'
+          +(showEst?thEst:'')+(showAct?thAct:'')+'<th>Purpose / Notes</th></tr></thead><tbody>'+rows+'</tbody></table>'});
+    }
+  }
+
+  // ── Hotels ──
+  {
+    const htls=DB.hotels||[];
+    const dayHtls=htls.filter(hh=>{const skip=hh.skipDays||[];return d>=hh.checkIn&&d<hh.checkOut&&!skip.includes(d);});
+    if(dayHtls.length>0){
+      let totEst=0,totAct=0;
+      let rows=dayHtls.map(hh=>{
+        const rowEst=(hh.rate||0)*(hh.rooms||1);
+        totEst+=rowEst; totAct+=(hh.actCost||0);
+        return '<tr><td style="padding:5px 8px;font-weight:600">'+esc(hh.name||'—')+'</td>'
+          +'<td style="padding:5px 8px">'+esc(hh.roomType||'—')+'</td>'
+          +'<td style="padding:5px 8px">'+esc(hh.guest||'—')+'</td>'
+          +'<td class="tn tr">'+(hh.rooms||1)+'</td>'
+          +'<td class="tn tr">'+money(hh.rate)+'</td>'
+          +(showEst?'<td class="tn tr">'+money(rowEst)+'</td>':'')
+          +(showAct?'<td class="tn tr">'+(hh.actCost?money(hh.actCost):'—')+'</td>':'')
+          +'<td style="padding:5px 8px" class="xs3 dim">'+esc(hh.notes||'')+'</td></tr>';
+      }).join('');
+      rows+='<tr class="tfoot-row"><td colspan="5" style="padding:7px 8px;font-weight:700">Total — '+dayHtls.length+' room'+(dayHtls.length>1?'s':'')+'</td>'
+        +(showEst?'<td class="tn tr" style="font-weight:700">'+money(totEst)+'</td>':'')
+        +(showAct?'<td class="tn tr" style="font-weight:700">'+(totAct?money(totAct):'—')+'</td>':'')
+        +'<td></td></tr>';
+      sections.push({title:'Hotels',
+        html:'<table style="width:100%;border-collapse:collapse"><thead><tr>'
+          +'<th style="width:130px">Hotel</th><th style="width:110px">Room Type</th><th style="width:130px">Guest</th>'
+          +'<th class="tr" style="width:50px">Rooms</th><th class="tr" style="width:80px">Rate/Night</th>'
+          +(showEst?thEst:'')+(showAct?thAct:'')+'<th>Notes</th></tr></thead><tbody>'+rows+'</tbody></table>'});
+    }
+  }
+
+  // ── Flights ──
+  {
+    const fr=getFlightRollup(d);
+    if(fr.count>0){
+      let rows=fr.flights.map(f=>{
+        const est=f.mmt||f.estCost||0;
+        return '<tr><td style="padding:5px 8px;font-weight:600">'+esc(f.pax||'—')+'</td>'
+          +'<td style="padding:5px 8px">'+esc(f.airline||'—')+'</td>'
+          +'<td style="padding:5px 8px">'+esc(f.travelClass||'—')+'</td>'
+          +'<td style="padding:5px 8px">'+esc((f.from||'—')+' → '+(f.to||'—'))+'</td>'
+          +(showEst?'<td class="tn tr">'+money(est)+'</td>':'')
+          +(showAct?'<td class="tn tr">'+(f.actCost?money(f.actCost):'—')+'</td>':'')
+          +'<td style="padding:5px 8px" class="xs3 dim">'+esc(f.notes||'')+'</td></tr>';
+      }).join('');
+      rows+='<tr class="tfoot-row"><td colspan="4" style="padding:7px 8px;font-weight:700">Total — '+fr.count+' booking'+(fr.count>1?'s':'')+'</td>'
+        +(showEst?'<td class="tn tr" style="font-weight:700">'+money(fr.total)+'</td>':'')
+        +(showAct?'<td class="tn tr" style="font-weight:700">'+(fr.actTotal?money(fr.actTotal):'—')+'</td>':'')
+        +'<td></td></tr>';
+      sections.push({title:'Flights',
+        html:'<table style="width:100%;border-collapse:collapse"><thead><tr>'
+          +'<th style="width:150px">Passenger</th><th style="width:110px">Airline</th><th style="width:90px">Class</th><th style="width:140px">Route</th>'
+          +(showEst?thEst:'')+(showAct?thAct:'')+'<th>Notes</th></tr></thead><tbody>'+rows+'</tbody></table>'});
+    }
+  }
+
+  if(!sections.length) return '';
+  const letters='ABCDEFGH';
+  return sections.map((s,i)=>
+    '<div class="card est-annexure" style="margin-top:10px">'
+    +'<div class="ct" style="margin:0 0 8px">Annexure '+letters[i]+' — '+s.title+'</div>'
+    +'<div class="tw">'+s.html+'</div>'
+    +'</div>'
+  ).join('');
 }
 
 // ── Food & Production auto-calc ──
