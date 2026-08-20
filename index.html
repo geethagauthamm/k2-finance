@@ -6989,9 +6989,15 @@ function copyFromPrevDay(){
   const call=h.call||'07:00';const pack=h.pack||'18:00';const dayType=h.dayType||'Weekday';
   const res=calcCSFromTimes(call,pack,dayType);const dayCS=res.cs;
   const existingKeys=new Set(existing.map(e=>e.liKey+'||'+(e.notes||'')));
-  let added=0;
+  // Respect items deliberately deleted from THIS date before — otherwise
+  // Copy Prev Day silently re-adds exactly what was intentionally removed,
+  // since it only knows what currently exists here, not what used to and
+  // was taken out on purpose.
+  const deletedHere=new Set((DB._deletedEstKeys||[]).filter(k=>k.startsWith(d+'||')).map(k=>k.slice(d.length+2)));
+  let added=0,skippedDeleted=0;
   prevRows.forEach(r=>{
     if(existingKeys.has(r.liKey+'||'+(r.notes||'')))return;
+    if(deletedHere.has(r.liKey)){skippedDeleted++;return;}
     const e=allItems().find(x=>liKey(x)===r.liKey);
     const effCS=(isHireItem(e)||isPackageItem(e)||isPerDayItem(e))?r.cs:getItemCS(r,dayCS);
     const amount=calcAmount(r.rate,effCS,r.count,e,call,pack);
@@ -7002,7 +7008,7 @@ function copyFromPrevDay(){
   if(!DB.dayHeaders[d])DB.dayHeaders[d]={};
   DB.dayHeaders[d]={...DB.dayHeaders[d],foodHC:prevH.foodHC||0,messRate:prevH.messRate||130,foodMisc:prevH.foodMisc||0,specialFoodEst:prevH.specialFoodEst||0,prodMisc:prevH.prodMisc||0,snacks:prevH.snacks||false};
   saveDB();renderEstTable();estLoadHeader();
-  toast('✓ Copied '+added+' estimates from '+fmtD(prev));
+  toast('✓ Copied '+added+' estimates from '+fmtD(prev)+(skippedDeleted?' · '+skippedDeleted+' skipped (previously deleted from this date)':''));
 }
 
 function estShiftDay(dir){
@@ -7837,6 +7843,14 @@ function delEst(id){
   if(!confirm('Delete?'))return;
   DB.estimates=DB.estimates.filter(x=>x.id!==id);
   tombstone('estimates',id);
+  // ID-based tombstones only stop the SAME record from resurrecting via sync
+  // — they don't stop "Copy Prev Day" from creating a brand-new record with
+  // a different id but the same (date, line item), which is what silently
+  // undoes a deliberate delete the next time it's run. Track that combo
+  // explicitly so copyFromPrevDay() can skip it.
+  if(!DB._deletedEstKeys)DB._deletedEstKeys=[];
+  const dk=r.date+'||'+r.liKey;
+  if(!DB._deletedEstKeys.includes(dk))DB._deletedEstKeys.push(dk);
   saveDB();renderEstTable();
 }
 
