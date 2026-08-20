@@ -168,6 +168,13 @@ table{width:100%;border-collapse:collapse;font-size:12px;}
 
   #sb,#po,#sp,#toast,.no-print{display:none!important;}
   #main{margin-left:0;}
+  /* .tw wraps tables with overflow-x:auto for on-screen horizontal
+     scrolling. In print, an overflow:auto container doesn't reflow onto
+     extra pages — it just clips anything past the visible width, which
+     was cutting off the right side of wide tables (e.g. Estimates,
+     Grand Total column wrapping awkwardly). Let print show the full
+     table width instead. */
+  .tw{overflow-x:visible!important;overflow:visible!important;}
   body{background:#fff;color:#000;font-size:11px;}
   .card{border:1px solid #ccc;background:#fff;break-inside:avoid;margin-bottom:8px;padding:10px;}
   .stat{border:1px solid #ccc;background:#fff;}
@@ -642,10 +649,20 @@ body.light-mode .new-cat-row input{background:#fff;border-color:#d1d5db;color:#1
 /* PRINT STYLES — Estimates */
 @media print {
   /* No blank first page */
-  .topbar, .sidebar, .no-print, .day-nav, #est-lock-banner { display:none!important; }
-  .main { margin-left:0!important; padding:0!important; }
+  /* NOTE: .sidebar/.main below never matched anything — the actual
+     elements are #sb/#main (fixed by the earlier @media print block at
+     the top of this stylesheet, which already hides #sb and zeroes
+     #main's margin). Kept the correct IDs here too so this block stays
+     self-contained if it's ever split out. */
+  .topbar, #sb, .no-print, .day-nav, #est-lock-banner { display:none!important; }
+  #main { margin-left:0!important; padding:0!important; }
   .page { display:block!important; padding:0!important; }
   body { background:#fff!important; color:#000!important; }
+  /* The old generic .print-header title duplicated the new detailed
+     .est-print-header (date/location/call/etc.) below it — same info,
+     shown twice. Keep just the "Printed: ..." subtitle line and drop
+     the redundant heading. */
+  #est-print-title { display:none!important; }
 
   /* Print header — bold date, day info */
   .est-print-header {
@@ -6803,6 +6820,10 @@ function printPage(){
   const now=new Date().toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'});
   const sub=`${DB.project.name||'K2'} · ${DB.project.company||''} · Printed: ${now}`;
   document.querySelectorAll('.print-sub').forEach(el=>el.textContent=sub);
+  // Defensive: keep the Estimates detailed print header (Day/Location/
+  // Call/etc.) in sync right before printing too, in case this page was
+  // reached without going through estLoadHeader() (e.g. deep link).
+  if(typeof updateEstPrintHeader==='function')updateEstPrintHeader();
   window.print();
 }
 
@@ -7115,6 +7136,10 @@ function estLoadHeader(){
   // Print title
   const pt=document.getElementById('est-print-title');
   if(pt)pt.textContent='Estimates — '+(h.dayCat||'Shoot Day')+(h.dayNum?' #'+h.dayNum:'')+'  '+fmtD(d);
+  // Keep the detailed print header (Day/Location/Call/etc.) in sync too —
+  // this used to be defined but never called, leaving it permanently
+  // blank and eating page 1 in print.
+  updateEstPrintHeader();
 }
 
 function recalcVehicleTotals(date){
