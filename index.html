@@ -11777,7 +11777,7 @@ function renderVehiclesMaster(){
       return`<tr>
         <td style="white-space:nowrap;font-size:11px;color:var(--tx3)">${fmtD(v._date)}</td>
         <td class="semi">${esc(v.type)}</td>
-        <td class="dim xs2">${esc(v.vendorName||'—')}</td>
+        <td class="dim xs2">${esc(v.vehNumber||'—')}</td>
         <td class="tr">${v.qty}</td>
         ${csCell}
         ${amtCols}
@@ -11816,7 +11816,7 @@ function renderVehiclesMaster(){
       </div>
       <div class="dw-body" id="body_${gId}" style="display:${isOpen?'block':'none'}">
         <div class="tw"><table style="font-size:11px"><thead><tr>
-          <th>Date</th><th>Type</th><th>Vendor</th><th class="tr">Qty</th>
+          <th>Date</th><th>Type</th><th>Veh. No.</th><th class="tr">Qty</th>
           <th class="tr no-print" title="Call sheets used for this row's Batta calc — defaults to the day's overall CS, type a number to override just this vehicle">CS</th>
           ${amtHeaders}
           <th class="no-print">Purpose</th>
