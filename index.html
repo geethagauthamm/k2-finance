@@ -7835,7 +7835,9 @@ function delEst(id){
   const e=allItems().find(x=>liKey(x)===r.liKey);
   if(e&&isCatLocked(r.date,e.cat)){toast(e.cat+' is locked — unlock to delete','err');return;}
   if(!confirm('Delete?'))return;
-  DB.estimates=DB.estimates.filter(x=>x.id!==id);saveDB();renderEstTable();
+  DB.estimates=DB.estimates.filter(x=>x.id!==id);
+  tombstone('estimates',id);
+  saveDB();renderEstTable();
 }
 
 // Save inline actual (CS or Count typed directly in the table)
