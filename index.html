@@ -931,7 +931,7 @@ body.auditor-mode #save-btn { display:none !important; }
       <div class="xs3 dim" style="text-transform:uppercase;letter-spacing:2px;margin-bottom:6px;color:var(--bl)">&#9654; Planned (Estimates)</div>
       <div class="fg mb10" style="grid-template-columns:0.7fr 0.5fr 0.9fr 1fr 0.8fr 0.8fr 0.8fr 0.6fr">
         <div class="fld"><label>Day Category</label>
-          <select id="est-day-cat" onchange="estDayNumSuggest();estSaveHeader()">
+          <select id="est-day-cat" onchange="estDayNumSuggest();estSaveHeader();estLIChange()">
             <option>Shoot Day</option><option>Set Work</option><option>Rehearsal</option>
             <option>Pre Lighting</option><option>Post Work</option><option>Recce</option><option>Off Day</option>
           </select>
@@ -6073,6 +6073,15 @@ function getRehearsalRate(e){
   return e.rehearsalRate||null; // null means no rehearsal rate set
 }
 function hasRehearsalRate(e){return getRehearsalRate(e)!=null&&getRehearsalRate(e)!=='';}
+// Rate to use for the Estimates "Add Line Item" form — falls back to the shoot
+// rate unless the day's Day Category is Rehearsal AND the item has a rehearsal
+// rate set on the Rate Card.
+function getEstRate(e){
+  if(!e)return 0;
+  const dayCat=document.getElementById('est-day-cat')?.value;
+  if(dayCat==='Rehearsal'&&hasRehearsalRate(e))return getRehearsalRate(e);
+  return getRate(e);
+}
 function setRehearsalRate(k,val){
   if(!DB.rateOverrides)DB.rateOverrides={};
   if(!DB.rateOverrides[k]||typeof DB.rateOverrides[k]!=='object'){
@@ -7608,8 +7617,9 @@ function estLIChange(){
     if(rateEl){rateEl.readOnly=true;rateEl.value=fmt(getRate(e));rateEl.style.color='var(--pu)';rateEl.style.borderColor='';}
     if(rateLbl)rateLbl.textContent='Package Rate (fixed)';
   } else {
-    if(rateEl){rateEl.readOnly=true;rateEl.value=e?fmt(getRate(e)):'';rateEl.style.color='';rateEl.style.borderColor='';rateEl.placeholder='';}
-    if(rateLbl)rateLbl.textContent=isHire?'Rate (Hire)':'Rate (from card)';
+    const _usingReh=e&&document.getElementById('est-day-cat')?.value==='Rehearsal'&&hasRehearsalRate(e);
+    if(rateEl){rateEl.readOnly=true;rateEl.value=e?fmt(getEstRate(e)):'';rateEl.style.color=_usingReh?'var(--pu)':'';rateEl.style.borderColor='';rateEl.placeholder='';}
+    if(rateLbl)rateLbl.textContent=(isHire?'Rate (Hire)':'Rate (from card)')+(_usingReh?' · Rehearsal':'');
   }
   // Label count field correctly
   let countLabel='Headcount';
@@ -7629,7 +7639,7 @@ function estCalc(){
   const isPkg=isPackageItem(e);
   const isVar=isVariableRate(e);
   const _rEl=document.getElementById('est-rate');
-  const rate=isVar?parseFloat((_rEl?.value||'').replace(/[₹,]/g,''))||0:getRate(e);
+  const rate=isVar?parseFloat((_rEl?.value||'').replace(/[₹,]/g,''))||0:getEstRate(e);
   const count=parseFloat(document.getElementById('est-count')?.value)||1;
   const call=document.getElementById('est-call')?.value;
   const pack=document.getElementById('est-pack')?.value;
