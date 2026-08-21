@@ -7708,7 +7708,7 @@ function logEst(){
   const isPkg=isPackageItem(e);
   const isVar=isVariableRate(e);
   const _rEl=document.getElementById('est-rate');
-  const rate=isVar?parseFloat((_rEl?.value||'').replace(/[₹,]/g,''))||0:e?getRate(e):0;
+  const rate=isVar?parseFloat((_rEl?.value||'').replace(/[₹,]/g,''))||0:e?getEstRate(e):0;
   if(isVar&&!rate){toast('Enter the rate for this item','err');return;}
   const count=parseFloat(document.getElementById('est-count')?.value)||1;
   const call=document.getElementById('est-call')?.value;
