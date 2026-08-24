@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0">
-<title>K2 Production Finance v8.7</title>
+<title>OneView</title>
 <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=JetBrains+Mono:wght@400;500;600&family=Instrument+Sans:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
 :root{--bg:#0d0f14;--sf:#151820;--sf2:#1c2030;--sf3:#222840;--bd:#252a3a;--bd2:#2e3548;--go:#e8a945;--go2:#f0c060;--gn:#2ecc8a;--rd:#e85555;--bl:#5b8af0;--or:#f07843;--pu:#a078f0;--cy:#43c9e8;--tx:#e8eaf0;--tx2:#b0bacf;--tx3:#7a849a;--r:10px;--r2:6px;}
@@ -12,7 +12,7 @@ body{font-family:"Instrument Sans",sans-serif;background:var(--bg);color:var(--t
 .mono{font-family:"JetBrains Mono",monospace;}.syne{font-family:"Syne",sans-serif;}
 #sb{width:214px;min-height:100vh;background:var(--sf);border-right:1px solid var(--bd);display:flex;flex-direction:column;position:fixed;top:0;left:0;bottom:0;z-index:100;}
 .logo{padding:18px 16px 14px;border-bottom:1px solid var(--bd);}
-.logo-k{font-family:"Syne",sans-serif;font-size:24px;font-weight:800;color:var(--go);letter-spacing:-1px;}
+.logo-k{font-family:"Syne",sans-serif;font-size:19px;font-weight:800;color:var(--go);letter-spacing:-0.5px;}
 .logo-s{font-size:9px;color:var(--tx3);letter-spacing:3px;text-transform:uppercase;margin-top:1px;}
 nav{flex:1;padding:8px 0;overflow-y:auto;}
 .ng{padding:9px 14px 2px;font-size:9px;color:var(--tx3);letter-spacing:2px;text-transform:uppercase;font-weight:700;}
@@ -773,7 +773,7 @@ body.auditor-mode #save-btn { display:none !important; }
 
 <!-- SIDEBAR -->
 <div id="sb">
-  <div class="logo"><div class="logo-k">K2</div><div class="logo-s">Production Finance</div></div>
+  <div class="logo"><div class="logo-k">OneView</div><div class="logo-s">Production Finance</div></div>
   <nav>
     <div class="ng">Overview</div>
     <div class="ni active" data-page="dash" onclick="go('dash')"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="1" y="1" width="6" height="6" rx="1"/><rect x="9" y="1" width="6" height="6" rx="1"/><rect x="1" y="9" width="6" height="6" rx="1"/><rect x="9" y="9" width="6" height="6" rx="1"/></svg>Dashboard</div>
@@ -919,9 +919,24 @@ body.auditor-mode #save-btn { display:none !important; }
       <button class="day-nav-btn" onclick="estShiftDay(1)">Next Day &#9654;</button>
       <input type="date" id="est-day-pick" onchange="estSetDay(this.value)" class="btn bs sm" style="margin-left:8px">
       <button class="btn bg sm no-print" onclick="startNewDay()" style="margin-left:4px">+ New Day</button>
-      <button class="btn bs sm no-print" onclick="copyFromPrevDay()" style="margin-left:2px" title="Copy all estimates from previous day">&#10697; Copy Prev</button>
+      <button class="btn bs sm no-print" onclick="openCopyPrevModal()" style="margin-left:2px" title="Copy estimates from a date you choose">&#10697; Copy Prev</button>
       <button class="btn bs sm no-print" onclick="exportEstimatesExcel()">⬇ Excel</button>
       <button class="btn bs sm no-print" onclick="printPage()" style="margin-left:auto">&#9113; Print</button>
+    </div>
+
+    <div id="copy-prev-modal" class="no-print" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:9500;align-items:center;justify-content:center">
+      <div style="max-width:420px;width:95%;background:var(--sf);border:1px solid var(--bd);border-radius:12px;padding:20px 22px">
+        <div class="semi" style="font-size:14px;margin-bottom:4px">Copy Estimates From...</div>
+        <div class="xs2 dim" style="margin-bottom:12px;line-height:1.6">Pick which date's estimates to copy into <strong id="copy-prev-target-lbl"></strong>. Only dates that actually have estimates are listed — most recent first.</div>
+        <div class="fld mb10"><label>Source Date</label>
+          <select id="copy-prev-source-select"></select>
+        </div>
+        <div class="xs2 dim" id="copy-prev-preview" style="margin-bottom:14px"></div>
+        <div class="flex gap8" style="justify-content:flex-end">
+          <button class="btn bs" onclick="document.getElementById('copy-prev-modal').style.display='none'">Cancel</button>
+          <button class="btn bg" onclick="doCopyFromSelectedDate()">✓ Copy</button>
+        </div>
+      </div>
     </div>
 
     <!-- Day Header Card -->
@@ -1471,6 +1486,7 @@ body.auditor-mode #save-btn { display:none !important; }
           <button class="btn bs sm" id="veh-entry-act-btn" onclick="setVehEntryMode('actual')">✓ Actual</button>
         </div>
       </div>
+      <div id="veh-entry-mode-banner" style="text-align:center;font-weight:800;font-size:13px;letter-spacing:0.5px;padding:8px 10px;border-radius:8px;margin-bottom:10px"></div>
       <div class="fg mb8" style="grid-template-columns:1fr 1fr 0.6fr 0.6fr 0.6fr 0.6fr 0.8fr auto">
         <div class="fld"><label>Vehicle Type</label>
           <select id="veh-type" onchange="vehTypeChanged()">
@@ -1515,7 +1531,7 @@ body.auditor-mode #save-btn { display:none !important; }
     </div>
     <div class="card no-print">
       <div class="flex aic jb mb10 wrap gap8">
-        <div class="ct" style="margin:0">All Vehicles — By Phase</div>
+        <div class="ct" style="margin:0">Vehicles for <span id="veh-master-date-lbl" style="color:var(--go)">this date</span> — By Phase</div>
         <div class="flex gap8">
           <button class="btn sm no-print" id="veh-view-est-btn" onclick="setVehViewMode('estimate')">📋 Estimate View</button>
           <button class="btn bs sm no-print" id="veh-view-act-btn" onclick="setVehViewMode('actual')">✓ Actual View</button>
@@ -1523,6 +1539,7 @@ body.auditor-mode #save-btn { display:none !important; }
           <button class="btn bs xs no-print" onclick="collapseAllVehPhases()">Collapse All</button>
         </div>
       </div>
+      <div id="veh-view-mode-banner" class="no-print" style="text-align:center;font-weight:700;font-size:11px;letter-spacing:0.5px;padding:5px 10px;border-radius:8px;margin-bottom:10px"></div>
       <div id="veh-phases"></div>
 
       <div id="veh-actual-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:9500;align-items:center;justify-content:center">
@@ -3936,7 +3953,7 @@ function showApprovalStamp(id){
       <div class="stamp-dt">🗓 ${s.dateStr} &nbsp;⏱ ${s.timeStr}</div>
     </div>
     <div class="footer">
-      This is a digitally generated approval record from the K2 Production Finance system.<br>
+      This is a digitally generated approval record from the OneView system.<br>
       Generated on ${new Date().toLocaleString('en-IN')} · Ref: ${id}
     </div>
     <div style="margin-top:20px;text-align:center">
@@ -5372,14 +5389,14 @@ function checkPaymentReminders(){
   </div>
 </div>
 
-<div id="login-overlay" style="display:none;position:fixed;inset:0;background:rgba(8,10,18,.97);z-index:9100;align-items:center;justify-content:center"><div style="background:var(--sf);border:1px solid var(--bd);border-radius:var(--r);padding:40px;width:370px;max-width:92vw;text-align:center"><div style="font-family:'Syne',sans-serif;font-size:32px;font-weight:800;color:var(--go);letter-spacing:-1px;margin-bottom:2px">K2</div><div style="font-size:9px;color:var(--tx3);letter-spacing:3px;text-transform:uppercase;margin-bottom:28px">Production Finance · Vyjayanthi Movies</div><div style="display:flex;flex-direction:column;gap:10px;margin-bottom:16px;text-align:left"><div class="fld"><label>User ID</label><input id="login-userid" type="text" autocomplete="off" onkeydown="if(event.key==='Enter')document.getElementById('login-pin').focus()"></div><div class="fld"><label>PIN</label><input id="login-pin" type="password" maxlength="8" style="letter-spacing:6px;font-size:18px" onkeydown="if(event.key==='Enter')doLogin()"></div></div><div id="login-err" style="color:var(--rd);font-size:12px;margin-bottom:10px;display:none;padding:6px;background:rgba(240,80,80,.1);border-radius:4px">Incorrect user ID or PIN</div><button onclick="doLogin()" class="btn bg" style="width:100%;padding:11px;justify-content:center">Sign In</button><div style="margin-top:14px;font-size:10px;color:var(--tx3)">Contact your administrator for access</div></div></div>
+<div id="login-overlay" style="display:none;position:fixed;inset:0;background:rgba(8,10,18,.97);z-index:9100;align-items:center;justify-content:center"><div style="background:var(--sf);border:1px solid var(--bd);border-radius:var(--r);padding:40px;width:370px;max-width:92vw;text-align:center"><div style="font-family:'Syne',sans-serif;font-size:32px;font-weight:800;color:var(--go);letter-spacing:-1px;margin-bottom:2px">OneView</div><div style="font-size:9px;color:var(--tx3);letter-spacing:3px;text-transform:uppercase;margin-bottom:28px">Production Finance · Vyjayanthi Movies</div><div style="display:flex;flex-direction:column;gap:10px;margin-bottom:16px;text-align:left"><div class="fld"><label>User ID</label><input id="login-userid" type="text" autocomplete="off" onkeydown="if(event.key==='Enter')document.getElementById('login-pin').focus()"></div><div class="fld"><label>PIN</label><input id="login-pin" type="password" maxlength="8" style="letter-spacing:6px;font-size:18px" onkeydown="if(event.key==='Enter')doLogin()"></div></div><div id="login-err" style="color:var(--rd);font-size:12px;margin-bottom:10px;display:none;padding:6px;background:rgba(240,80,80,.1);border-radius:4px">Incorrect user ID or PIN</div><button onclick="doLogin()" class="btn bg" style="width:100%;padding:11px;justify-content:center">Sign In</button><div style="margin-top:14px;font-size:10px;color:var(--tx3)">Contact your administrator for access</div></div></div>
 <div id="mode-banner" style="display:none;position:fixed;top:48px;left:210px;right:0;z-index:49;padding:5px 20px;align-items:center;gap:8px;font-size:11px;border-bottom:1px solid var(--bd)"></div>
 <div id="toast"></div>
 
 <!-- FILE OVERLAY — shown on startup until data file is connected -->
 <div id="file-overlay" style="display:none;position:fixed;inset:0;background:rgba(8,10,18,.97);z-index:9000;align-items:center;justify-content:center;flex-direction:column;">
   <div style="background:var(--sf);border:1px solid var(--bd);border-radius:var(--r);padding:36px 40px;max-width:520px;width:92vw;text-align:center;">
-    <div style="font-family:'Syne',sans-serif;font-size:32px;font-weight:800;color:var(--go);letter-spacing:-1px;margin-bottom:2px">K2</div>
+    <div style="font-family:'Syne',sans-serif;font-size:32px;font-weight:800;color:var(--go);letter-spacing:-1px;margin-bottom:2px">OneView</div>
     <div style="font-size:10px;color:var(--tx3);letter-spacing:3px;text-transform:uppercase;margin-bottom:28px">Production Finance &mdash; Vyjayanthi Movies</div>
 
     <!-- Chrome/Edge: File System API -->
@@ -6697,7 +6714,7 @@ function dedupeAllShootDays(btn){
     if(d.type!=='Shoot Day')return true; // leave non-Shoot-Day entries untouched
     const key=(d.date||'').trim();
     if(!dupDates.has(key))return true; // not a duplicated date, keep as-is
-    if(kept.has(key))return false; // already kept one for this date — drop this one
+    if(kept.has(key)){tombstone('shootDays',d.id);return false;} // already kept one for this date — drop this one
     kept.add(key);
     return true;
   });
@@ -6709,6 +6726,7 @@ function dedupeAllShootDays(btn){
 function removeOrphanShootDay(id,btn){
   if(!confirm('Remove this Shoot Day entry? It has no matching Call Sheet.'))return;
   DB.shootDays=(DB.shootDays||[]).filter(d=>d.id!==id);
+  tombstone('shootDays',id); // without this, the next cloud sync restores it from the stale snapshot
   saveDB();
   toast('✓ Removed');
   if(typeof renderDash==='function')renderDash();
@@ -6810,7 +6828,7 @@ function _renderPageCore(p){
     if(_dp)_dp.value=estCurrentDay;
     estLoadHeader();estCatFilter();renderEstTable();
   }
-  else if(p==='vehicles'){vehSetDay(vehCurrentDay);renderVehicleLog();renderVehiclesMaster();}
+  else if(p==='vehicles'){vehSetDay(vehCurrentDay);setVehViewMode(_vehViewMode);}
   else if(p==='pettycash'){renderPettyCash();}
   else if(p==='actor-contracts'){renderActors();arRenderRoster();arShowTab('roster');}
   else if(p==='ratecard')renderRC();
@@ -7034,15 +7052,48 @@ function startNewDay(){
   estLoadHeader();renderEstTable();toast('New day: '+fmtD(picked));
 }
 
-function copyFromPrevDay(){
+// Opens a modal letting you pick WHICH earlier date to copy estimates from,
+// instead of always silently grabbing "the most recent date with any data" —
+// that auto-pick can land on a date you don't actually want (a day with only
+// a couple of stray/placeholder entries) while skipping right past the date
+// you actually meant, like the last day you properly submitted estimates.
+function openCopyPrevModal(){
   const d=estCurrentDay;
-  const prevDates=[...new Set(DB.estimates.map(e=>e.date))].filter(x=>x<d).sort();
-  if(!prevDates.length){toast('No previous day with estimates','err');return;}
-  const prev=prevDates[prevDates.length-1];
+  const dateCounts={};
+  (DB.estimates||[]).forEach(e=>{if(e.date&&e.date!==d)dateCounts[e.date]=(dateCounts[e.date]||0)+1;});
+  const dates=Object.keys(dateCounts).sort().reverse(); // most recent first
+  if(!dates.length){toast('No other day with estimates yet','err');return;}
+  const targetLbl=document.getElementById('copy-prev-target-lbl');
+  if(targetLbl)targetLbl.textContent=fmtD(d);
+  const sel=document.getElementById('copy-prev-source-select');
+  if(sel){
+    // Default to the closest earlier date with data (the old auto-pick
+    // behavior) when one exists, otherwise just the most recent date overall.
+    const earlierDates=dates.filter(x=>x<d);
+    const defaultDate=earlierDates.length?earlierDates[0]:dates[0];
+    sel.innerHTML=dates.map(dt=>`<option value="${dt}"${dt===defaultDate?' selected':''}>${fmtD(dt)} — ${dateCounts[dt]} estimate${dateCounts[dt]===1?'':'s'}${dt>d?' (later date)':''}</option>`).join('');
+    sel.onchange=updateCopyPrevPreview;
+  }
+  updateCopyPrevPreview();
+  document.getElementById('copy-prev-modal').style.display='flex';
+}
+function updateCopyPrevPreview(){
+  const d=estCurrentDay;
+  const sel=document.getElementById('copy-prev-source-select');
+  const prev=sel?.value;
+  const preview=document.getElementById('copy-prev-preview');
+  if(!preview||!prev)return;
+  const existing=(DB.estimates||[]).filter(e=>e.date===d);
+  preview.textContent=existing.length?existing.length+' existing estimate'+(existing.length===1?'':'s')+' on '+fmtD(d)+' will be kept as-is — only new items get added.':'This day has no estimates yet — all copied items will be new.';
+}
+function doCopyFromSelectedDate(){
+  const d=estCurrentDay;
+  const sel=document.getElementById('copy-prev-source-select');
+  const prev=sel?.value;
+  if(!prev){toast('Pick a source date first','err');return;}
   const prevRows=DB.estimates.filter(e=>e.date===prev);
   if(!prevRows.length){toast('No estimates on '+fmtD(prev),'err');return;}
   const existing=DB.estimates.filter(e=>e.date===d);
-  if(!confirm('Copy '+prevRows.length+' estimates from '+fmtD(prev)+' to '+fmtD(d)+'?'+(existing.length?'\n('+existing.length+' existing kept)':'')))return;
   const h=(DB.dayHeaders||{})[d]||{};
   const call=h.call||'07:00';const pack=h.pack||'18:00';const dayType=h.dayType||'Weekday';
   const res=calcCSFromTimes(call,pack,dayType);const dayCS=res.cs;
@@ -7066,6 +7117,7 @@ function copyFromPrevDay(){
   if(!DB.dayHeaders[d])DB.dayHeaders[d]={};
   DB.dayHeaders[d]={...DB.dayHeaders[d],foodHC:prevH.foodHC||0,messRate:prevH.messRate||130,foodMisc:prevH.foodMisc||0,specialFoodEst:prevH.specialFoodEst||0,prodMisc:prevH.prodMisc||0,snacks:prevH.snacks||false};
   saveDB();renderEstTable();estLoadHeader();
+  document.getElementById('copy-prev-modal').style.display='none';
   toast('✓ Copied '+added+' estimates from '+fmtD(prev)+(skippedDeleted?' · '+skippedDeleted+' skipped (previously deleted from this date)':''));
 }
 
@@ -8925,7 +8977,7 @@ async function notifTest(triggerType){
     +'<table><tbody><tr><th>Field</th><th>Value</th></tr><tr><td>Trigger</td><td>'+esc(triggerType)+'</td></tr><tr><td>Time</td><td>'+esc(new Date().toLocaleString('en-IN'))+'</td></tr></tbody></table>');
   const res=await notifSend(triggerType,{
     subject:'[K2 Test] '+(labels[triggerType]||triggerType)+' notification',
-    message:'This is a test notification from the K2 Production Finance app.\nProject: '+(DB.project?.name||'K2')+'\nTriggered by: test button\nTime: '+new Date().toLocaleString('en-IN'),
+    message:'This is a test notification from the OneView app.\nProject: '+(DB.project?.name||'OneView')+'\nTriggered by: test button\nTime: '+new Date().toLocaleString('en-IN'),
     reportHtml:testReportHtml,
     reportFilename:'Test_'+triggerType+'_'+tod()+'.html'
   });
@@ -11071,7 +11123,18 @@ function closeHotelEdit(){
 // ══════════════════════════════════════════
 let vehCurrentDay=tod();
 function vehShiftDay(d){const dt=new Date(vehCurrentDay+'T00:00:00');dt.setDate(dt.getDate()+d);vehSetDay(dt.toISOString().slice(0,10));}
-function vehSetDay(d){vehCurrentDay=d;const dp=document.getElementById('veh-day-pick');if(dp)dp.value=d;renderVehicleLog();}
+function vehSetDay(d){
+  vehCurrentDay=d;
+  const dp=document.getElementById('veh-day-pick');if(dp)dp.value=d;
+  // A date more than 2 days in the past has already happened — default the
+  // Add Entry toggle to Actual so you're not fighting the "estimates for
+  // old dates are blocked" rule every time. Anything recent/future defaults
+  // back to Estimate, since that's the normal day-to-day flow.
+  const daysOld=Math.round((new Date(tod()+'T00:00:00')-new Date(d+'T00:00:00'))/86400000);
+  if(typeof setVehEntryMode==='function')setVehEntryMode(daysOld>2?'actual':'estimate');
+  renderVehicleLog();
+  renderVehiclesMaster();
+}
 
 // Remembers the last-used Hire/Batta/Fuel rate per vehicle type, so
 // selecting a type you've entered before auto-fills its usual rate instead
@@ -11079,10 +11142,22 @@ function vehSetDay(d){vehCurrentDay=d;const dp=document.getElementById('veh-day-
 let _vehEntryMode='estimate'; // 'estimate' or 'actual' — which fields the Add Vehicle Entry form's Hire/Batta/Fuel/Allow inputs feed into
 function setVehEntryMode(mode){
   _vehEntryMode=mode;
-  const estBtn=document.getElementById('veh-entry-est-btn'),actBtn=document.getElementById('veh-entry-act-btn');
-  if(estBtn)estBtn.className=mode==='estimate'?'btn sm':'btn bs sm';
-  if(actBtn)actBtn.className=mode==='actual'?'btn sm':'btn bs sm';
   const isAct=mode==='actual';
+  const estBtn=document.getElementById('veh-entry-est-btn'),actBtn=document.getElementById('veh-entry-act-btn');
+  // Selected mode gets a bold, filled color; the other stays a plain
+  // outlined/grey button — so which mode is active is unmistakable at a
+  // glance instead of both buttons looking almost identical.
+  if(estBtn)estBtn.style.cssText=isAct?'background:var(--sf2);color:var(--tx2);border:1px solid var(--bd2)':'background:var(--go);color:#0d0f14;border:1px solid var(--go)';
+  if(actBtn)actBtn.style.cssText=isAct?'background:var(--gn);color:#0d0f14;border:1px solid var(--gn)':'background:var(--sf2);color:var(--tx2);border:1px solid var(--bd2)';
+  if(estBtn)estBtn.className='btn sm';
+  if(actBtn)actBtn.className='btn sm';
+  const banner=document.getElementById('veh-entry-mode-banner');
+  if(banner){
+    banner.textContent=isAct?'✓ ENTERING ACTUAL — these numbers go into the Actual columns, not Estimate':'📋 ENTERING ESTIMATE — these numbers go into the Estimate columns, not Actual';
+    banner.style.background=isAct?'rgba(46,204,138,.14)':'rgba(232,169,69,.14)';
+    banner.style.color=isAct?'var(--gn)':'var(--go)';
+    banner.style.border='1px solid '+(isAct?'var(--gn)':'var(--go)');
+  }
   const hireLbl=document.getElementById('veh-hire-lbl'),battaLbl=document.getElementById('veh-batta-lbl'),fuelLbl=document.getElementById('veh-fuel-lbl'),allowLbl=document.getElementById('veh-allow-lbl');
   if(hireLbl)hireLbl.textContent=isAct?'Actual Hire ₹':'Hire Rate (₹/day)';
   if(battaLbl)battaLbl.textContent=isAct?'Actual Batta ₹':'Batta Rate (₹/Call Sheet)';
@@ -11106,10 +11181,15 @@ function vehTypeChanged(){
   const fuelItem=items.find(x=>x.cat==='Vehicles'&&x.item===type+' — Fuel');
   const allowItem=items.find(x=>x.cat==='Vehicles'&&x.item===type+' — Allowance');
   if(hireItem||battaItem||fuelItem||allowItem){
-    if(hireEl&&!hireEl.value&&hireItem)hireEl.value=getRate(hireItem)||'';
-    if(battaEl&&!battaEl.value&&battaItem)battaEl.value=getRate(battaItem)||'';
-    if(fuelEl&&!fuelEl.value&&fuelItem)fuelEl.value=getRate(fuelItem)||'';
-    if(allowEl&&!allowEl.value&&allowItem)allowEl.value=getRate(allowItem)||'';
+    // This function only runs when the Vehicle Type dropdown itself changes,
+    // so it's always safe (and expected) to overwrite whatever was in these
+    // fields with the newly-selected type's rate — otherwise switching from
+    // one vehicle type to another silently leaves the PREVIOUS type's rate
+    // sitting in the boxes, which looks exactly like "it's not autofilling".
+    if(hireEl&&hireItem)hireEl.value=getRate(hireItem)||'';
+    if(battaEl&&battaItem)battaEl.value=getRate(battaItem)||'';
+    if(fuelEl&&fuelItem)fuelEl.value=getRate(fuelItem)||'';
+    if(allowEl&&allowItem)allowEl.value=getRate(allowItem)||'';
     vehCalc();
     toast('✓ Auto-filled '+(_vehEntryMode==='actual'?'Actual':'Estimate')+' rate from Rate Card for '+type);
     return;
@@ -11118,9 +11198,9 @@ function vehTypeChanged(){
   // typed in) — use whatever rate was last entered for it manually.
   const defaults=(DB.vehicleRateDefaults||{})[type];
   if(defaults){
-    if(hireEl&&!hireEl.value)hireEl.value=defaults.hire||'';
-    if(battaEl&&!battaEl.value)battaEl.value=defaults.batta||'';
-    if(fuelEl&&!fuelEl.value)fuelEl.value=defaults.fuel||'';
+    if(hireEl)hireEl.value=defaults.hire||'';
+    if(battaEl)battaEl.value=defaults.batta||'';
+    if(fuelEl)fuelEl.value=defaults.fuel||'';
     vehCalc();
     toast('✓ Auto-filled usual rate for '+type);
   }
@@ -11142,6 +11222,15 @@ function addVehicle(){
   const date=vehCurrentDay;
   const type=document.getElementById('veh-type')?.value.trim();
   if(!type){toast('Vehicle type required','err');return;}
+  // An "estimate" for something that already happened more than 2 days ago
+  // doesn't make sense — block it outright and point at Actual instead.
+  if(_vehEntryMode==='estimate'){
+    const daysOld=Math.round((new Date(tod()+'T00:00:00')-new Date(date+'T00:00:00'))/86400000);
+    if(daysOld>2){
+      toast('✕ Can\'t add an Estimate for '+fmtD(date)+' ('+daysOld+' days ago) — switch to "✓ Actual" instead','err');
+      return;
+    }
+  }
   const qty=parseInt(document.getElementById('veh-qty')?.value)||1;
   const enteredHire=parseFloat(document.getElementById('veh-hire')?.value)||0;
   const enteredBatta=parseFloat(document.getElementById('veh-batta')?.value)||0;
@@ -11489,6 +11578,7 @@ function pushPCToActuals(d){
 function deletePettyCash(id){
   if(!confirm('Delete this petty cash entry?'))return;
   DB.pettyCash=(DB.pettyCash||[]).filter(r=>r.id!==id);
+  tombstone('pettyCash',id); // without this, the next cloud sync restores it from the stale snapshot
   saveDB();renderPettyCash();
 }
 
@@ -11932,9 +12022,18 @@ function saveVehActualModal(){
 let _vehViewMode='estimate'; // 'estimate' or 'actual' — which set of columns is primary in the table below
 function setVehViewMode(mode){
   _vehViewMode=mode;
+  const isAct=mode==='actual';
   const estBtn=document.getElementById('veh-view-est-btn'),actBtn=document.getElementById('veh-view-act-btn');
-  if(estBtn)estBtn.className=mode==='estimate'?'btn sm no-print':'btn bs sm no-print';
-  if(actBtn)actBtn.className=mode==='actual'?'btn sm no-print':'btn bs sm no-print';
+  if(estBtn)estBtn.style.cssText=isAct?'background:var(--sf2);color:var(--tx2);border:1px solid var(--bd2)':'background:var(--go);color:#0d0f14;border:1px solid var(--go)';
+  if(actBtn)actBtn.style.cssText=isAct?'background:var(--gn);color:#0d0f14;border:1px solid var(--gn)':'background:var(--sf2);color:var(--tx2);border:1px solid var(--bd2)';
+  if(estBtn)estBtn.className='btn sm no-print';
+  if(actBtn)actBtn.className='btn sm no-print';
+  const vbanner=document.getElementById('veh-view-mode-banner');
+  if(vbanner){
+    vbanner.textContent=isAct?'Showing: ACTUAL columns':'Showing: ESTIMATE columns';
+    vbanner.style.background=isAct?'rgba(46,204,138,.1)':'rgba(232,169,69,.1)';
+    vbanner.style.color=isAct?'var(--gn)':'var(--go)';
+  }
   renderVehiclesMaster();
 }
 function saveVehCsOverride(date,id,val){
@@ -11951,15 +12050,19 @@ function saveVehPurpose(date,id,val){
 function renderVehiclesMaster(){
   const container=document.getElementById('veh-phases');
   if(!container)return;
+  const dateLbl=document.getElementById('veh-master-date-lbl');
+  if(dateLbl)dateLbl.textContent=fmtD(vehCurrentDay);
   const vehPhaseSel=document.getElementById('veh-phase');
   if(vehPhaseSel&&!vehPhaseSel.dataset.loaded){vehPhaseSel.innerHTML=getPhaseOptionsHtml('');vehPhaseSel.dataset.loaded='1';}
-  // Flatten DB.vehicles (keyed by date) into a single list with date attached
-  const all=[];
-  Object.entries(DB.vehicles||{}).forEach(([date,list])=>{
-    (list||[]).forEach(v=>all.push({...v,_date:date}));
-  });
+  // Only the vehicles for the date currently being viewed/edited — showing
+  // every vehicle ever entered across the whole project here (as this used
+  // to do) buried the entries that actually matter for today's work under
+  // months of unrelated history. Excel export / Print Topsheet / Generate
+  // Bill still work across a date range regardless — they read DB.vehicles
+  // + inRange() directly and don't depend on this view at all.
+  const all=(DB.vehicles?.[vehCurrentDay]||[]).map(v=>({...v,_date:vehCurrentDay}));
   if(!all.length){
-    container.innerHTML='<div class="te" style="padding:16px">No vehicle entries yet</div>';
+    container.innerHTML='<div class="te" style="padding:16px">No vehicle entries for '+fmtD(vehCurrentDay)+' yet</div>';
     return;
   }
   const isActualView=_vehViewMode==='actual';
@@ -12155,7 +12258,7 @@ function toggleBill(key,val){
   toast(val?'Bill marked as received':'Bill marked as not received');
 }
 
-function delActual(id){if(!confirm('Delete?'))return;DB.actuals=DB.actuals.filter(x=>x.id!==id);saveDB();renderActualsLog();}
+function delActual(id){if(!confirm('Delete?'))return;DB.actuals=DB.actuals.filter(x=>x.id!==id);tombstone('actuals',id);saveDB();renderActualsLog();}
 
 
 // ── ACTUALS ENTRY — pre-filled from estimates ──
@@ -13365,7 +13468,7 @@ function postPayment(){
   document.getElementById('dp-preview').style.display='none';dpVChange();
   toast('Posted — ₹'+fmt(actualPaid)+' '+status+(pamt>0?' · ₹'+fmt(pamt)+' → Pending':''));
 }
-function delPayment(id){if(!confirm('Delete?'))return;const p=DB.payments.find(x=>x.id===id);DB.payments=DB.payments.filter(x=>x.id!==id);if(p)DB.pendingQueue=DB.pendingQueue.filter(x=>x.originId!==id);saveDB();fillDropdowns();renderPayLog();}
+function delPayment(id){if(!confirm('Delete?'))return;const p=DB.payments.find(x=>x.id===id);DB.payments=DB.payments.filter(x=>x.id!==id);tombstone('payments',id);if(p)DB.pendingQueue=DB.pendingQueue.filter(x=>x.originId!==id);saveDB();fillDropdowns();renderPayLog();}
 function renderPayLog(){
   const df=document.getElementById('dpf-date')?.value;
   const stf=document.getElementById('dpf-st')?.value;
@@ -13535,7 +13638,7 @@ function addInst(aid){
   saveDB();renderActors();toast(fmt(amt)+' added');
 }
 function delInst(aid,iid){const a=DB.actorContracts.find(x=>x.id===aid);if(a)a.instalments=a.instalments.filter(i=>i.id!==iid);saveDB();renderActors();}
-function delActor(id){if(!confirm('Delete?'))return;DB.actorContracts=DB.actorContracts.filter(a=>a.id!==id);saveDB();renderActors();}
+function delActor(id){if(!confirm('Delete?'))return;DB.actorContracts=DB.actorContracts.filter(a=>a.id!==id);tombstone('actorContracts',id);saveDB();renderActors();}
 function renderActors(){
   const el=document.getElementById('actor-list');if(!el)return;
   if(!DB.actorContracts.length){el.innerHTML='<div class="card" style="color:var(--tx3);text-align:center;padding:28px">No artists added yet</div>';return;}
@@ -13980,7 +14083,7 @@ function addShootDay(){
   DB.shootDays.sort((a,b)=>a.date.localeCompare(b.date));
   saveDB();renderShootDays();fillDropdowns();toast('Shoot day added');
 }
-function delShootDay(id){DB.shootDays=DB.shootDays.filter(d=>d.id!==id);saveDB();renderShootDays();}
+function delShootDay(id){DB.shootDays=DB.shootDays.filter(d=>d.id!==id);tombstone('shootDays',id);saveDB();renderShootDays();}
 function renderShootDays(){
   const tb=document.getElementById('sd-body');if(!tb)return;
   const DTYPE={'Shoot Day':'tag tgn',Rehearsal:'tag tb',Recce:'tag tp','Off Day':'tag ts',Holiday:'tag tr2'};
@@ -14054,6 +14157,7 @@ function cancelEditVendor(){
 function delVendor(id){
   if(!confirm('Delete vendor?'))return;
   DB.vendors=DB.vendors.filter(function(v){return v.id!==id;});
+  tombstone('vendors',id); // without this, the next cloud sync restores it from the stale snapshot
   if(_vEditId===id)cancelEditVendor();
   saveDB();fillDropdowns();renderVendors();
 }
@@ -14299,7 +14403,7 @@ function saveSchedule(){
   DB.schedules.push({id:uid(),name,startDate:document.getElementById('s-start').value,endDate:document.getElementById('s-end').value,location:document.getElementById('s-loc').value});
   saveDB();fillDropdowns();renderScheduleList();['s-name','s-start','s-end','s-loc'].forEach(id=>document.getElementById(id).value='');toast('Schedule added');
 }
-function delSchedule(id){if(!confirm('Delete?'))return;DB.schedules=DB.schedules.filter(s=>s.id!==id);saveDB();fillDropdowns();renderScheduleList();}
+function delSchedule(id){if(!confirm('Delete?'))return;DB.schedules=DB.schedules.filter(s=>s.id!==id);tombstone('schedules',id);saveDB();fillDropdowns();renderScheduleList();}
 function renderScheduleList(){
   const el=document.getElementById('s-list');if(!el)return;
   if(!DB.schedules.length){el.innerHTML='<div style="color:var(--tx3);text-align:center;padding:24px">No schedules yet — add one above</div>';return;}
@@ -16532,6 +16636,7 @@ document.addEventListener('DOMContentLoaded',()=>{
 function delHotel(id){
   if(!confirm('Delete hotel booking and remove from estimates?'))return;
   DB.hotels=(DB.hotels||[]).filter(h=>h.id!==id);
+  tombstone('hotels',id); // without this, the next cloud sync restores it from the stale snapshot
   // Remove hotel split estimates
   DB.estimates=DB.estimates.filter(e=>e.hotelRef!==id);
   saveDB();renderHotels();toast('Hotel removed');
@@ -16899,6 +17004,7 @@ async function delFlight(id){
   const choice=await k2Confirm('Delete this flight booking?',[{label:'Cancel',value:'cancel'},{label:'Delete',value:'delete',primary:true}]);
   if(choice!=='delete')return;
   DB.flights=(DB.flights||[]).filter(f=>f.id!==id);
+  tombstone('flights',id); // without this, the next cloud sync restores it from the stale snapshot
   saveDB();renderFlights();toast('Flight removed');
 }
 
@@ -18539,6 +18645,7 @@ function csDelete(id){
   csInitDB();
   const cs=DB.callSheets.find(x=>x.id===id);
   DB.callSheets=DB.callSheets.filter(x=>x.id!==id);
+  tombstone('callSheets',id); // without this, the next cloud sync restores it from the stale snapshot
   // Remove the auto-synced shoot-day register entry too, if it came from this call sheet
   if(cs&&DB.shootDays){
     DB.shootDays=DB.shootDays.filter(d=>!(d.date===cs.date&&d._fromCallSheet));
@@ -20935,7 +21042,7 @@ function printVehiclesTopsheet(){
       if(componentFilter==='hire'&&!hireEst&&!hireAct)return;
       if(componentFilter==='batta'&&!battaEst&&!battaAct)return;
       if(componentFilter==='fuel'&&!fuelEst&&!fuelAct)return;
-      flat.push({date:d,vehNumber:v.vehNumber,type:v.type,cs,hireEst,battaEst,fuelEst,hireAct,battaAct,fuelAct});
+      flat.push({date:d,type:v.type,purpose:v.purpose||'',cs,hireEst,battaEst,fuelEst,hireAct,battaAct,fuelAct});
     });
   });
   if(!flat.length){toast('No vehicle entries in that date range'+(componentFilter!=='all'?' for '+componentFilter:''),'err');return;}
@@ -20943,28 +21050,24 @@ function printVehiclesTopsheet(){
   const showHire=componentFilter==='all'||componentFilter==='hire';
   const showBatta=componentFilter==='all'||componentFilter==='batta';
   const showFuel=componentFilter==='fuel';
-  const showCombinedTotal=componentFilter==='all'; // "Hire + Batta" only makes sense when both are shown
   const componentLabel={hire:'Hire',batta:'Batta',fuel:'Fuel'}[componentFilter]||'';
   const viewLabel={estimate:' — Estimate Only',actual:' — Actual Only',combined:''}[printView];
 
-  // Column plan, in the exact order requested: Date | Vehicle No. | Hire Amount | Call Sheets | Batta Amount | Hire + Batta
-  // Under "Combined", each amount column splits into Est/Actual sub-columns
-  // since there's no single figure to show — matches the existing dropdown's
-  // behavior everywhere else in this app.
-  const headers=['Date','Vehicle No.'];
+  // Column plan, in the exact order requested: Date | Vehicle Type | Purpose |
+  // Hire | Call Sheets | Batta. Under "Combined", each amount column splits
+  // into Est/Actual sub-columns since there's no single figure to show —
+  // matches the existing dropdown's behavior everywhere else in this app.
+  const headers=['Date','Vehicle Type','Purpose'];
   if(showHire){printView==='combined'?headers.push('Hire (Est.) ₹','Hire (Actual) ₹'):headers.push('Hire ₹');}
   headers.push('Call Sheets');
   if(showBatta){printView==='combined'?headers.push('Batta (Est.) ₹','Batta (Actual) ₹'):headers.push('Batta ₹');}
   if(showFuel){printView==='combined'?headers.push('Fuel (Est.) ₹','Fuel (Actual) ₹'):headers.push('Fuel ₹');}
-  if(showCombinedTotal){printView==='combined'?headers.push('Hire+Batta (Est.) ₹','Hire+Batta (Actual) ₹'):headers.push('Hire + Batta ₹');}
 
-  let grandHireEst=0,grandHireAct=0,grandBattaEst=0,grandBattaAct=0,grandFuelEst=0,grandFuelAct=0,grandTotalEst=0,grandTotalAct=0;
+  let grandHireEst=0,grandHireAct=0,grandBattaEst=0,grandBattaAct=0,grandFuelEst=0,grandFuelAct=0;
   const rowsHtml=flat.map(v=>{
     grandHireEst+=v.hireEst;grandHireAct+=v.hireAct;
     grandBattaEst+=v.battaEst;grandBattaAct+=v.battaAct;
     grandFuelEst+=v.fuelEst;grandFuelAct+=v.fuelAct;
-    const totalEst=v.hireEst+v.battaEst;const totalAct=v.hireAct+v.battaAct;
-    grandTotalEst+=totalEst;grandTotalAct+=totalAct;
     const cell=(est,act)=>{
       if(printView==='estimate')return`<td style="padding:5px 8px;border:1px solid #ddd;text-align:right">${est?fmt(est):'—'}</td>`;
       if(printView==='actual')return`<td style="padding:5px 8px;border:1px solid #ddd;text-align:right;${act?'color:#166534;font-weight:700':'color:#999'}">${act?fmt(act):'—'}</td>`;
@@ -20972,12 +21075,12 @@ function printVehiclesTopsheet(){
     };
     let row=`<tr>
       <td style="padding:5px 8px;border:1px solid #ddd;white-space:nowrap">${fmtD(v.date)}</td>
-      <td style="padding:5px 8px;border:1px solid #ddd;font-weight:700">${esc(v.vehNumber||v.type||'—')}</td>`;
+      <td style="padding:5px 8px;border:1px solid #ddd;font-weight:700">${esc(v.type||'—')}</td>
+      <td style="padding:5px 8px;border:1px solid #ddd">${esc(v.purpose||'—')}</td>`;
     if(showHire)row+=cell(v.hireEst,v.hireAct);
     row+=`<td style="padding:5px 8px;border:1px solid #ddd;text-align:center">${v.cs}</td>`;
     if(showBatta)row+=cell(v.battaEst,v.battaAct);
     if(showFuel)row+=cell(v.fuelEst,v.fuelAct);
-    if(showCombinedTotal)row+=cell(totalEst,totalAct);
     row+=`</tr>`;
     return row;
   }).join('');
@@ -20987,12 +21090,11 @@ function printVehiclesTopsheet(){
     if(printView==='actual')return`<td style="padding:9px 8px;text-align:right">${act?fmt(act):'—'}</td>`;
     return`<td style="padding:9px 8px;text-align:right">${fmt(est)}</td><td style="padding:9px 8px;text-align:right">${act?fmt(act):'—'}</td>`;
   };
-  let grandRow=`<td style="padding:9px 8px;text-align:right;font-weight:700" colspan="2">GRAND TOTAL</td>`;
+  let grandRow=`<td style="padding:9px 8px;text-align:right;font-weight:700" colspan="3">GRAND TOTAL</td>`;
   if(showHire)grandRow+=grandCell(grandHireEst,grandHireAct);
   grandRow+=`<td></td>`; // Call Sheets column — no meaningful grand total to sum
   if(showBatta)grandRow+=grandCell(grandBattaEst,grandBattaAct);
   if(showFuel)grandRow+=grandCell(grandFuelEst,grandFuelAct);
-  if(showCombinedTotal)grandRow+=grandCell(grandTotalEst,grandTotalAct);
 
   const rangeLabel=(_rangeFrom&&_rangeTo)?fmtD(_rangeFrom)+' to '+fmtD(_rangeTo):(_rangeFrom?'From '+fmtD(_rangeFrom):'Until '+fmtD(_rangeTo));
   const html=`
@@ -21001,7 +21103,7 @@ function printVehiclesTopsheet(){
     <div style="overflow-x:auto">
     <table style="border-collapse:collapse;font-size:11px;margin-bottom:14px;width:100%">
       <thead><tr style="background:#1e3a5f;color:#fff">
-        ${headers.map(h=>`<th style="padding:6px 8px;text-align:${h==='Date'||h==='Vehicle No.'?'left':h==='Call Sheets'?'center':'right'}">${h}</th>`).join('')}
+        ${headers.map(h=>`<th style="padding:6px 8px;text-align:${(h==='Date'||h==='Vehicle Type'||h==='Purpose')?'left':h==='Call Sheets'?'center':'right'}">${h}</th>`).join('')}
       </tr></thead>
       <tbody>${rowsHtml}
         <tr style="background:#1e3a5f;color:#fff;font-weight:700">${grandRow}</tr>
@@ -22159,7 +22261,7 @@ function printOverlayClean(){
   const win = window.open('','_blank','width=1200,height=800');
   win.document.write(`<!DOCTYPE html><html><head>
     <meta charset="utf-8">
-    <title>K2 Production Finance — Topsheet</title>
+    <title>OneView — Topsheet</title>
     <style>
       *{box-sizing:border-box;-webkit-print-color-adjust:exact;print-color-adjust:exact}
       table,thead,tbody,tr,th,td{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important}
@@ -23175,6 +23277,7 @@ function arAddArtist(){
 function arDelArtist(id){
   if(!confirm('Remove this artist? Their attendance data will also be deleted.'))return;
   DB._arArtists=(DB._arArtists||[]).filter(function(a){return a.id!==id;});
+  tombstone('_arArtists',id); // without this, the next cloud sync restores it from the stale snapshot
   if(DB._arAtt)delete DB._arAtt[id];
   if(DB._arAdv)delete DB._arAdv[id];
   saveDB();arRenderRoster();toast('Artist removed');
