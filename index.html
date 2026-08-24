@@ -8256,6 +8256,8 @@ function renderEstTable(){
       row += '<td class="no-print" style="white-space:nowrap;padding:2px 4px">'
         +'<input type="checkbox" '+(_inHC?'checked':'')+' data-eid="'+r.id+'" onchange="toggleEstHC(this.dataset.eid,this.checked)" title="Include in food HC" style="margin-right:3px">'
         +'<span class="btn bs xs" style="padding:1px 4px;cursor:grab" title="Drag to reorder">⠿</span>'
+        +'<button class="btn bs xs" data-eid="'+r.id+'" onclick="moveEst(this.dataset.eid,-1)" style="padding:1px 3px" title="Move up within category">▲</button>'
+        +'<button class="btn bs xs" data-eid="'+r.id+'" onclick="moveEst(this.dataset.eid,1)" style="padding:1px 3px" title="Move down within category">▼</button>'
         +'<button class="btn bs xs" data-eid="'+r.id+'" onclick="openEstEdit(this.dataset.eid)" style="padding:1px 4px" title="Edit">✎</button>'
         +'<button class="btn br xs" data-eid="'+r.id+'" onclick="delEst(this.dataset.eid)" style="padding:1px 4px">✕</button>'
         +'</td>';
