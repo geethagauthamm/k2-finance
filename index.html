@@ -7911,39 +7911,22 @@ function moveEst(id,dir){
 // faster than clicking ▲/▼ repeatedly to move something from the bottom of a
 // long category to the top. Position is 1-based, scoped to that category.
 function reorderEstByNumber(id,newPosStr){
-  // TEMP DIAGNOSTIC (added 2026-08-24) — logs every step to the console and
-  // surfaces any unexpected condition as a visible toast, so a failed reorder
-  // attempt is diagnosable from a screenshot instead of failing silently.
-  // Safe to remove once the live issue is understood — behavior is unchanged.
-  try{
-    console.log('[reorderEstByNumber] called with id=',id,'newPosStr=',newPosStr);
-    const r=DB.estimates.find(x=>x.id===id);
-    if(!r){console.warn('[reorderEstByNumber] no estimate row found for id',id);toast('DIAG: row not found for id '+id,'err');return;}
-    const d=r.date;
-    const cat=estRowCat(r);
-    console.log('[reorderEstByNumber] row found. date=',d,'resolved category=',cat,'liKey=',r.liKey,'current sortOrder=',r.sortOrder);
-    const catRows=DB.estimates.filter(e=>e.date===d&&estRowCat(e)===cat)
-      .sort((a,b)=>(a.sortOrder||0)-(b.sortOrder||0));
-    catRows.forEach((e,i)=>{if(e.sortOrder==null)e.sortOrder=i*10;});
-    console.log('[reorderEstByNumber] catRows before move ('+catRows.length+'):',catRows.map(e=>({id:e.id,item:e.item||e.liKey,sortOrder:e.sortOrder})));
-    let newPos=parseInt(newPosStr,10);
-    if(isNaN(newPos)){console.warn('[reorderEstByNumber] newPosStr did not parse as a number:',newPosStr);toast('DIAG: could not read the typed number','err');renderEstTable();return;}
-    newPos=Math.max(1,Math.min(newPos,catRows.length));
-    const fromIdx=catRows.findIndex(e=>e.id===id);
-    if(fromIdx<0){console.warn('[reorderEstByNumber] id not found inside its own category group — this row is being grouped differently than its input renders it under');toast('DIAG: row missing from its own category group','err');return;}
-    const [moved]=catRows.splice(fromIdx,1);
-    catRows.splice(newPos-1,0,moved);
-    catRows.forEach((e,i)=>{e.sortOrder=i*10;});
-    console.log('[reorderEstByNumber] catRows after move:',catRows.map(e=>({id:e.id,item:e.item||e.liKey,sortOrder:e.sortOrder})));
-    saveDB();
-    console.log('[reorderEstByNumber] saveDB() called, now calling renderEstTable()');
-    renderEstTable();
-    console.log('[reorderEstByNumber] renderEstTable() finished');
-    toast('✓ Moved to position '+newPos+' in '+cat);
-  }catch(err){
-    console.error('[reorderEstByNumber] threw an error:',err);
-    toast('DIAG: reorder crashed — '+err.message,'err');
-  }
+  const r=DB.estimates.find(x=>x.id===id);if(!r)return;
+  const d=r.date;
+  const cat=estRowCat(r);
+  const catRows=DB.estimates.filter(e=>e.date===d&&estRowCat(e)===cat)
+    .sort((a,b)=>(a.sortOrder||0)-(b.sortOrder||0));
+  catRows.forEach((e,i)=>{if(e.sortOrder==null)e.sortOrder=i*10;});
+  let newPos=parseInt(newPosStr,10);
+  if(isNaN(newPos)){renderEstTable();return;}
+  newPos=Math.max(1,Math.min(newPos,catRows.length));
+  const fromIdx=catRows.findIndex(e=>e.id===id);
+  if(fromIdx<0)return;
+  const [moved]=catRows.splice(fromIdx,1);
+  catRows.splice(newPos-1,0,moved);
+  catRows.forEach((e,i)=>{e.sortOrder=i*10;});
+  saveDB();renderEstTable();
+  toast('✓ Moved to position '+newPos+' in '+cat);
 }
 
 function inlineEditEst(el){
@@ -8178,8 +8161,23 @@ function renderEstTable(){
   // Cash Expenses always renders last, right before the grand total — regardless
   // of where it sits in the Rate Card order or whether custom categories exist.
   if(cats.includes('Cash Expenses')){cats=cats.filter(c=>c!=='Cash Expenses');cats.push('Cash Expenses');}
-  // Sort rows within each category by sortOrder
-  rows.sort((a,b)=>{const ca=getCat(a),cb=getCat(b);if(ca!==cb)return 0;return (a.sortOrder||0)-(b.sortOrder||0);});
+  // NOTE: rows are intentionally NOT sorted here with a single global
+  // Array.sort() across the whole table. A comparator that returns 0 for
+  // rows in different categories (to leave the category grouping alone)
+  // and only compares sortOrder within the same category looks correct,
+  // but it silently breaks once rows of the same category are scattered
+  // far apart in the underlying array with several other categories'
+  // rows between them — JS engines are only required to keep "equal"
+  // (comparator-returns-0) elements in their original relative order,
+  // they are NOT required to correctly interleave-sort a same-category
+  // pair that never gets directly compared during the sort. In practice
+  // this meant a row's sortOrder could be updated correctly in the data
+  // (confirmed directly in DB.estimates) while the table kept showing it
+  // in its old position — the reorder logic was fine, this render step
+  // wasn't reliably honoring it. Sorting each category's own row list
+  // directly (right below, per-category) is not subject to that failure
+  // mode, since every row being compared is guaranteed to be in the same
+  // group.
 
   const RT = {'Per Call Sheet':'Per Call Sheet','Per Day':'Per Day','Per Call Sheet (Group)':'Group Rate (× CS)','Package':'Package','Per Project':'Per Project',
     'Salary':'Salary','Salaried':'Salary','Contract':'Contract','Actual':'Actual',
@@ -8189,7 +8187,7 @@ function renderEstTable(){
   let grandEst = 0, grandAct = 0;
 
   cats.forEach(cat => {
-    const catRows = rows.filter(r => getCat(r) === cat);
+    const catRows = rows.filter(r => getCat(r) === cat).sort((a,b)=>(a.sortOrder||0)-(b.sortOrder||0));
     if(!catRows.length) return;
     let catEst = 0, catAct = 0;
 
