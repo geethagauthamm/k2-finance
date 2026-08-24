@@ -7843,6 +7843,14 @@ function estDragEnd(ev){
   document.querySelectorAll('#est-table-body tr').forEach(tr=>{tr.style.opacity='';tr.style.borderTop='';});
   _estDragId=null;
 }
+// Resolve an estimate row's real category the same way the table itself does —
+// including items whose Rate Card entry has since been hidden. Using plain
+// allItems() alone (which excludes hidden items) silently misfiled those rows
+// into "Other", so reordering computed against the wrong group of rows and
+// then visibly snapped back once the real table re-grouped it correctly.
+function estRowCat(r){
+  return (allItems().find(x=>liKey(x)===r.liKey)||findItemIgnoringHidden(r.liKey))?.cat||r.cat||'Other';
+}
 function estDrop(ev){
   ev.preventDefault();
   document.querySelectorAll('#est-table-body tr').forEach(tr=>{tr.style.borderTop='';});
@@ -7858,7 +7866,7 @@ function estDrop(ev){
   if(!dragR||!targetR)return;
   const d=dragR.date;
   const cat=targetTr.dataset.cat;
-  const catRows=DB.estimates.filter(e=>e.date===d&&(allItems().find(x=>liKey(x)===e.liKey)?.cat||'Other')===cat)
+  const catRows=DB.estimates.filter(e=>e.date===d&&estRowCat(e)===cat)
     .sort((a,b)=>(a.sortOrder||0)-(b.sortOrder||0));
   catRows.forEach((e,i)=>{if(e.sortOrder==null)e.sortOrder=i*10;});
 
@@ -7879,9 +7887,9 @@ function estDrop(ev){
 function moveEst(id,dir){
   const r=DB.estimates.find(x=>x.id===id);if(!r)return;
   const d=r.date;
-  const cat=allItems().find(x=>liKey(x)===r.liKey)?.cat||'Other';
+  const cat=estRowCat(r);
   // Get all rows in same date+category, sorted by current sortOrder
-  const catRows=DB.estimates.filter(e=>e.date===d&&(allItems().find(x=>liKey(x)===e.liKey)?.cat||'Other')===cat)
+  const catRows=DB.estimates.filter(e=>e.date===d&&estRowCat(e)===cat)
     .sort((a,b)=>(a.sortOrder||0)-(b.sortOrder||0));
   // Ensure all have sortOrder
   catRows.forEach((e,i)=>{if(e.sortOrder==null)e.sortOrder=i*10;});
@@ -7897,6 +7905,28 @@ function moveEst(id,dir){
     catRows[pos].sortOrder+=dir;
   }
   saveDB();renderEstTable();
+}
+
+// Type-a-number reordering — more reliable than dragging on a trackpad, and
+// faster than clicking ▲/▼ repeatedly to move something from the bottom of a
+// long category to the top. Position is 1-based, scoped to that category.
+function reorderEstByNumber(id,newPosStr){
+  const r=DB.estimates.find(x=>x.id===id);if(!r)return;
+  const d=r.date;
+  const cat=estRowCat(r);
+  const catRows=DB.estimates.filter(e=>e.date===d&&estRowCat(e)===cat)
+    .sort((a,b)=>(a.sortOrder||0)-(b.sortOrder||0));
+  catRows.forEach((e,i)=>{if(e.sortOrder==null)e.sortOrder=i*10;});
+  let newPos=parseInt(newPosStr,10);
+  if(isNaN(newPos)){renderEstTable();return;}
+  newPos=Math.max(1,Math.min(newPos,catRows.length));
+  const fromIdx=catRows.findIndex(e=>e.id===id);
+  if(fromIdx<0)return;
+  const [moved]=catRows.splice(fromIdx,1);
+  catRows.splice(newPos-1,0,moved);
+  catRows.forEach((e,i)=>{e.sortOrder=i*10;});
+  saveDB();renderEstTable();
+  toast('✓ Moved to position '+newPos+' in '+cat);
 }
 
 function inlineEditEst(el){
@@ -8256,8 +8286,7 @@ function renderEstTable(){
       row += '<td class="no-print" style="white-space:nowrap;padding:2px 4px">'
         +'<input type="checkbox" '+(_inHC?'checked':'')+' data-eid="'+r.id+'" onchange="toggleEstHC(this.dataset.eid,this.checked)" title="Include in food HC" style="margin-right:3px">'
         +'<span class="btn bs xs" style="padding:1px 4px;cursor:grab" title="Drag to reorder">⠿</span>'
-        +'<button class="btn bs xs" data-eid="'+r.id+'" onclick="moveEst(this.dataset.eid,-1)" style="padding:1px 3px" title="Move up within category">▲</button>'
-        +'<button class="btn bs xs" data-eid="'+r.id+'" onclick="moveEst(this.dataset.eid,1)" style="padding:1px 3px" title="Move down within category">▼</button>'
+        +'<input type="number" class="act-inline" data-eid="'+r.id+'" value="'+(ri+1)+'" min="1" max="'+catRows.length+'" style="width:30px;padding:1px 2px;text-align:center;display:inline-block" title="Position within '+cat.replace(/"/g,'&quot;')+' — type a number to jump there" onchange="reorderEstByNumber(this.dataset.eid,this.value)">'
         +'<button class="btn bs xs" data-eid="'+r.id+'" onclick="openEstEdit(this.dataset.eid)" style="padding:1px 4px" title="Edit">✎</button>'
         +'<button class="btn br xs" data-eid="'+r.id+'" onclick="delEst(this.dataset.eid)" style="padding:1px 4px">✕</button>'
         +'</td>';
