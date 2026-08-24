@@ -6908,7 +6908,8 @@ function fillDropdowns(){
   if(vCatList){
     const seedOrder=[...new Set(SEED.map(e=>e.cat))];
     const allCats=[...new Set(allItems().map(e=>e.cat))];
-    const cats=[...seedOrder.filter(c=>allCats.includes(c)),...allCats.filter(c=>!seedOrder.includes(c))];
+    let cats=[...seedOrder.filter(c=>allCats.includes(c)),...allCats.filter(c=>!seedOrder.includes(c))];
+    if(cats.includes('Cash Expenses')){cats=cats.filter(c=>c!=='Cash Expenses');cats.push('Cash Expenses');}
     vCatList.innerHTML=cats.map(c=>`<option value="${c.replace(/"/g,'&quot;')}">`).join('');
   }
   const inCatList=document.getElementById('in-cat-list');
@@ -6923,7 +6924,8 @@ function fillDropdowns(){
     const cur=el.value;
     const seedOrder=[...new Set(SEED.map(e=>e.cat))];
     const allCats=[...new Set(allItems().map(e=>e.cat))];
-    const cats=[...seedOrder.filter(c=>allCats.includes(c)),...allCats.filter(c=>!seedOrder.includes(c))];
+    let cats=[...seedOrder.filter(c=>allCats.includes(c)),...allCats.filter(c=>!seedOrder.includes(c))];
+    if(cats.includes('Cash Expenses')){cats=cats.filter(c=>c!=='Cash Expenses');cats.push('Cash Expenses');}
     el.innerHTML='<option value="">All Categories</option>';
     cats.forEach(c=>{const o=document.createElement('option');o.value=c;o.textContent=c;el.appendChild(o);});
     el.value=cur;
@@ -8125,7 +8127,10 @@ function renderEstTable(){
   const seedOrder = [...new Set(SEED.map(e=>e.cat))].filter(c=>c!=='Accommodation');
   const getCat = r => (allItems().find(x=>liKey(x)===r.liKey)||findItemIgnoringHidden(r.liKey))?.cat || 'Other';
   const rowCats = [...new Set(rows.map(getCat))];
-  const cats = [...seedOrder.filter(c=>rowCats.includes(c)), ...rowCats.filter(c=>!seedOrder.includes(c))].filter(c=>c!=='Accommodation');
+  let cats = [...seedOrder.filter(c=>rowCats.includes(c)), ...rowCats.filter(c=>!seedOrder.includes(c))].filter(c=>c!=='Accommodation');
+  // Cash Expenses always renders last, right before the grand total — regardless
+  // of where it sits in the Rate Card order or whether custom categories exist.
+  if(cats.includes('Cash Expenses')){cats=cats.filter(c=>c!=='Cash Expenses');cats.push('Cash Expenses');}
   // Sort rows within each category by sortOrder
   rows.sort((a,b)=>{const ca=getCat(a),cb=getCat(b);if(ca!==cb)return 0;return (a.sortOrder||0)-(b.sortOrder||0);});
 
@@ -11624,7 +11629,9 @@ function exportEstimatesExcel(){
   // ── Regular estimate rows (looked up via allItems) ──
   const seedOrder=[...new Set(SEED.map(e=>e.cat))].filter(c=>c!=='Accommodation');
   const rowCats=[...new Set(estRows.map(r=>{const e=allItems().find(x=>liKey(x)===r.liKey);return e?.cat||r.cat||'Other';}))];
-  const cats=[...seedOrder.filter(c=>rowCats.includes(c)),...rowCats.filter(c=>!seedOrder.includes(c))].filter(c=>c!=='Accommodation');
+  let cats=[...seedOrder.filter(c=>rowCats.includes(c)),...rowCats.filter(c=>!seedOrder.includes(c))].filter(c=>c!=='Accommodation');
+  // Cash Expenses always renders last, right before the grand total.
+  if(cats.includes('Cash Expenses')){cats=cats.filter(c=>c!=='Cash Expenses');cats.push('Cash Expenses');}
 
   cats.forEach(cat=>{
     const catRows=estRows.filter(r=>{const e=allItems().find(x=>liKey(x)===r.liKey);return (e?.cat||r.cat||'Other')===cat;});
@@ -12850,7 +12857,8 @@ function renderRC(){
   try{
     const _seedOrder=[...new Set(SEED.map(e=>e.cat))];
     const _allCats=[...new Set(allItems().map(e=>e.cat))].filter(c=>c!=='Hotels'&&c!=='Flights');
-    const cats=[..._seedOrder.filter(c=>_allCats.includes(c)),..._allCats.filter(c=>!_seedOrder.includes(c))];
+    let cats=[..._seedOrder.filter(c=>_allCats.includes(c)),..._allCats.filter(c=>!_seedOrder.includes(c))];
+    if(cats.includes('Cash Expenses')){cats=cats.filter(c=>c!=='Cash Expenses');cats.push('Cash Expenses');}
     let html='';
     cats.forEach(cat=>{
       let items=allItems().filter(e=>e.cat===cat);
@@ -16089,13 +16097,34 @@ function showSbSetupGuide(){
 // cloud row with whatever's in local memory. This makes save additive-safe.
 function mergeInCloudAdditions(cloud){
   if(!cloud||typeof cloud!=='object')return;
+  // Union in tombstones recorded by ANY session, not just this one. Without
+  // this, a tab/device that never itself deleted an item never learns the
+  // item is gone — it just sits there in that tab's memory — and the next
+  // time that tab autosaves for ANY reason, it pushes its own stale copy of
+  // the record right back up, silently undoing someone else's delete with
+  // no error and no warning. Tombstones only work as a shared "stay deleted"
+  // signal if every session's tombstone list gets merged with the cloud's.
+  if(cloud._tombstones&&typeof cloud._tombstones==='object'){
+    if(!DB._tombstones)DB._tombstones={};
+    Object.keys(cloud._tombstones).forEach(f=>{
+      if(!Array.isArray(cloud._tombstones[f]))return;
+      if(!Array.isArray(DB._tombstones[f]))DB._tombstones[f]=[];
+      cloud._tombstones[f].forEach(id=>{if(!DB._tombstones[f].includes(id))DB._tombstones[f].push(id);});
+    });
+  }
   const idArrayFields=['bills','flights','hotels','pettyCash','schedules','salaries',
     '_arArtists','callSheets','vendors','pendingQueue','actorContracts','estimates',
     'actuals','payments','inlineActuals','artistStaff','shootDays'];
   idArrayFields.forEach(f=>{
+    const dead=(DB._tombstones&&DB._tombstones[f])||[];
+    // Drop any record this session is STILL holding onto that's now known to
+    // be tombstoned (by this session or any other) — this is what actually
+    // stops a stale tab from resurrecting something deleted elsewhere; the
+    // "don't re-add from cloud" check below only guards fresh cloud pulls,
+    // it does nothing about a record already sitting in local memory.
+    if(dead.length&&Array.isArray(DB[f]))DB[f]=DB[f].filter(x=>!(x&&x.id&&dead.includes(x.id)));
     if(!Array.isArray(cloud[f]))return;
     if(!Array.isArray(DB[f]))DB[f]=[];
-    const dead=(DB._tombstones&&DB._tombstones[f])||[];
     cloud[f].forEach(item=>{
       if(item&&item.id&&!dead.includes(item.id)&&!DB[f].find(x=>x.id===item.id))DB[f].push(item);
     });
@@ -16104,6 +16133,11 @@ function mergeInCloudAdditions(cloud){
   if(cloud.vehicles&&typeof cloud.vehicles==='object'&&!Array.isArray(cloud.vehicles)){
     if(!DB.vehicles||typeof DB.vehicles!=='object')DB.vehicles={};
     const deadVeh=(DB._tombstones&&DB._tombstones.vehicles)||[];
+    if(deadVeh.length){
+      Object.keys(DB.vehicles).forEach(date=>{
+        if(Array.isArray(DB.vehicles[date]))DB.vehicles[date]=DB.vehicles[date].filter(x=>!(x&&x.id&&deadVeh.includes(x.id)));
+      });
+    }
     Object.keys(cloud.vehicles).forEach(date=>{
       const cloudList=cloud.vehicles[date];
       if(!Array.isArray(cloudList))return;
@@ -16117,6 +16151,13 @@ function mergeInCloudAdditions(cloud){
   if(cloud.paytracker&&typeof cloud.paytracker==='object'&&!Array.isArray(cloud.paytracker)){
     if(!DB.paytracker||typeof DB.paytracker!=='object')DB.paytracker={};
     const deadPT=(DB._tombstones&&DB._tombstones.paytracker)||[];
+    if(deadPT.length){
+      Object.keys(DB.paytracker).forEach(k=>{
+        if(k==='_cats')return;
+        const dayObj=DB.paytracker[k];
+        if(dayObj&&Array.isArray(dayObj.entries))dayObj.entries=dayObj.entries.filter(x=>!(x&&x.id&&deadPT.includes(x.id)));
+      });
+    }
     Object.keys(cloud.paytracker).forEach(k=>{
       if(k==='_cats'){
         if(Array.isArray(cloud.paytracker._cats)){
