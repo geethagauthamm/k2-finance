@@ -2658,6 +2658,11 @@ body.auditor-mode #save-btn { display:none !important; }
       <option value="acc-pending">Pending</option><option value="acc-approved">Approved</option>
       <option value="acc-partial">Partial</option><option value="acc-hold">Hold</option><option value="acc-rejected">Rejected</option>
     </select>
+    <select id="f-prod" onchange="renderEntries()">
+      <option value="">All statuses</option>
+      <option value="pending">Pending</option><option value="approved">Approved</option>
+      <option value="partial">Partial</option><option value="hold">Hold</option><option value="rejected">Rejected</option>
+    </select>
     <select id="f-phase" onchange="renderEntries()" style="background:#1e293b;border:1px solid #334155;border-radius:7px;color:#e2e8f0;font-size:12px;padding:6px 9px;outline:none">
       <option value="">All phases</option>
       <option value="Pre-Production">🟡 Pre-Production</option>
@@ -3214,6 +3219,7 @@ function setPhase(p){
   document.getElementById('phase2-info').style.display=p===2?'flex':'none';
   document.getElementById('add-card').style.display=p===1?'':'none';
   document.getElementById('f-acc').style.display=p===2?'':'none';
+  document.getElementById('f-prod').style.display=p===1?'':'none';
   document.getElementById('sig-title').textContent=p===1?'Phase 1 — Producer Approval':'Phase 2 — Accounts Payment';
   document.getElementById('sig-p1').style.display=p===1?'':'none';
   document.getElementById('sig-p2').style.display=p===2?'':'none';
@@ -3257,11 +3263,12 @@ function getFiltered(){
   var q=(document.getElementById('search-q').value||'').toLowerCase();
   var fc=document.getElementById('f-cat').value;
   var fa=document.getElementById('f-acc').value;
+  var fp=document.getElementById('f-prod')?document.getElementById('f-prod').value:'';
   var all=day.entries||[];
   if(PHASE===2)all=all.filter(function(e){return PROD_APPROVED.indexOf(e.producerStatus)>=0;});
   return all.filter(function(e){
     var text=(e.vendor+' '+e.inv+' '+e.cat+' '+(e.desc||'')+' '+(e.producerComment||'')+' '+(e.accComment||'')+' '+(e.payUTR||'')).toLowerCase();
-    return(!q||text.indexOf(q)>=0)&&(!fc||e.cat===fc)&&(!fa||e.accStatus===fa);
+    return(!q||text.indexOf(q)>=0)&&(!fc||e.cat===fc)&&(!fa||e.accStatus===fa)&&(!fp||(e.producerStatus||'pending')===fp);
   });
 }
 
