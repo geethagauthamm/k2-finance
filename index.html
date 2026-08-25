@@ -16909,6 +16909,7 @@ function renderHotels(){
         <td class="no-print" style="white-space:nowrap">
           <button class="btn bs xs" data-hid="${h.id}" onclick="moveHotel(this.dataset.hid,-1)" style="padding:2px 4px">▲</button>
           <button class="btn bs xs" data-hid="${h.id}" onclick="moveHotel(this.dataset.hid,1)" style="padding:2px 4px;margin:0 4px">▼</button>
+          <button class="btn bs xs" data-hid="${h.id}" onclick="editHotel(this.dataset.hid)" style="padding:2px 4px;margin-right:4px" title="Edit — including reassigning the Phase/Schedule">✎</button>
           <button class="btn br xs" data-hid="${h.id}" onclick="delHotel(this.dataset.hid)">✕</button>
         </td>
       </tr>`;
