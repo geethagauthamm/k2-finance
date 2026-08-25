@@ -201,6 +201,13 @@ table{width:100%;border-collapse:collapse;font-size:12px;}
      printable area with consistent padding on both sides. */
   #print-overlay-body{width:100%!important;max-width:100%!important;margin-left:0!important;margin-right:0!important;padding:16px!important;box-sizing:border-box!important;}
   @page{margin:12mm;size:A4 landscape;}
+  /* Browsers repeat a real <tfoot> at the bottom of EVERY printed page for
+     a table that spans multiple pages — that's why "Grand Total" was
+     showing identically on page 1, 2, and 3 of a printed day sheet instead
+     of just once at the end. table-row-group makes it behave like a normal
+     last row instead of a repeating footer, so it only prints once, in its
+     natural place after the last line item. */
+  tfoot{display:table-row-group;}
 }
 
 /* ── ARTIST MODULE ── */
@@ -8081,7 +8088,7 @@ function renderEstTable(){
         +'<th class="tr" style="width:44px;color:var(--gn)">Act.<br>CS</th>'
         +'<th class="tr" style="width:76px;color:var(--gn)">Act. Amt</th>'
         +'<th style="width:100px">Remarks</th>'
-        +'<th class="no-print" style="width:90px"></th>'
+        +'<th class="no-print" style="width:150px"></th>'
         +'</tr>';
     } else if(showEst){
       th = '<tr>'
@@ -8091,7 +8098,7 @@ function renderEstTable(){
         +'<th class="tr" style="width:60px">Count</th>'
         +'<th class="tr" style="width:44px">CS</th>'
         +'<th class="tr" style="width:84px;color:var(--bl)">Est. Amt</th>'
-        +'<th class="no-print" style="width:90px"></th>'
+        +'<th class="no-print" style="width:150px"></th>'
         +'</tr>';
     } else {
       th = '<tr>'
@@ -8101,7 +8108,7 @@ function renderEstTable(){
         +'<th class="tr" style="width:44px;color:var(--gn)">Act.<br>CS</th>'
         +'<th class="tr" style="width:76px;color:var(--gn)">Act. Amt</th>'
         +'<th style="width:100px">Remarks</th>'
-        +'<th class="no-print" style="width:90px"></th>'
+        +'<th class="no-print" style="width:150px"></th>'
         +'</tr>';
     }
     thead.innerHTML = th;
