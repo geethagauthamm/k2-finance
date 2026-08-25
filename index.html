@@ -8448,6 +8448,12 @@ function renderEstTable(){
     });
     const _htlGroupArr=Object.values(_htlGroups);
     _htlGroupArr.forEach((g,gi)=>{
+      // Unlike Vehicles/Flights/Food above, this rollup was never adding its
+      // total into grandEst/grandAct — the Hotels row displayed a correct
+      // per-hotel amount and Annexure B totaled correctly on its own, but
+      // the Grand Total at the bottom of the sheet silently excluded Hotels
+      // entirely, so it never matched Top Sheet + Annexure by hand.
+      grandEst+=g.total; grandAct+=g.actTotal||0;
       let hrow='<tr class="est-auto-row">';
       if(gi===0)hrow+='<td class="est-cat-cell" rowspan="'+_htlGroupArr.length+'">Hotels<div class="xs3 dim" style="font-size:9px">'+_htlGroupArr.length+' hotel'+((_htlGroupArr.length>1)?'s':'')+' · '+dayHtls.length+' rooms</div></td>';
       hrow+='<td style="padding:5px 8px"><div class="xs2 semi">'+g.name+'</div><div class="xs3 dim">'+g.rooms+' room'+(g.rooms>1?'s':'')+' · '+g.guests.slice(0,3).join(', ')+(g.guests.length>3?' +more':'')+'</div></td>';
@@ -15023,7 +15029,15 @@ function renderDash(){
     const pr=h.snacks?110:65;
     return s+(hc>0?hc*mr+(h.foodMisc||0)+( h.specialFoodEst||0)+pr*hc*cs+(h.prodMisc||0):( h.foodMisc||0)+(h.specialFoodEst||0));
   },0);
-  const totPlanAll=totPlan+totVehPlan+totFoodPlan;
+  // Add hotel estimates across the whole production — same bug class as the
+  // day sheet's Grand Total (fixed separately): this project-wide total was
+  // built the same way (line items + vehicles + food) and never added
+  // hotels either, even though each hotel booking already stores its own
+  // correct total (rooms × rate × nights) at h.total.
+  const totHotelPlan=(DB.hotels||[]).reduce((s,h)=>s+(h.total||0),0);
+  // Add flight estimates across the whole production — same gap.
+  const totFlightPlan=(DB.flights||[]).reduce((s,f)=>s+(f.estCost||0)*(f.count||1),0);
+  const totPlanAll=totPlan+totVehPlan+totFoodPlan+totHotelPlan+totFlightPlan;
   const totAct=getTotalActualsSpent();
   const totPaid=getTotalPaid();
   const totPend=DB.pendingQueue.filter(p=>p.status==='open').reduce((s,p)=>s+(p.amount||0),0);
@@ -15033,7 +15047,7 @@ function renderDash(){
     '<div class="ps-stat-card">'+
       '<div class="ps-col" style="color:var(--tx3);margin-bottom:6px">Day Plans Total</div>'+
       '<div class="ps-nh" style="color:#60a5fa">'+fmt(totPlanAll)+'</div>'+
-      '<div style="font-size:10px;color:var(--tx3);margin-top:4px">'+DB.estimates.length+' entries + vehicles + food</div>'+
+      '<div style="font-size:10px;color:var(--tx3);margin-top:4px">'+DB.estimates.length+' entries + vehicles + hotels + flights + food</div>'+
     '</div>'+
     '<div class="ps-stat-card">'+
       '<div class="ps-col" style="color:var(--tx3);margin-bottom:6px">Total Spent (Actuals)</div>'+
