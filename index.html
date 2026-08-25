@@ -2376,6 +2376,7 @@ body.auditor-mode #save-btn { display:none !important; }
           <label class="xs2"><input type="checkbox" id="notif-r-t-estimates"> Estimates submitted</label>
           <label class="xs2"><input type="checkbox" id="notif-r-t-bills"> Bill approved/added</label>
           <label class="xs2"><input type="checkbox" id="notif-r-t-payments"> Payment marked paid</label>
+          <label class="xs2"><input type="checkbox" id="notif-r-t-approval"> Payment pushed for approval</label>
           <label class="xs2"><input type="checkbox" id="notif-r-t-actuals"> Actuals posted</label>
         </div>
       </div>
@@ -2406,6 +2407,7 @@ body.auditor-mode #save-btn { display:none !important; }
         <button class="btn bs sm" onclick="notifTest('estimates')">Test Estimates</button>
         <button class="btn bs sm" onclick="notifTest('bills')">Test Bills</button>
         <button class="btn bs sm" onclick="notifTest('payments')">Test Payments</button>
+        <button class="btn bs sm" onclick="notifTest('approval')">Test Approval Push</button>
         <button class="btn bs sm" onclick="notifTest('actuals')">Test Actuals</button>
       </div>
       <div id="notif-test-log" style="margin-top:10px;font-size:11px;color:var(--tx3);font-family:'JetBrains Mono',monospace;white-space:pre-wrap"></div>
@@ -3287,10 +3289,13 @@ function renderEntries(){
       var phaseHtml=e.productionPhase?'<div style="margin-top:2px"><span class="phase-tag '+phaseClass(e.productionPhase)+'" onclick="event.stopPropagation();toggleComments(\''+e.id+'\')" title="'+e.productionPhase+'">📌 '+e.productionPhase+'</span></div>':'';
       var commentBtnHtml='<td class="np" style="text-align:center"><button class="ib-exp" onclick="toggleComments(\''+e.id+'\')" title="'+(commentCount?commentCount+' comment(s), click to set phase':'Set phase / add comment')+'">'+(commentCount?'💬'+commentCount:'💬')+'</button></td>';
       if(PHASE===1){
+        var needsPush=['pending','rejected','hold'].indexOf(e.producerStatus)>=0;
         var prodCell='<td class="np"><span class="sp '+pClass(e.producerStatus)+'" onclick="openP1Modal(\''+e.id+'\')">'+pLabel(e.producerStatus)+'</span>'+
           (e.producerStatus==='partial'&&e.producerApprovedAmt?'<div style="font-size:10px;color:#93c5fd;margin-top:1px">₹'+fm(e.producerApprovedAmt)+'</div>':'')+
           (e.producerComment?'<div style="font-size:10px;color:#64748b;margin-top:1px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:78px" title="'+e.producerComment+'">'+e.producerComment+'</div>':'')+
-          (e.producerStamp?'<div style="font-size:9px;color:#22c55e;margin-top:2px;cursor:pointer" onclick="showApprovalStamp(\''+e.id+'\')" title="View approval stamp">🔏 '+e.producerStamp.dateStr+'</div>':'')+'</td>';
+          (e.producerStamp?'<div style="font-size:9px;color:#22c55e;margin-top:2px;cursor:pointer" onclick="showApprovalStamp(\''+e.id+'\')" title="View approval stamp">🔏 '+e.producerStamp.dateStr+'</div>':'')+
+          (needsPush?'<div style="margin-top:3px"><button class="btn bs xs" style="font-size:9px;padding:2px 6px" onclick="event.stopPropagation();pushForApproval(\''+e.id+'\')" title="Resubmit / nudge the approver again">🔔 Push'+(e.pushCount?' ('+e.pushCount+')':'')+'</button></div>':'')+
+          (e.pushCount&&e.lastPushedAt?'<div style="font-size:9px;color:#f59e0b;margin-top:1px" title="'+new Date(e.lastPushedAt).toLocaleString('en-IN')+'">last pushed '+fmtRelTime(e.lastPushedAt)+'</div>':'')+'</td>';
         tr.innerHTML='<td><strong>'+e.vendor+'</strong>'+(e.carriedFrom?'<span class="cf-p">CF</span>':'')+(e._dupeMergedCount?'<span class="cf-p" style="background:#f59e0b" title="Merged from '+e._dupeMergedCount+' duplicate presentations, first seen '+fmtD(e._dupeFirstSeen)+'">x'+e._dupeMergedCount+'</span>':'')+entryBillBadge(e)+phaseHtml+'</td>'+
           '<td style="color:#94a3b8">'+e.inv+'</td>'+
           '<td><span class="cp">'+e.cat+'</span></td>'+
@@ -4023,6 +4028,60 @@ function inboxMarkPaid(id,action){
   if(card){card.style.opacity='0.3';card.style.transition='opacity 0.3s';}
   setTimeout(()=>renderInbox(),350);
   toast(action==='hold'?'Held: '+e.vendor:'Marked paid: '+e.vendor);
+}
+
+// Short "X ago" label for the small "last pushed" hint under a Push button —
+// keeps the row readable at a glance instead of a full timestamp; the full
+// timestamp is still available in the title tooltip.
+function fmtRelTime(iso){
+  if(!iso)return'';
+  const ms=Date.now()-new Date(iso).getTime();
+  const mins=Math.floor(ms/60000);
+  if(mins<1)return'just now';
+  if(mins<60)return mins+'m ago';
+  const hrs=Math.floor(mins/60);
+  if(hrs<24)return hrs+'h ago';
+  const days=Math.floor(hrs/24);
+  return days+'d ago';
+}
+
+// Lets the Producer (or EP/admin) explicitly re-flag a payment that's been
+// sitting Pending/Rejected/On Hold in the tracker — resubmitting a declined
+// one back to Pending so it re-enters the Producer Inbox queue, and (if
+// notification recipients are configured for the "approval" trigger) sending
+// them a WhatsApp/email nudge. Safe to click repeatedly — each click bumps
+// pushCount and re-notifies, which is exactly the "push it again and again"
+// behavior that was missing.
+function pushForApproval(id){
+  if(!Object.keys(S).length)ld(); // findEntry searches S, not DB.paytracker directly — must be loaded first
+  const e=findEntry(id);if(!e)return;
+  const oldStatus=e.producerStatus;
+  const wasDecided=oldStatus==='rejected'||oldStatus==='hold';
+  if(wasDecided){
+    e.producerStatus='pending';
+    e.producerComment='';
+    e.producerApprovedAmt=null;
+    e.producerStamp=null;
+  }
+  e.pushCount=(e.pushCount||0)+1;
+  const now=new Date();
+  e.lastPushedAt=now.toISOString();
+  const who=CURRENT_USER?.name||'—';
+  if(!e.comments)e.comments=[];
+  e.comments.push({date:now.toLocaleDateString('en-IN'),
+    text:'🔔 Pushed for approval again (#'+e.pushCount+') by '+who+(wasDecided?' — resubmitted, was '+pLabel(oldStatus):''),
+    status:e.producerStatus});
+  sv();
+  renderEntries();
+  if(typeof renderInbox==='function')renderInbox();
+  if(typeof updateInboxBadge==='function')updateInboxBadge();
+  toast('🔔 Pushed for approval again'+(wasDecided?' (resubmitted from '+pLabel(oldStatus)+')':''));
+  notifSend('approval',{
+    subject:'Payment awaiting your approval — '+(e.vendor||'Vendor'),
+    message:'Reminder: this payment is still awaiting your approval.\n\nVendor: '+(e.vendor||'—')+'\nAmount: ₹'+fm(e.amt||0)+'\nCategory: '+(e.cat||'—')+'\nDescription: '+(e.desc||'—')+'\n\nPushed '+e.pushCount+' time(s) so far, most recently by '+who+' on '+now.toLocaleString('en-IN')+'.'
+  }).then(res=>{
+    if(!res.skipped&&res.sent)toast('🔔 Notified '+res.sent+' recipient(s) subscribed to approval pushes');
+  }).catch(()=>{});
 }
 
 function inboxApproveAll(){
@@ -9118,7 +9177,7 @@ function notifAddRecipient(){
   const name=document.getElementById('notif-r-name').value.trim();
   if(!name){toast('Name required','err');return;}
   const triggers=[];
-  ['dpr','estimates','bills','payments','actuals'].forEach(t=>{
+  ['dpr','estimates','bills','payments','approval','actuals'].forEach(t=>{
     if(document.getElementById('notif-r-t-'+t)?.checked)triggers.push(t);
   });
   const r={
@@ -9133,7 +9192,7 @@ function notifAddRecipient(){
   cfg.recipients.push(r);
   saveDB();
   ['notif-r-name','notif-r-email','notif-r-wa','notif-r-wakey'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
-  ['dpr','estimates','bills','payments','actuals'].forEach(t=>{const el=document.getElementById('notif-r-t-'+t);if(el)el.checked=false;});
+  ['dpr','estimates','bills','payments','approval','actuals'].forEach(t=>{const el=document.getElementById('notif-r-t-'+t);if(el)el.checked=false;});
   renderNotifSettings();
   toast('Recipient added');
 }
@@ -9173,7 +9232,7 @@ function renderNotifSettings(){
     tb.innerHTML='<tr><td colspan="5" style="text-align:center;color:var(--tx3);padding:14px">No recipients yet</td></tr>';
     return;
   }
-  const labels={dpr:'DPR',estimates:'Estimates',bills:'Bills',payments:'Payments',actuals:'Actuals'};
+  const labels={dpr:'DPR',estimates:'Estimates',bills:'Bills',payments:'Payments',approval:'Approval Push',actuals:'Actuals'};
   tb.innerHTML=cfg.recipients.map(r=>`
     <tr>
       <td>${esc(r.name)}</td>
@@ -9188,7 +9247,7 @@ function renderNotifSettings(){
 async function notifTest(triggerType){
   const log=document.getElementById('notif-test-log');
   if(log)log.textContent='Sending test '+triggerType+' notification…';
-  const labels={dpr:'DPR',estimates:'Estimates',bills:'Bill',payments:'Payment',actuals:'Actuals'};
+  const labels={dpr:'DPR',estimates:'Estimates',bills:'Bill',payments:'Payment',approval:'Approval Push',actuals:'Actuals'};
   const testReportHtml=notifBuildReportHtml('[Test] '+(labels[triggerType]||triggerType),
     '<p>This is a sample report attachment to confirm the local-download flow works.</p>'
     +'<table><tbody><tr><th>Field</th><th>Value</th></tr><tr><td>Trigger</td><td>'+esc(triggerType)+'</td></tr><tr><td>Time</td><td>'+esc(new Date().toLocaleString('en-IN'))+'</td></tr></tbody></table>');
@@ -16735,7 +16794,7 @@ const DEFAULT_USERS=[
 const ROLE_ACCESS={
   admin:      null,
   producer:   ['inbox','estimates','actuals','payments','bills','sched-summary','summary','budgets','hotels','flights','vehicles','notifications'],
-  transport:  ['vehicles'],
+  transport:  ['vehicles','buses'],
   hospitality:['hotels','flights'],
   cashier:    ['pettycash','petty'],
   accounts:   ['payments','bills','sched-summary','vendors','inbox'],
