@@ -955,7 +955,7 @@ body.auditor-mode #save-btn { display:none !important; }
         <div class="fld"><label>Day Category</label>
           <select id="est-day-cat" onchange="estDayNumSuggest();estSaveHeader();estLIChange()">
             <option>Shoot Day</option><option>Set Work</option><option>Rehearsal</option>
-            <option>Pre Lighting</option><option>Post Work</option><option>Recce</option><option>Off Day</option>
+            <option>Pre Lighting</option><option>Post Work</option><option>Recce</option><option>Travel Day</option><option>Off Day</option>
           </select>
         </div>
         <div class="fld"><label>Day #</label>
@@ -6797,8 +6797,8 @@ function k2Confirm(message,choices){
 const PTITLES={dash:'Dashboard',pettycash:'Petty Cash Register',estimates:'Estimates — Day Plan',vehicles:'Vehicles Log',ratecard:'Rate Card','actor-contracts':'Artists & Contracts',actuals:'Actuals',daysheet:'Day Sheet',payments:'Daily Payments',pending:'Pending Queue',actors:'Actor Payments',summary:'Summary',budgets:'Budgets & Projections',topsheet:'Topsheet',project:'Project Setup',vendors:'Vendors',schedules:'Schedules','submit-actuals':'Submit Actuals',bills:'Bills Archive',callsheets:'Call Sheets','sched-summary':'Schedule Summary Report','admin-charges':'Admin & Legal Charges','salaries':'Monthly Salaries',notifications:'Notifications',inbox:'Inbox'};
 const SUBTAG={Hire:'<span class="tag to">Hire</span>',Battas:'<span class="tag tb">Battas</span>',Remuneration:'<span class="tag tp">Rem.</span>','Daily Battas':'<span class="tag tc">Daily</span>',Expenses:'<span class="tag ts">Exp.</span>'};
 const STAG3={Paid:'<span class="tag tgn">Paid</span>',Partial:'<span class="tag tg">Partial</span>',Hold:'<span class="tag to">Hold</span>',Rejected:'<span class="tag tr2">Rejected</span>',Scheduled:'<span class="tag tp">Scheduled</span>'};
-const DAY_CAT_TAGS={'Shoot Day':'tg','Set Work':'tb','Rehearsal':'tp','Pre Lighting':'tc','Post Work':'to','Recce':'tgn','Off Day':'ts','Outdoor':'tr2'};
-const DAY_CAT_COLORS={'Shoot Day':'var(--go)','Set Work':'var(--bl)','Rehearsal':'var(--pu)','Pre Lighting':'var(--cy)','Post Work':'var(--or)','Recce':'var(--gn)','Off Day':'var(--tx3)'};
+const DAY_CAT_TAGS={'Shoot Day':'tg','Set Work':'tb','Rehearsal':'tp','Pre Lighting':'tc','Post Work':'to','Recce':'tgn','Travel Day':'tr2','Off Day':'ts','Outdoor':'tr2'};
+const DAY_CAT_COLORS={'Shoot Day':'var(--go)','Set Work':'var(--bl)','Rehearsal':'var(--pu)','Pre Lighting':'var(--cy)','Post Work':'var(--or)','Recce':'var(--gn)','Travel Day':'var(--rd)','Off Day':'var(--tx3)'};
 
 function go(p){
   const role=CURRENT_USER?.role;
