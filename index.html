@@ -2181,6 +2181,9 @@ body.auditor-mode #save-btn { display:none !important; }
             <option value="approved">Approved</option>
             <option value="paid">Paid</option>
           </select>
+          <select class="btn bs sm" id="bills-sched-filter" onchange="renderBills()" title="Print or view just one schedule/phase instead of everything">
+            <option value="">All Schedules / Phases</option>
+          </select>
           <button class="btn bs sm" onclick="expandAllBillGroups()">Expand All</button>
           <button class="btn bs sm" onclick="collapseAllBillGroups()">Collapse All</button>
           <button class="btn bs sm" onclick="printPage()">⎙ Print</button>
@@ -23642,7 +23645,7 @@ function renderBills(){
     const imgs=[...(b.images||[])];
     if(!imgs.length&&b.imageData)imgs.push({data:b.imageData,type:b.imageType||'image/jpeg',label:'Scan 1'});
     const scanCell=imgs.length
-      ?`<td style="padding:4px 6px;vertical-align:middle">
+      ?`<td class="no-print" style="padding:4px 6px;vertical-align:middle">
           <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
             ${imgs.slice(0,3).map((img,i)=>`
               <div style="position:relative;cursor:pointer" onclick="billOpenScan('${b.id}',${i})" title="${img.label||'Scan '+(i+1)}">
@@ -23656,7 +23659,7 @@ function renderBills(){
             <button class="btn bs xs" onclick="billClearAllScans('${b.id}')" style="font-size:10px;color:var(--rd);border-color:var(--rd);padding:2px 6px" title="Remove all scans to free storage space">🗑</button>
           </div>
         </td>`
-      :`<td style="padding:4px 6px;vertical-align:middle">
+      :`<td class="no-print" style="padding:4px 6px;vertical-align:middle">
           <label class="btn bs xs" style="cursor:pointer;padding:3px 8px;font-size:10px;color:var(--tx3)">
             📎 Attach<input type="file" accept="image/*,application/pdf" style="display:none" onchange="billAttachScan('${b.id}',this);renderBills()">
           </label>
@@ -23709,8 +23712,23 @@ function renderBills(){
     if(PHASE_CODES.includes(b.schedId)||b.schedId.startsWith('SCHED:'))return b.schedId; // new-style value
     return 'SCHED:'+b.schedId; // legacy bill — raw schedule id with no prefix
   });
+  // Schedule/phase filter — lets a single group be isolated for viewing or
+  // printing instead of always printing every schedule/phase together (a
+  // 9-page printout when all she wanted was Schedule 02). Options are
+  // rebuilt from whatever groups actually exist in the current bill set,
+  // so it only ever offers phases that have bills in them; "" means "all".
+  const schedFilterEl=document.getElementById('bills-sched-filter');
+  let filteredGroups=groups;
+  if(schedFilterEl){
+    const curVal=schedFilterEl.value;
+    schedFilterEl.innerHTML='<option value="">All Schedules / Phases</option>'+
+      groups.map(g=>'<option value="'+(g.phase||'__unassigned__')+'">'+esc(g.label)+' ('+g.items.length+')</option>').join('');
+    if([...schedFilterEl.options].some(o=>o.value===curVal))schedFilterEl.value=curVal;
+    const schedFilterVal=schedFilterEl.value;
+    if(schedFilterVal)filteredGroups=groups.filter(g=>(g.phase||'__unassigned__')===schedFilterVal);
+  }
   let grandTotal=0;
-  container.innerHTML=groups.map((g,gi)=>{
+  container.innerHTML=filteredGroups.map((g,gi)=>{
     const groupBills=g.items;
     let gTotal=0;
     const rowsHtml=groupBills.map(b=>{gTotal+=b.total||0;grandTotal+=b.total||0;return rowHtml(b);}).join('');
@@ -23735,7 +23753,7 @@ function renderBills(){
             <th style="white-space:nowrap">Date</th><th>Vendor</th><th>Category</th><th>Sub-Category</th>
             <th class="tr" style="white-space:nowrap">Amount ₹</th><th class="tr" style="white-space:nowrap">GST ₹</th><th class="tr" style="white-space:nowrap;color:var(--gn)">Total ₹</th>
             <th>Status</th><th style="white-space:nowrap">Shoot Date</th>
-            <th style="white-space:nowrap;width:80px">📎 Scans</th>
+            <th class="no-print" style="white-space:nowrap;width:80px">📎 Scans</th>
             <th class="no-print" style="white-space:nowrap">Actions</th>
           </tr></thead>
           <tbody>${rowsHtml}</tbody>
