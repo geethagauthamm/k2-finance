@@ -2676,6 +2676,7 @@ body.auditor-mode #save-btn { display:none !important; }
       <option value="Admin & Finance">⚫ Admin &amp; Finance</option>
     </select>
   </div>
+  <div id="upcoming-due-banner" class="no-print" style="display:none;margin:0 0 10px 0;font-size:12px;color:#94a3b8;background:#1e293b;border:1px solid #334155;border-radius:7px;padding:8px 12px"></div>
   <!-- PHASE SUMMARY BAR -->
   <div class="phase-summary-bar" id="phase-summary-bar" style="display:none"></div>
 
@@ -3053,6 +3054,13 @@ body.auditor-mode #save-btn { display:none !important; }
 
 <script>
 var S={},A='',EID=null,PHASE=1;
+// When false (the default), entries whose Due Date has been pushed to a future
+// date are held out of the main Pending list — the whole point of pushing a
+// due date is to get it off your plate until then. They reappear on their own
+// once that date arrives (getFiltered() re-checks against today's date on
+// every render), and the small banner above the table always shows how many
+// are held back so nothing goes missing silently; toggling this shows them anyway.
+var _showUpcomingDue=false;
 var PROD_APPROVED=['approved','partial'];
 var ACC_APPROVED=['acc-approved','acc-partial'];
 var PENDING_PROD=['hold','rejected'];
@@ -3261,6 +3269,13 @@ function renderTabs(){
   });
 }
 
+// Returns true if this entry's Due Date has been pushed to a future date —
+// i.e. it should be held out of the main list until that date arrives.
+function isHeldForFutureDue(e){
+  if(!e.dueDate)return false;
+  var today=new Date().toISOString().slice(0,10);
+  return e.dueDate>today;
+}
 function getFiltered(){
   var day=S[A];if(!day)return[];
   var q=(document.getElementById('search-q').value||'').toLowerCase();
@@ -3271,7 +3286,9 @@ function getFiltered(){
   if(PHASE===2)all=all.filter(function(e){return PROD_APPROVED.indexOf(e.producerStatus)>=0;});
   return all.filter(function(e){
     var text=(e.vendor+' '+e.inv+' '+e.cat+' '+(e.desc||'')+' '+(e.producerComment||'')+' '+(e.accComment||'')+' '+(e.payUTR||'')).toLowerCase();
-    return(!q||text.indexOf(q)>=0)&&(!fc||e.cat===fc)&&(!fa||e.accStatus===fa)&&(!fp||(e.producerStatus||'pending')===fp);
+    if(!(!q||text.indexOf(q)>=0)||!(!fc||e.cat===fc)||!(!fa||e.accStatus===fa)||!(!fp||(e.producerStatus||'pending')===fp))return false;
+    if(!_showUpcomingDue&&isHeldForFutureDue(e))return false;
+    return true;
   });
 }
 
@@ -3282,6 +3299,19 @@ function renderEntries(){
   // Apply phase filter
   var phaseFilter=document.getElementById('f-phase')?document.getElementById('f-phase').value:'';
   if(phaseFilter){filtered=filtered.filter(function(e){return (e.productionPhase||'')=== phaseFilter;});}
+  // Banner for entries held back because their Due Date was pushed to the future —
+  // never silently disappear money, always show a count and a way to see them.
+  var banner=document.getElementById('upcoming-due-banner');
+  if(banner){
+    var heldCount=(entries||[]).filter(isHeldForFutureDue).length;
+    if(_showUpcomingDue){
+      banner.style.display=heldCount?'':'none';
+      banner.innerHTML=heldCount?('📅 Showing '+heldCount+' entr'+(heldCount>1?'ies':'y')+' due in the future — <span style="cursor:pointer;text-decoration:underline;color:#60a5fa" onclick="_showUpcomingDue=false;renderEntries();">hide them again</span>'):'';
+    } else {
+      banner.style.display=heldCount?'':'none';
+      banner.innerHTML=heldCount?('📅 '+heldCount+' entr'+(heldCount>1?'ies':'y')+' held back — due date pushed to the future — <span style="cursor:pointer;text-decoration:underline;color:#60a5fa" onclick="_showUpcomingDue=true;renderEntries();">show anyway</span>'):'';
+    }
+  }
   var tbody=document.getElementById('tbody'),tfoot=document.getElementById('tfoot');
   var tbl=document.getElementById('etable'),em=document.getElementById('empty-msg');
   tbody.innerHTML='';
