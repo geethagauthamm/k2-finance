@@ -3304,7 +3304,11 @@ function renderEntries(){
           (e.producerStatus==='partial'&&e.producerApprovedAmt?'<div style="font-size:10px;color:#93c5fd;margin-top:1px">₹'+fm(e.producerApprovedAmt)+'</div>':'')+
           (e.producerComment?'<div style="font-size:10px;color:#64748b;margin-top:1px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:78px" title="'+e.producerComment+'">'+e.producerComment+'</div>':'')+
           (e.producerStamp?'<div style="font-size:9px;color:#22c55e;margin-top:2px;cursor:pointer" onclick="showApprovalStamp(\''+e.id+'\')" title="View approval stamp">🔏 '+e.producerStamp.dateStr+'</div>':'')+
-          (needsPush?'<div style="margin-top:3px"><button class="btn bs xs" style="font-size:9px;padding:2px 6px" onclick="event.stopPropagation();pushForApproval(\''+e.id+'\')" title="Resubmit / nudge the approver again">🔔 Push'+(e.pushCount?' ('+e.pushCount+')':'')+'</button></div>':'')+
+          (needsPush?'<div style="margin-top:3px;display:flex;gap:4px;align-items:center;flex-wrap:wrap">'+
+            '<button class="btn bs xs" style="font-size:9px;padding:2px 6px" onclick="event.stopPropagation();pushForApproval(\''+e.id+'\')" title="Resubmit / nudge the approver again">🔔 Push'+(e.pushCount?' ('+e.pushCount+')':'')+'</button>'+
+            '<button class="btn bs xs" style="font-size:9px;padding:2px 5px" onclick="event.stopPropagation();scheduleAutoPush(\''+e.id+'\')" title="Schedule this push for a future date instead of sending it now">📅</button>'+
+            '</div>':'')+
+          (e.pushScheduledFor?'<div style="font-size:9px;color:#3b82f6;margin-top:1px">📅 Scheduled '+fd(e.pushScheduledFor)+' · <span style="cursor:pointer;text-decoration:underline" onclick="event.stopPropagation();cancelScheduledPush(\''+e.id+'\')">cancel</span></div>':'')+
           (e.pushCount&&e.lastPushedAt?'<div style="font-size:9px;color:#f59e0b;margin-top:1px" title="'+new Date(e.lastPushedAt).toLocaleString('en-IN')+'">last pushed '+fmtRelTime(e.lastPushedAt)+'</div>':'')+'</td>';
         tr.innerHTML='<td><strong>'+e.vendor+'</strong>'+(e.carriedFrom?'<span class="cf-p">CF</span>':'')+(e._dupeMergedCount?'<span class="cf-p" style="background:#f59e0b" title="Merged from '+e._dupeMergedCount+' duplicate presentations, first seen '+fmtD(e._dupeFirstSeen)+'">x'+e._dupeMergedCount+'</span>':'')+entryBillBadge(e)+phaseHtml+'</td>'+
           '<td style="color:#94a3b8">'+e.inv+'</td>'+
@@ -4095,6 +4099,35 @@ function pushForApproval(id){
   }).then(res=>{
     if(!res.skipped&&res.sent)toast('🔔 Notified '+res.sent+' recipient(s) subscribed to approval pushes');
   }).catch(()=>{});
+}
+
+// Lets a push be scheduled for a future date instead of sending it right now
+// — e.g. "don't nudge them again until after the weekend." There's no server
+// running in the background here, so this can't fire at an exact time while
+// nobody has the app open; checkPaymentReminders() (called ~2.5s after every
+// page load) is what actually notices a scheduled date has arrived and fires
+// the push then — so it goes out the next time anyone opens the app on or
+// after the chosen date, not necessarily the instant that date begins.
+function scheduleAutoPush(id){
+  if(!Object.keys(S).length)ld();
+  const e=findEntry(id);if(!e)return;
+  const today=new Date().toISOString().slice(0,10);
+  const picked=(prompt('Send the push reminder on which date? (YYYY-MM-DD)\n\nIt goes out automatically the next time anyone opens the app on or after that date — this app has no background server, so it can\'t fire while nobody has it open.',e.pushScheduledFor||today)||'').trim();
+  if(!picked)return;
+  if(!/^\d{4}-\d{2}-\d{2}$/.test(picked)){toast('Enter a date as YYYY-MM-DD','err');return;}
+  if(picked<today){toast('Pick today or a future date','err');return;}
+  e.pushScheduledFor=picked;
+  sv();
+  renderEntries();
+  toast('📅 Push scheduled for '+fd(picked));
+}
+function cancelScheduledPush(id){
+  if(!Object.keys(S).length)ld();
+  const e=findEntry(id);if(!e)return;
+  e.pushScheduledFor=null;
+  sv();
+  renderEntries();
+  toast('Scheduled push cancelled');
 }
 
 function inboxApproveAll(){
@@ -5085,6 +5118,25 @@ function checkPaymentReminders(){
   var badge=document.getElementById('pay-rem-badge');
   if(badge){badge.textContent=due.length>0?due.length+' due':'';badge.style.display=due.length>0?'inline':'none';}
   if(due.length>0)setTimeout(function(){toast('📅 '+due.length+' payment reminder'+(due.length>1?'s':'')+' due','err');},1500);
+
+  // Fire any pushes that were scheduled (via scheduleAutoPush) for today or
+  // earlier — this is the only place that actually sends a scheduled push,
+  // since there's no server running in the background to fire it exactly on
+  // the chosen date. Clear pushScheduledFor BEFORE calling pushForApproval so
+  // its own save (sv()) persists the cleared value, not the stale date.
+  var toAutoPush=[];
+  getDays().forEach(function(k){(S[k]&&S[k].entries||[]).forEach(function(e){
+    if(e.pushScheduledFor&&e.pushScheduledFor<=today&&['pending','rejected','hold'].indexOf(e.producerStatus)>=0){
+      e.pushScheduledFor=null;
+      toAutoPush.push(e.id);
+    }
+  });});
+  if(toAutoPush.length){
+    setTimeout(function(){
+      toAutoPush.forEach(function(id){pushForApproval(id);});
+      toast('📅 Sent '+toAutoPush.length+' scheduled push reminder'+(toAutoPush.length>1?'s':''));
+    },1800);
+  }
 }
 // done
 </script>
