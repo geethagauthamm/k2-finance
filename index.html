@@ -11612,11 +11612,11 @@ function addVehicle(){
   const date=vehCurrentDay;
   const type=document.getElementById('veh-type')?.value.trim();
   if(!type){toast('Vehicle type required','err');return;}
-  // An "estimate" for something that already happened more than 2 days ago
+  // An "estimate" for something that already happened more than 7 days ago
   // doesn't make sense — block it outright and point at Actual instead.
   if(_vehEntryMode==='estimate'){
     const daysOld=Math.round((new Date(tod()+'T00:00:00')-new Date(date+'T00:00:00'))/86400000);
-    if(daysOld>2){
+    if(daysOld>7){
       toast('✕ Can\'t add an Estimate for '+fmtD(date)+' ('+daysOld+' days ago) — switch to "✓ Actual" instead','err');
       return;
     }
