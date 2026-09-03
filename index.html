@@ -10244,9 +10244,11 @@ function dprAddEquipCategory(){
   toast('✓ "'+label+'" added to the Equipment Grid');
 }
 // Clears this category's entered values for the date currently being
-// viewed only — the column stays put and every other date's data is left
-// alone. This is the everyday action (the ✕ next to each column header):
-// e.g. "no camera equipment today" without wiping the column project-wide.
+// viewed only — the column itself is never removed, so it's still there
+// with an empty box ready to fill in on any other date (including
+// tomorrow). No permanent/whole-project delete exists for a reason: a
+// routine "not used today" click should never be able to wipe a column
+// out from under every other date.
 async function dprClearEquipForDate(key){
   const cats=getDprEquipCats();
   const c=cats.find(x=>x.key===key);
@@ -10255,28 +10257,11 @@ async function dprClearEquipForDate(key){
   const dd=dprInit(d);
   const vals=dd.equipment[key]||[];
   if(!vals.some(v=>(v||'').toString().trim())){toast('Nothing entered under "'+c.label+'" for '+fmtD(d),'err');return;}
-  const choice=await k2Confirm('Clear "'+c.label+'" for '+fmtD(d)+'?\n\nThis only clears values entered for this date — the column and every other date\'s data are left untouched.',[{label:'Cancel',value:'cancel'},{label:'Clear',value:'clear',primary:true}]);
+  const choice=await k2Confirm('Clear "'+c.label+'" for '+fmtD(d)+' only?\n\nThe column itself stays — you can still add to it here or on any other date, including tomorrow.',[{label:'Cancel',value:'cancel'},{label:'Clear',value:'clear',primary:true}]);
   if(choice!=='clear')return;
   dd.equipment[key]=vals.map(()=>'');
   saveDB();dprRenderTab();
   toast('Cleared "'+c.label+'" for '+fmtD(d));
-}
-// Removes the category from the Equipment Grid entirely — every date loses
-// this column, and any values ever entered under it are deleted for good.
-// Kept as a separate, more clearly-labelled action from the per-date clear
-// above so a routine "not used today" click can't accidentally wipe the
-// whole project's history for a column.
-async function dprDelEquipCategoryEverywhere(key){
-  const cats=getDprEquipCats();
-  const c=cats.find(x=>x.key===key);
-  if(!c)return;
-  const choice=await k2Confirm('Delete "'+c.label+'" from the Equipment Grid for the WHOLE project?\n\nThis removes the column for every date, and any values already entered under it anywhere will be deleted too. This cannot be undone.\n\n(To just clear it for today only, use the ✕ next to the column name instead.)',[{label:'Cancel',value:'cancel'},{label:'Delete for all dates',value:'remove',primary:true}]);
-  if(choice!=='remove')return;
-  DB.dprEquipCats=cats.filter(x=>x.key!==key);
-  // Clean up the now-orphaned column data across every DPR day, not just today's.
-  Object.values(DB.dprData||{}).forEach(dd=>{if(dd&&dd.equipment)delete dd.equipment[key];});
-  saveDB();dprRenderTab();
-  toast('Deleted "'+c.label+'" from the whole project');
 }
 function dprTabEquipment(d,dd){
   const eq=dd.equipment;
@@ -10292,7 +10277,7 @@ function dprTabEquipment(d,dd){
       </div>
     </div>
     <div class="tw"><table>
-      <thead><tr>${cats.map(c=>`<th>${esc(c.label)}<span class="no-print" style="cursor:pointer;color:var(--or);margin-left:6px;font-weight:400" title="Clear this column's values for ${fmtD(d)} only — other dates untouched" onclick="dprClearEquipForDate('${c.key}')">✕</span><span class="no-print" style="cursor:pointer;color:var(--rd);margin-left:4px;font-weight:400;font-size:10px" title="Delete this column for the whole project (every date)" onclick="dprDelEquipCategoryEverywhere('${c.key}')">🗑</span></th>`).join('')}</tr></thead>
+      <thead><tr>${cats.map(c=>`<th>${esc(c.label)}<span class="no-print" style="cursor:pointer;color:var(--or);margin-left:6px;font-weight:400" title="Clear this column's values for ${fmtD(d)} only — the column stays, other dates untouched" onclick="dprClearEquipForDate('${c.key}')">✕</span></th>`).join('')}</tr></thead>
       <tbody>
         ${Array.from({length:maxRows}).map((_,ri)=>`<tr>
           ${cats.map(c=>`<td><input type="text" value="${(eq[c.key]?.[ri]||'').toString().replace(/"/g,'&quot;')}" onchange="dprEquipField('${c.key}',${ri},this.value)" placeholder="NA" style="width:100%;background:var(--sf2);border:1px solid var(--bd2);border-radius:4px;padding:4px 6px;font-size:11px"></td>`).join('')}
