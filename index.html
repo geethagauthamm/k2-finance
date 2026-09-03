@@ -5299,6 +5299,7 @@ function checkPaymentReminders(){
       <button class="day-nav-btn" onclick="dprShiftDay(1)">Next &#9654;</button>
       <input type="date" id="dpr-day-pick" onchange="dprSetDay(this.value)" class="btn bs sm" style="margin-left:8px">
       <button class="btn bs sm no-print" onclick="copyFromPrevDpr()" title="Copy Manpower, Cast/Staff, Equipment, Walkie & Mess from the last DPR that has data" style="margin-left:8px">📋 Copy Prev Day</button>
+      <button class="btn bg sm no-print" onclick="manualSave()" title="Force-save this DPR to the cloud right now — don't wait for the automatic save, and don't refresh until this shows Saved" style="margin-left:8px">💾 Save Now</button>
       <button class="btn bs sm no-print active" onclick="dprToggleView('edit')" id="dpr-edit-btn">✎ Edit</button>
       <button class="btn bs sm no-print" onclick="dprToggleView('print')" id="dpr-print-btn">👁 Preview</button>
       <span id="dpr-submit-status" class="no-print" style="font-size:11px;margin-left:8px"></span>
@@ -10284,10 +10285,11 @@ function dprTabEquipment(d,dd){
       </div>
     </div>
     <div class="tw"><table>
-      <thead><tr>${cats.map(c=>`<th>${esc(c.label)}<span class="no-print" style="cursor:pointer;color:var(--or);margin-left:6px;font-weight:400" title="Clear this column's values for ${fmtD(d)} only — the column stays, other dates untouched" onclick="dprClearEquipForDate('${c.key}')">✕</span></th>`).join('')}</tr></thead>
+      <thead><tr>${cats.map(c=>`<th>${esc(c.label)}<span class="no-print" style="cursor:pointer;color:var(--or);margin-left:6px;font-weight:400" title="Clear this column's values for ${fmtD(d)} only — the column stays, other dates untouched" onclick="dprClearEquipForDate('${c.key}')">✕</span></th>`).join('')}<th class="no-print" style="width:30px"></th></tr></thead>
       <tbody>
         ${Array.from({length:maxRows}).map((_,ri)=>`<tr>
           ${cats.map(c=>`<td><input type="text" value="${(eq[c.key]?.[ri]||'').toString().replace(/"/g,'&quot;')}" onchange="dprEquipField('${c.key}',${ri},this.value)" placeholder="NA" style="width:100%;background:var(--sf2);border:1px solid var(--bd2);border-radius:4px;padding:4px 6px;font-size:11px"></td>`).join('')}
+          <td class="no-print"><button class="btn br xs" onclick="dprDelEquipRow(${ri})" title="Delete this row (this date only)">✕</button></td>
         </tr>`).join('')}
       </tbody>
     </table></div>
@@ -10297,6 +10299,15 @@ function dprAddEquipRow(){
   const dd=dprInit(dprCurrentDay);
   getDprEquipCats().forEach(c=>{if(!dd.equipment[c.key])dd.equipment[c.key]=[];dd.equipment[c.key].push('');});
   saveDB();dprRenderTab();
+}
+// Deletes one row across every category, for the current date only — added
+// because "＋ Add Row" has no undo: click it by mistake and there was no
+// way to get rid of the extra blank row again.
+function dprDelEquipRow(ri){
+  const dd=dprInit(dprCurrentDay);
+  getDprEquipCats().forEach(c=>{if(Array.isArray(dd.equipment[c.key]))dd.equipment[c.key].splice(ri,1);});
+  saveDB();dprRenderTab();
+  toast('Row removed');
 }
 function dprEquipField(key,idx,v){
   const dd=dprInit(dprCurrentDay);
@@ -16781,6 +16792,23 @@ function mergeInCloudAdditions(cloud){
       });
     });
   }
+  // DPR data — date-keyed, one record per shoot day (header, manpower, cast,
+  // equipment, vehicles, walkie, mess...). It was missing from this function
+  // entirely, which meant a normal reload — including the hard-refresh needed
+  // after every update to this file — did a blind DB={...DB,...cloud} that
+  // replaced a date's WHOLE record with whatever was last synced, discarding
+  // anything typed in the seconds before that sync landed (saves are debounced
+  // ~800ms). That's what made freshly-entered DPR data look like it "reverted
+  // to the estimates seed" — the seed IS what the last cloud save had, since
+  // the real edit never made it up in time. Fix: never let cloud silently
+  // replace a date's DPR record that already exists locally — only add dates
+  // that are missing locally altogether.
+  if(cloud.dprData&&typeof cloud.dprData==='object'){
+    if(!DB.dprData||typeof DB.dprData!=='object')DB.dprData={};
+    Object.keys(cloud.dprData).forEach(d=>{
+      if(!(d in DB.dprData))DB.dprData[d]=cloud.dprData[d];
+    });
+  }
   // actAdhoc / _arAdv are user-EDITABLE dictionaries (advances, ad-hoc line items) —
   // unlike append-only lists such as bills/flights, deleting a key here is a
   // legitimate, intentional action. Blindly restoring anything "missing locally
@@ -16849,6 +16877,7 @@ async function _saveToSupabase(){
       try{localStorage.removeItem('k2_backup_snapshot');localStorage.setItem(STORAGE_KEY,JSON.stringify(DB));localStorage.removeItem('k2_pending_cloud_sync');}catch(e){}
       updateSyncStatus('☁ Saved · '+new Date().toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit'}),'var(--gn)');
       _unsaved=false;
+      window._unsavedChanges=false; // reached the cloud — safe to leave/refresh now
     } else {
       const err=await res.text();
       console.error('Supabase save error:',res.status,err);
@@ -16864,6 +16893,7 @@ async function _saveToSupabase(){
         // the other way round).
         try{localStorage.removeItem('k2_backup_snapshot');localStorage.setItem(STORAGE_KEY,JSON.stringify(DB));localStorage.setItem('k2_pending_cloud_sync','1');}catch(e){}
         _unsaved=false;
+        window._unsavedChanges=false; // not in the cloud yet, but safely in localStorage — recoverable on next load via k2_pending_cloud_sync
       }
     }
   }catch(e){
@@ -16874,6 +16904,7 @@ async function _saveToSupabase(){
     try{localStorage.removeItem('k2_backup_snapshot');localStorage.setItem(STORAGE_KEY,JSON.stringify(DB));localStorage.setItem('k2_pending_cloud_sync','1');}catch(e){}
     updateSyncStatus('✓ Saved locally — will sync to cloud once reconnected','var(--go)');
     _unsaved=false;
+    window._unsavedChanges=false; // not in the cloud yet, but safely in localStorage — recoverable on next load via k2_pending_cloud_sync
   }finally{
     _sbSaving=false;
   }
@@ -16921,7 +16952,15 @@ async function loadFromSupabase(){
         }
       }catch(e){console.warn('Recovering unsynced local save failed, falling back to cloud copy:',e);}
     }
-    if(!_recoveredLocal)DB={...DB,...rows[0].data};
+    if(!_recoveredLocal){
+      const localDprData=DB.dprData; // see mergeInCloudAdditions' dprData case — a
+      // plain spread here would replace a date's whole DPR record with the last
+      // synced snapshot on every routine reload, wiping out anything typed in
+      // the ~800ms before that save landed.
+      DB={...DB,...rows[0].data};
+      DB.dprData=localDprData||{};
+      mergeInCloudAdditions(rows[0].data); // still pick up any date this device never had locally at all
+    }
     _lastKnownServerUpdatedAt=rows[0].updated_at||null; // for detecting concurrent-edit conflicts on save
     if(localTombstones){
       if(!DB._tombstones)DB._tombstones={};
@@ -17003,6 +17042,14 @@ let _saveDebounceTimer=null;
 function saveDB(){
   if(CURRENT_USER?.role==='auditor'){return;} // auditor — read only
   _unsaved=true;
+  // markUnsaved() was defined but never actually called anywhere, so the
+  // beforeunload warning below was permanently dead — closing the tab or
+  // hard-refreshing during the ~800ms save debounce gave zero warning and
+  // silently dropped the edit (nothing in the cloud yet, nothing in
+  // localStorage yet either, since that only gets written once the debounced
+  // save actually runs). This is exactly the kind of moment a hard-refresh
+  // right after typing something can lose data.
+  markUnsaved();
   updateSyncStatus('☁ Saving…','var(--bl)');
   if(_saveDebounceTimer)clearTimeout(_saveDebounceTimer);
   _saveDebounceTimer=setTimeout(_saveDBNow,800);
