@@ -5291,6 +5291,7 @@ function checkPaymentReminders(){
       </div>
       <button class="day-nav-btn" onclick="dprShiftDay(1)">Next &#9654;</button>
       <input type="date" id="dpr-day-pick" onchange="dprSetDay(this.value)" class="btn bs sm" style="margin-left:8px">
+      <button class="btn bs sm no-print" onclick="copyFromPrevDpr()" title="Copy Manpower, Cast/Staff, Equipment, Walkie & Mess from the last DPR that has data" style="margin-left:8px">📋 Copy Prev Day</button>
       <button class="btn bs sm no-print active" onclick="dprToggleView('edit')" id="dpr-edit-btn">✎ Edit</button>
       <button class="btn bs sm no-print" onclick="dprToggleView('print')" id="dpr-print-btn">👁 Preview</button>
       <span id="dpr-submit-status" class="no-print" style="font-size:11px;margin-left:8px"></span>
@@ -9654,6 +9655,36 @@ function dprInit(d){
     if(changed)saveDB();
   }
   return dd;
+}
+
+// True if a saved DPR day has anything worth copying from — an untouched
+// auto-seeded skeleton (or a day nobody ever opened) shouldn't count as
+// "the previous day" just because a key exists in DB.dprData.
+function dprHasContent(dd){
+  if(!dd)return false;
+  return (dd.manpower||[]).length>0||(dd.castStaff||[]).length>0||(dd.walkie||[]).length>0||(dd.mess||[]).length>0||
+    Object.values(dd.equipment||{}).some(arr=>(arr||[]).some(v=>(v||'').toString().trim()));
+}
+// Copy Prev Day — same idea as the Vehicles/Actor Log version. Only the
+// rosters that tend to repeat day-to-day are copied: Manpower, Cast/Staff,
+// Equipment, Walkie, Mess. Header (mostly auto-fills from the call sheet),
+// Timeline and Notes/Incidents are today's own story, and Vehicles already
+// has its own "Pull from Vehicles Log" button — none of those are touched.
+function copyFromPrevDpr(){
+  const d=dprCurrentDay;
+  const allDates=Object.keys(DB.dprData||{}).filter(k=>k<d&&dprHasContent(DB.dprData[k])).sort();
+  const prevDate=allDates.pop();
+  if(!prevDate){toast('No previous DPR with data found to copy from','err');return;}
+  if(!confirm('Copy Manpower, Cast/Staff, Equipment, Walkie and Mess from '+fmtD(prevDate)+' to '+fmtD(d)+'?\n\nHeader, Timeline, Vehicles and Notes/Incidents are day-specific and will NOT be copied — this will overwrite anything already entered in the 5 sections above for '+fmtD(d)+'.'))return;
+  const dd=dprInit(d);
+  const prev=DB.dprData[prevDate];
+  dd.manpower=JSON.parse(JSON.stringify(prev.manpower||[]));
+  dd.castStaff=JSON.parse(JSON.stringify(prev.castStaff||[]));
+  dd.equipment=JSON.parse(JSON.stringify(prev.equipment||{}));
+  dd.walkie=JSON.parse(JSON.stringify(prev.walkie||[]));
+  dd.mess=JSON.parse(JSON.stringify(prev.mess||[]));
+  saveDB();dprRenderTab();
+  toast('✓ Copied Manpower, Cast/Staff, Equipment, Walkie & Mess from '+fmtD(prevDate));
 }
 
 // Re-sync: smart merge — only update rows whose count still matches the original seeded value (not manually edited)
