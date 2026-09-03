@@ -3083,7 +3083,11 @@ body.auditor-mode #save-btn { display:none !important; }
   </div>
 </div>
 
-<div class="toast" id="toast">Entry added</div>
+<!-- Old Payment Tracker toast box — removed. It duplicated id="toast" with the
+     real one (further down the page) and always carried this leftover literal
+     "Entry added" text, which is why every toast message on the whole app was
+     showing "Entry added" above it: getElementById('toast') always grabs the
+     FIRST element with that id, which was this one. -->
 
 <script>
 var S={},A='',EID=null,PHASE=1;
@@ -3117,7 +3121,10 @@ function sv(){
   }
   var ss=document.getElementById('save-status');if(ss)ss.textContent='✓ Saved — '+new Date().toLocaleTimeString();
 }
-function toast(msg){var t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');setTimeout(function(){t.classList.remove('show')},2500);}
+// (old single-message toast(msg) removed — it belonged to the deleted div
+// above, was fully shadowed by the newer toast(msg,type) further down the
+// file anyway since JS keeps only the last declaration, and kept the
+// old .toast/.show CSS on life support for no reason.)
 
 // ── CATEGORIES ──
 function getCats(){if(!S._cats)S._cats=DEFAULT_CATS.slice();return S._cats;}
