@@ -1659,7 +1659,7 @@ body.auditor-mode #save-btn { display:none !important; }
         <th class="tr">Batta/CS</th><th class="tr">Batta Total</th>
         <th class="tr">Fuel Est</th><th class="tr">Grand Total</th>
         <th>Notes</th><th class="tr">Act Hire</th><th class="tr">Act Batta</th><th class="tr">Act Fuel</th>
-        <th class="no-print"></th>
+        <th class="no-print"></th><th class="no-print"></th>
       </tr></thead><tbody id="veh-log-body"></tbody>
       <tfoot id="veh-log-foot"></tfoot></table></div>
     </div>
@@ -2905,6 +2905,39 @@ body.auditor-mode #save-btn { display:none !important; }
     <div class="flex gap8 jb" style="margin-top:14px">
       <button class="btn br" onclick="closeModal('modal-bus-edit')">Cancel</button>
       <button class="btn bg" onclick="saveBusEdit()">Save Changes</button>
+    </div>
+  </div>
+</div>
+
+<!-- VEHICLE EDIT MODAL -->
+<div class="modal-bg" id="modal-vehicle-edit">
+  <div class="modal" style="max-width:640px;width:95%">
+    <h3>Edit Vehicle Entry</h3>
+    <input type="hidden" id="veh-edit-date">
+    <input type="hidden" id="veh-edit-id">
+    <div class="fg mb8" style="grid-template-columns:1fr 1fr 1fr">
+      <div class="field"><label>Vehicle Type *</label><input type="text" id="veh-edit-type"></div>
+      <div class="field"><label>Vendor / Driver</label><input type="text" id="veh-edit-vendor"></div>
+      <div class="field"><label>Phase</label><select id="veh-edit-phase"><option value="">— Select Phase —</option></select></div>
+    </div>
+    <div class="fg mb8" style="grid-template-columns:1fr 1fr 1fr">
+      <div class="field"><label>Vehicle No.</label><input type="text" id="veh-edit-number"></div>
+      <div class="field"><label>Qty</label><input type="number" id="veh-edit-qty" min="1"></div>
+      <div class="field"><label>Call Sheets (override)</label><input type="number" id="veh-edit-cs" placeholder="uses day default"></div>
+    </div>
+    <div class="fg mb8" style="grid-template-columns:1fr 1fr 1fr 1fr">
+      <div class="field"><label>Hire/Day (₹)</label><input type="number" id="veh-edit-hire"></div>
+      <div class="field"><label>Batta/CS (₹)</label><input type="number" id="veh-edit-batta"></div>
+      <div class="field"><label>Allowance (₹)</label><input type="number" id="veh-edit-allow"></div>
+      <div class="field"><label>Fuel (₹)</label><input type="number" id="veh-edit-fuel"></div>
+    </div>
+    <div class="fg mb8" style="grid-template-columns:1fr 1fr">
+      <div class="field"><label>Purpose</label><input type="text" id="veh-edit-purpose"></div>
+      <div class="field"><label>Notes</label><input type="text" id="veh-edit-notes"></div>
+    </div>
+    <div class="flex gap8 jb" style="margin-top:14px">
+      <button class="btn br" onclick="closeModal('modal-vehicle-edit')">Cancel</button>
+      <button class="btn bg" onclick="saveVehicleEdit()">Save Changes</button>
     </div>
   </div>
 </div>
@@ -5428,7 +5461,7 @@ function checkPaymentReminders(){
             <option value="coordinator">Production Coordinator</option>
             <option value="accounts">Accounts</option>
             <option value="cashier">Cashier — Petty Cash only</option>
-            <option value="transport">Transport Manager — Vehicles only</option>
+            <option value="transport">Transport Manager — Vehicles &amp; DPR</option>
             <option value="hospitality">Hospitality Manager — Hotels & Flights</option>
             <option value="auditor" selected>Auditor — Read Only</option>
           </select>
@@ -10147,26 +10180,68 @@ function dprSyncManpowerFromActuals(){
 }
 
 // ── EQUIPMENT TAB ──
-const DPR_EQUIP_CATS=[
+// Equipment Grid columns used to be a fixed, hardcoded list — there was no
+// way to add a category the app didn't already ship with (Rostrum, Cranes,
+// Truss, etc. had nowhere to go). Now it's stored in DB.dprEquipCats so it
+// can be extended from the UI; DEFAULT_DPR_EQUIP_CATS only seeds it the
+// first time, it isn't read anywhere after that.
+const DEFAULT_DPR_EQUIP_CATS=[
   {key:'camera',label:'Camera Systems'},{key:'lens',label:'Lens Packages'},
   {key:'camSupport',label:'Camera Support'},{key:'lighting',label:'Lighting Systems'},
   {key:'power',label:'Power Equipment'},{key:'rigging',label:'Rigging Equipment'},
-  {key:'cooling',label:'Cooling Equipment'},{key:'comm',label:'Communication Systems'}
+  {key:'cooling',label:'Cooling Equipment'},{key:'comm',label:'Communication Systems'},
+  {key:'rostrum',label:'Rostrum'},{key:'cranes',label:'Cranes'},{key:'truss',label:'Truss'}
 ];
+function getDprEquipCats(){
+  if(!DB.dprEquipCats||!DB.dprEquipCats.length)DB.dprEquipCats=JSON.parse(JSON.stringify(DEFAULT_DPR_EQUIP_CATS));
+  return DB.dprEquipCats;
+}
+function dprEquipKeyFromLabel(label){
+  let base=(label||'').toLowerCase().trim().replace(/[^a-z0-9]+/g,'_').replace(/^_+|_+$/g,'')||'equip';
+  const cats=getDprEquipCats();
+  let key=base,n=2;
+  while(cats.some(c=>c.key===key)){key=base+'_'+n;n++;}
+  return key;
+}
+function dprAddEquipCategory(){
+  const label=(prompt('New equipment category name (e.g. Rostrum, Cranes, Truss, Dolly Track):')||'').trim();
+  if(!label){return;}
+  const cats=getDprEquipCats();
+  if(cats.some(c=>c.label.toLowerCase()===label.toLowerCase())){toast('That category already exists','err');return;}
+  cats.push({key:dprEquipKeyFromLabel(label),label});
+  saveDB();dprRenderTab();
+  toast('✓ "'+label+'" added to the Equipment Grid');
+}
+async function dprDelEquipCategory(key){
+  const cats=getDprEquipCats();
+  const c=cats.find(x=>x.key===key);
+  if(!c)return;
+  const choice=await k2Confirm('Remove "'+c.label+'" from the Equipment Grid?\n\nAny values already entered under this column, for every date, will be deleted too.',[{label:'Cancel',value:'cancel'},{label:'Remove',value:'remove',primary:true}]);
+  if(choice!=='remove')return;
+  DB.dprEquipCats=cats.filter(x=>x.key!==key);
+  // Clean up the now-orphaned column data across every DPR day, not just today's.
+  Object.values(DB.dprData||{}).forEach(dd=>{if(dd&&dd.equipment)delete dd.equipment[key];});
+  saveDB();dprRenderTab();
+  toast('Removed "'+c.label+'"');
+}
 function dprTabEquipment(d,dd){
   const eq=dd.equipment;
-  const maxRows=Math.max(1,...DPR_EQUIP_CATS.map(c=>(eq[c.key]||[]).length));
+  const cats=getDprEquipCats();
+  const maxRows=Math.max(1,...cats.map(c=>(eq[c.key]||[]).length));
   return`
   <div class="card">
     <div class="flex aic jb mb10">
       <div class="ct" style="margin:0">Equipment Grid</div>
-      <button class="btn bg sm" onclick="dprAddEquipRow()">＋ Add Row</button>
+      <div class="flex gap8">
+        <button class="btn bs sm" onclick="dprAddEquipCategory()" title="Add a new equipment column, e.g. Rostrum, Cranes, Truss">＋ Add Category</button>
+        <button class="btn bg sm" onclick="dprAddEquipRow()">＋ Add Row</button>
+      </div>
     </div>
     <div class="tw"><table>
-      <thead><tr>${DPR_EQUIP_CATS.map(c=>`<th>${c.label}</th>`).join('')}</tr></thead>
+      <thead><tr>${cats.map(c=>`<th>${esc(c.label)}<span class="no-print" style="cursor:pointer;color:var(--rd);margin-left:6px;font-weight:400" title="Remove this category" onclick="dprDelEquipCategory('${c.key}')">✕</span></th>`).join('')}</tr></thead>
       <tbody>
         ${Array.from({length:maxRows}).map((_,ri)=>`<tr>
-          ${DPR_EQUIP_CATS.map(c=>`<td><input type="text" value="${(eq[c.key]?.[ri]||'').toString().replace(/"/g,'&quot;')}" onchange="dprEquipField('${c.key}',${ri},this.value)" placeholder="NA" style="width:100%;background:var(--sf2);border:1px solid var(--bd2);border-radius:4px;padding:4px 6px;font-size:11px"></td>`).join('')}
+          ${cats.map(c=>`<td><input type="text" value="${(eq[c.key]?.[ri]||'').toString().replace(/"/g,'&quot;')}" onchange="dprEquipField('${c.key}',${ri},this.value)" placeholder="NA" style="width:100%;background:var(--sf2);border:1px solid var(--bd2);border-radius:4px;padding:4px 6px;font-size:11px"></td>`).join('')}
         </tr>`).join('')}
       </tbody>
     </table></div>
@@ -10174,7 +10249,7 @@ function dprTabEquipment(d,dd){
 }
 function dprAddEquipRow(){
   const dd=dprInit(dprCurrentDay);
-  DPR_EQUIP_CATS.forEach(c=>{if(!dd.equipment[c.key])dd.equipment[c.key]=[];dd.equipment[c.key].push('');});
+  getDprEquipCats().forEach(c=>{if(!dd.equipment[c.key])dd.equipment[c.key]=[];dd.equipment[c.key].push('');});
   saveDB();dprRenderTab();
 }
 function dprEquipField(key,idx,v){
@@ -10335,7 +10410,8 @@ function renderDPR(d){
   const paTotal=dd.walkie.filter(r=>r.type==='PA').reduce((s,r)=>s+(parseFloat(r.count)||0),0);
   const totalUnitStrength=crewTotal+castTotal+artistStaffTotal+extrasTotal;
 
-  const equipRows=Math.max(1,...DPR_EQUIP_CATS.map(c=>(dd.equipment[c.key]||[]).length));
+  const equipCats=getDprEquipCats();
+  const equipRows=Math.max(1,...equipCats.map(c=>(dd.equipment[c.key]||[]).length));
 
   const html=`
   <div style="font-family:Arial,sans-serif;max-width:1000px;margin:0 auto;padding:20px" id="dpr-print-area">
@@ -10373,8 +10449,8 @@ function renderDPR(d){
 
     <div style="background:#1e3a5f;color:#fff;padding:6px 10px;font-weight:700;font-size:13px">EQUIPMENT GRID</div>
     <table style="width:100%;border-collapse:collapse;font-size:10px;margin-bottom:10px">
-      <tr>${DPR_EQUIP_CATS.map(c=>`<th style="padding:5px 6px;border:1px solid #ccc;background:#f0f0f0;font-size:9px;text-transform:uppercase">${c.label}</th>`).join('')}</tr>
-      ${Array.from({length:equipRows}).map((_,ri)=>`<tr>${DPR_EQUIP_CATS.map(c=>`<td style="padding:4px 6px;border:1px solid #ccc">${dd.equipment[c.key]?.[ri]||'NA'}</td>`).join('')}</tr>`).join('')}
+      <tr>${equipCats.map(c=>`<th style="padding:5px 6px;border:1px solid #ccc;background:#f0f0f0;font-size:9px;text-transform:uppercase">${c.label}</th>`).join('')}</tr>
+      ${Array.from({length:equipRows}).map((_,ri)=>`<tr>${equipCats.map(c=>`<td style="padding:4px 6px;border:1px solid #ccc">${dd.equipment[c.key]?.[ri]||'NA'}</td>`).join('')}</tr>`).join('')}
     </table>
 
     <div style="background:#1e3a5f;color:#fff;padding:6px 10px;font-weight:700;font-size:13px">TIMELINE</div>
@@ -11672,6 +11748,56 @@ function addVehicle(){
   toast(`✓ ${qty}× ${type} added — ${fmt(total)}`+advanceMsg);
 }
 
+// Full edit modal — Hotels/Flights/Buses have always had one of these, but
+// Vehicles never did: the only fields you could change after adding a row
+// were CS override / Purpose (inline) and Actual amounts (their own modal).
+// Type, Vendor, Qty, rates, and — critically — Phase were stuck forever once
+// saved, so a vehicle added without a Phase had no way to have one added
+// later short of deleting and re-entering it from scratch. This opens that up.
+function editVehicle(date,id){
+  const v=(DB.vehicles||{})[date]?.find(x=>x.id===id);
+  if(!v)return;
+  document.getElementById('veh-edit-date').value=date;
+  document.getElementById('veh-edit-id').value=id;
+  document.getElementById('veh-edit-type').value=v.type||'';
+  document.getElementById('veh-edit-vendor').value=v.vendorName||'';
+  const phaseSel=document.getElementById('veh-edit-phase');
+  if(phaseSel)phaseSel.innerHTML=getPhaseOptionsHtml(v.phase||'');
+  document.getElementById('veh-edit-number').value=v.vehNumber||'';
+  document.getElementById('veh-edit-qty').value=v.qty||1;
+  document.getElementById('veh-edit-cs').value=(v.csOverride!=null?v.csOverride:'');
+  document.getElementById('veh-edit-hire').value=v.hire||'';
+  document.getElementById('veh-edit-batta').value=v.batta||'';
+  document.getElementById('veh-edit-allow').value=v.allow||'';
+  document.getElementById('veh-edit-fuel').value=v.fuel||'';
+  document.getElementById('veh-edit-purpose').value=v.purpose||'';
+  document.getElementById('veh-edit-notes').value=v.notes||'';
+  document.getElementById('modal-vehicle-edit').classList.add('open');
+}
+function saveVehicleEdit(){
+  const date=document.getElementById('veh-edit-date').value;
+  const id=document.getElementById('veh-edit-id').value;
+  const v=(DB.vehicles||{})[date]?.find(x=>x.id===id);
+  if(!v){toast('Vehicle entry not found','err');return;}
+  const type=document.getElementById('veh-edit-type').value.trim();
+  if(!type){toast('Vehicle type required','err');return;}
+  v.type=type;
+  v.vendorName=document.getElementById('veh-edit-vendor').value.trim();
+  v.phase=document.getElementById('veh-edit-phase')?.value||'';
+  v.vehNumber=document.getElementById('veh-edit-number').value.trim();
+  v.qty=parseInt(document.getElementById('veh-edit-qty').value)||1;
+  const csVal=document.getElementById('veh-edit-cs').value;
+  v.csOverride=(csVal!==''&&csVal!=null)?parseFloat(csVal):null;
+  v.hire=parseFloat(document.getElementById('veh-edit-hire').value)||0;
+  v.batta=parseFloat(document.getElementById('veh-edit-batta').value)||0;
+  v.allow=parseFloat(document.getElementById('veh-edit-allow').value)||0;
+  v.fuel=parseFloat(document.getElementById('veh-edit-fuel').value)||0;
+  v.purpose=document.getElementById('veh-edit-purpose').value.trim();
+  v.notes=document.getElementById('veh-edit-notes').value.trim();
+  v.total=(v.hire||0)*(v.qty||1)+(v.batta||0)*(v.csOverride!=null?v.csOverride:(parseFloat((DB.dayHeaders||{})[date]?.cs)||1))*(v.qty||1)+(v.allow||0)*(v.qty||1)+(v.fuel||0);
+  saveDB();closeModal('modal-vehicle-edit');renderVehicleLog();renderEstTable();renderVehiclesMaster();
+  toast('✓ Vehicle entry updated');
+}
 function delVehicle(date,id){
   if(!confirm('Delete vehicle entry?'))return;
   if(DB.vehicles&&DB.vehicles[date])DB.vehicles[date]=DB.vehicles[date].filter(v=>v.id!==id);
@@ -12343,6 +12469,7 @@ function renderVehicleLog(){
       <td class="act-input-cell"><input class="act-inline" type="number" value="${v.actHire||''}" placeholder="act hire" onchange="saveVehActual('${d}','${v.id}','actHire',this.value)"></td>
       <td class="act-input-cell"><input class="act-inline" type="number" value="${v.actBatta||''}" placeholder="act batta" onchange="saveVehActual('${d}','${v.id}','actBatta',this.value)"></td>
       <td class="act-input-cell"><input class="act-inline" type="number" value="${v.actFuel||''}" placeholder="act fuel" onchange="saveVehActual('${d}','${v.id}','actFuel',this.value)"></td>
+      <td class="no-print"><button class="btn bs xs" onclick="editVehicle('${d}','${v.id}')" title="Edit type, vendor, phase, rates, etc.">✎</button></td>
       <td class="no-print"><button class="btn br xs" onclick="delVehicle('${d}','${v.id}')">✕</button></td>
     </tr>`;
   }).join('');
@@ -12356,7 +12483,7 @@ function renderVehicleLog(){
     <td class="tn tr green">${tAH>0?fmt(tAH):'—'}</td>
     <td class="tn tr green">${tAB>0?fmt(tAB):'—'}</td>
     <td class="tn tr green">${tAF>0?fmt(tAF):'—'}</td>
-    <td></td>
+    <td></td><td></td>
   </tr>`;
 }
 
@@ -12520,6 +12647,7 @@ function renderVehiclesMaster(){
         ${amtCols}
         ${purposeCell}
         <td class="dim xs2">${esc(v.notes||'—')}</td>
+        <td class="no-print"><button class="btn bs xs" onclick="editVehicle('${v._date}','${v.id}')" title="Edit type, vendor, phase, rates, etc.">✎</button></td>
         <td class="no-print"><button class="btn br xs" onclick="delVehicle('${v._date}','${v.id}')">✕</button></td>
       </tr>`;
     }).join('');
@@ -12557,9 +12685,9 @@ function renderVehiclesMaster(){
           <th class="tr no-print" title="Call sheets used for this row's Batta calc — defaults to the day's overall CS, type a number to override just this vehicle">CS</th>
           ${amtHeaders}
           <th class="no-print">Purpose</th>
-          <th>Notes</th><th class="no-print"></th>
+          <th>Notes</th><th class="no-print"></th><th class="no-print"></th>
         </tr></thead><tbody>${rowsHtml}</tbody>
-        <tfoot><tr class="est-section-total"><td colspan="9" class="tr semi">GROUP TOTAL (${isActualView?'Actual':'Est.'})</td><td class="tr mono semi gold">${fmt(gTotal)}</td><td colspan="4"></td></tr></tfoot>
+        <tfoot><tr class="est-section-total"><td colspan="9" class="tr semi">GROUP TOTAL (${isActualView?'Actual':'Est.'})</td><td class="tr mono semi gold">${fmt(gTotal)}</td><td colspan="5"></td></tr></tfoot>
         </table></div>
       </div>
     </div>`;
@@ -16926,7 +17054,7 @@ const DEFAULT_USERS=[
 const ROLE_ACCESS={
   admin:      null,
   producer:   ['inbox','estimates','actuals','payments','bills','sched-summary','summary','budgets','hotels','flights','vehicles','notifications'],
-  transport:  ['vehicles','buses'],
+  transport:  ['vehicles','buses','dpr'],
   hospitality:['hotels','flights'],
   cashier:    ['pettycash','petty'],
   accounts:   ['payments','bills','sched-summary','vendors','inbox'],
